@@ -16,7 +16,7 @@ Real pow();
 
 void testdata(int nbody)
 {
-   real rsc, vsc, rsq, r, v, x, y;
+   Real rsc, vsc, rsq, r, v, x, y;
    Vector3D<Real> cmr, cmv;
    Particle *p;
    int rejects = 0;
@@ -33,24 +33,21 @@ void testdata(int nbody)
    rsc = 9 * PI / 16;
    vsc = sqrt(1.0 / rsc);
 
-   CLRV(cmr);
-   CLRV(cmv);
+   cmr = Vector3D<Real>(0.0);
+   cmv = Vector3D<Real>(0.0);
 
    halfnbody = nbody / 2;
    if (nbody % 2 != 0) halfnbody++;
    for (p = bodytab; p < bodytab+halfnbody; p++) {
-      Type(p) = BODY;
-      Mass(p) = 1.0 / nbody;
-      Cost(p) = 1;
-
+      p->mass = 1.0/nbody;
       r = 1 / sqrt(pow(xrand(0.0, MFRAC), -2.0/3.0) - 1);
       /*   reject radii greater than 10 */
       while (r > 9.0) {
 	 rejects++;
 	 r = 1 / sqrt(pow(xrand(0.0, MFRAC), -2.0/3.0) - 1);
       }        
-      pickshell(Pos(p), rsc * r);
-      ADDV(cmr, cmr, Pos(p));
+      pickshell(p->position, rsc * r);
+      cmr += p->position;
       do {
 	 x = xrand(0.0, 1.0);
 	 y = xrand(0.0, 0.1);
@@ -58,32 +55,27 @@ void testdata(int nbody)
       } while (y > x*x * pow(1 - x*x, 3.5));
 
       v = sqrt(2.0) * x / pow(1 + r*r, 0.25);
-      pickshell(Vel(p), vsc * v);
-      ADDV(cmv, cmv, Vel(p));
+      pickshell(p->velocity, vsc * v);
+      cmv += p->velocity;
    }
 
    offset = 4.0;
 
    for (p = bodytab + halfnbody; p < bodytab+nbody; p++) {
-      Type(p) = BODY;
-      Mass(p) = 1.0 / nbody;
-      Cost(p) = 1;
-
+      p->mass = 1.0 / nbody;
       cp = p - halfnbody;
-      for (i = 0; i < NDIM; i++){
-	 Pos(p)[i] = Pos(cp)[i] + offset; 
-	 ADDV(cmr, cmr, Pos(p));
-	 Vel(p)[i] = Vel(cp)[i];
-	 ADDV(cmv, cmv, Vel(p));
-      }
+      p->position = cp->position+offset;
+      p->velocity = cp->velocity;
+      cmr += p->position;
+      cmv += p->position;
    }
 
-   DIVVS(cmr, cmr, (real) nbody);
-   DIVVS(cmv, cmv, (real) nbody);
+   cmr /= nbody;
+   cmv /= nbody;
 
    for (p = bodytab; p < bodytab+nbody; p++) {
-      SUBV(Pos(p), Pos(p), cmr);
-      SUBV(Vel(p), Vel(p), cmv);
+     p->position -= cmr;
+     p->velocity -= cmv;
    }
 }
 
@@ -91,22 +83,22 @@ void testdata(int nbody)
  * PICKSHELL: pick a random point on a sphere of specified radius.
  */
 
-pickshell(vec, rad)
-   real vec[];                     /* coordinate vector chosen */
-   real rad;                       /* radius of chosen point */
+void pickshell(Vector3D<Real> &vec, Real rad)
+   //Real vec[];                     /* coordinate vector chosen */
+   //Real rad;                       /* radius of chosen point */
 {
    register int k;
-   double rsq, xrand(), sqrt(), rsc;
+   Real rsq, rsc;
 
    do {
-      for (k = 0; k < NDIM; k++) {
-	 vec[k] = xrand(-1.0, 1.0);
-      }
-      DOTVP(rsq, vec, vec);
+     vec.x = xrand(-1.0,1.0);
+     vec.y = xrand(-1.0,1.0);
+     vec.z = xrand(-1.0,1.0);
+     rsq = vec.lengthSquared();
    } while (rsq > 1.0);
 
    rsc = rad / sqrt(rsq);
-   MULVS(vec, vec, rsc);
+   vec = rsc*vec;
 }
 
 
