@@ -5,14 +5,14 @@ Parameters.h \
 defines.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-MultipoleMoments.h \
-Vector3D.h \
 TreePiece.h \
 Particle.h \
+Vector3D.h \
 Messages.h \
+MultipoleMoments.h \
 Node.h \
 util.h \
+Descriptor.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
@@ -30,10 +30,10 @@ defines.h \
 Vector3D.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-MultipoleMoments.h \
 Node.h \
+MultipoleMoments.h \
 util.h \
+Descriptor.h \
 ActiveBinInfo.h \
 Traversal_decls.h \
 Worker.h \
@@ -50,13 +50,13 @@ TreePiece.h \
 defines.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-MultipoleMoments.h \
-Vector3D.h \
 Particle.h \
+Vector3D.h \
 Messages.h \
+MultipoleMoments.h \
 Node.h \
 util.h \
+Descriptor.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
@@ -97,10 +97,10 @@ Worker.cpp \
 Worker.h \
 Node.h \
 MultipoleMoments.h \
-OrientedBox.h \
 Vector3D.h \
-Particle.h \
 defines.h \
+OrientedBox.h \
+Particle.h \
 util.h \
 Descriptor.h \
 DataManager.h \
@@ -120,10 +120,10 @@ Request.cpp \
 Request.h \
 Node.h \
 MultipoleMoments.h \
-OrientedBox.h \
 Vector3D.h \
-Particle.h \
 defines.h \
+OrientedBox.h \
+Particle.h \
 util.h \
 Descriptor.h \
 State.h \
@@ -139,10 +139,10 @@ State.o: \
 State.cpp \
 Node.h \
 MultipoleMoments.h \
-OrientedBox.h \
 Vector3D.h \
-Particle.h \
 defines.h \
+OrientedBox.h \
+Particle.h \
 util.h \
 Descriptor.h \
 State.h \
@@ -150,6 +150,4 @@ TreePiece.h \
 barnes.decl.h \
 Messages.h \
 Worker.h \
-
-particleGenerator.o: \
 

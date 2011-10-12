@@ -1,14 +1,8 @@
-/** \file MultipoleMoments.h
- */
-
 #ifndef MULTIPOLEMOMENTS_H
 #define MULTIPOLEMOMENTS_H
 
-#include <cmath>
-#include <assert.h>
-
-#include "OrientedBox.h"
 #include "Vector3D.h"
+#include "defines.h"
 
 class FullTreeNode;
 class Particle;

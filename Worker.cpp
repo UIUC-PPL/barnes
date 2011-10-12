@@ -109,18 +109,6 @@ void MomentsWorker::setTypeFromChildren(Node<ForceData> *node){
     // didn't have at least some particles under it
     // therefore, the node can't be remote
     node->setType(Boundary);
-    child = node->getChildren();
-    for(int i = 0; i < numChildren; i++){
-      NodeType childType = child->getType();
-      if(childType == Internal 
-         || childType == Bucket 
-         || childType == EmptyBucket){
-#ifdef DECOMP_ALLTOALL
-        contributions.push_back(child);
-#endif
-      }
-      child++;
-    }
   }
 }
 
@@ -141,7 +129,7 @@ int TraversalWorker::work(Node<ForceData> *node){
     return 1;
   }
 
-  int computed = nodeBucketForce(node,currentBucket,offset);
+  int computed = nodeBucketForce(node,currentBucket);
   state->nodeComputed(currentBucket,node->getKey());
   state->incrPartNodeInteractions(currentBucket->getKey(),computed);
   return 0;
@@ -153,7 +141,7 @@ void TraversalWorker::work(ExternalParticle *particle){
     CkAssert(!isnan((currentBucket->getParticles()+i)->position.length()));
   }
   */
-  int computed = partBucketForce(particle,currentBucket,currentBucket->getParticles(),offset);
+  int computed = partBucketForce(particle,currentBucket);
   state->incrPartPartInteractions(currentBucket->getKey(),computed);
 }
 

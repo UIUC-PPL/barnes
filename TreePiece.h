@@ -34,22 +34,9 @@ class TreePiece : public CBase_TreePiece {
 
   Traversal<ForceData> trav;
 
-  /*
-  State remoteTraversalState;
-  RemoteTraversalWorker remoteTraversalWorker;
-  */
-
-#if 0
-  void copyParticles();
-  void buildTree();
-  void printTree();
-#endif
-
   Key smallestKey;
   Key largestKey;
   DataManager *myDM;
-
-
 
   void submitParticles();
 

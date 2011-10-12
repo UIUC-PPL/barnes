@@ -23,13 +23,8 @@ void copyMomentsToNode(Node<ForceData> *node, const MomentsExchangeStruct &mes){
 
   node->data.moments = mes.moments;
   node->data.box = mes.box;
-#ifndef DECOMP_ALLTOALL
   NodeType type = mes.type;
   node->setType(Node<ForceData>::makeRemote(type));
-#else
-  node->setOwnerStart(mes.ownerStart);
-  node->setOwnerEnd(mes.ownerEnd);
-#endif
 
 }
 
@@ -556,19 +551,10 @@ void DataManager::processSubmittedParticles(){
   // are all particles local to this PE? 
   if(root != NULL && root->getType() == Internal){
     CkAssert(uniqueNodes.length() == 0);
-#ifdef DECOMP_ALLTOALL
-    uniqueNodes.push_back(root);
-#endif
     passMomentsUpward(root);
   }
 
-#ifndef DECOMP_ALLTOALL
   flushMomentRequests();
-#else
-  exchangeUniqueNodes();
-  processMomentUpdates();
-#endif
-
 }
 
 void DataManager::buildTree(){
@@ -825,14 +811,12 @@ void DataManager::updateLeafMoments(Node<ForceData> *node, MomentsExchangeStruct
 
 void DataManager::passMomentsUpward(Node<ForceData> *node){
   TB_DEBUG("(%d) passUp %lu\n", CkMyPe(), node->getKey());
-#ifndef DECOMP_ALLTOALL
   map<Key,CkVec<int> >::iterator it = pendingMoments.find(node->getKey());
   if(it != pendingMoments.end()){
     CkVec<int> &requestors = it->second;
     respondToMomentsRequest(node,requestors);
     pendingMoments.erase(it);
   }
-#endif
 
   Node<ForceData> *parent = node->getParent();
   if(parent == NULL){
@@ -1148,7 +1132,7 @@ void DataManager::advance(CkReductionMsg *msg){
 
   if(CkMyPe() == 0){
 #ifdef STATISTICS
-    CkPrintf("[STATS] node inter %lu part inter %lu vbya %f dt %f\n", dtred->pnInteractions, dtred->ppInteractions, dtred->vbya, dt_x);
+    CkPrintf("[STATS] node inter %lu part inter %lu dt %f\n", dtred->pnInteractions, dtred->ppInteractions, globalParams.dtime);
 #endif
   }
 
@@ -1292,13 +1276,13 @@ OrientedBox<Real> DataManager::kickDriftKick(){
 
   Real dt_k1, dt_k2;
   if(iteration == 0){
-    dt_k1 = dtime;
+    dt_k1 = globalParams.dtime;
   }
   else{
-    dt_k1 = dthf;
+    dt_k1 = globalParams.dthf;
   }
 
-  dt_k2 = dthf;
+  dt_k2 = globalParams.dthf;
 
   Particle *pstart = myParticles.getVec();
   Particle *pend = myParticles.getVec()+myNumParticles;
@@ -1306,7 +1290,7 @@ OrientedBox<Real> DataManager::kickDriftKick(){
     // kick
     p->velocity += dt_k1*p->acceleration;
     // drift
-    p->position += dtime*p->velocity;
+    p->position += globalParams.dtime*p->velocity;
     // kick
     p->velocity += dt_k2*p->acceleration;
 

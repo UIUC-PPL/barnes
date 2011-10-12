@@ -10,7 +10,7 @@ VPATH = $(STRUCTURES_PATH)
 APP_FLAGS = -DSTATISTICS #-DVERBOSE_TRAVERSAL -DCHECK_NUM_INTERACTIONS -DPRINT_TREE -DDEBUG_TRAVERSALS #-DVERBOSE_NODE_REFINE
 OPTS = -O3 -g $(APP_FLAGS)
 CXXFLAGS += $(OPTS) -I$(INCPATH) -I$(STRUCTURES_PATH)
-LDFLAGS += $(OPTS) -L. -language charm++ -module RotateLB -memory paranoid #-tracemode projections
+LDFLAGS += $(OPTS) -L. -language charm++ -module RotateLB -memory os #-tracemode projections
 
 CHARMC = $(CHARM_PATH)/bin/charmc
 

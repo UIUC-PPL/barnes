@@ -19,6 +19,7 @@ struct Particle : public ExternalParticle {
 
   Particle() : 
     potential(0.0),
+    acceleration(0.0)
   {
   }
 

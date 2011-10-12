@@ -62,10 +62,18 @@ void Main::setParameters(CkArgMsg *m){
   globalParams.theta = params.getrparam("theta", DEFAULT_THETA, table);
   CkPrintf("theta: %f\n", globalParams.theta);
 
-  /*
-  globalParams.dt = params.getrparam("dt", DEFAULT_DT, table);
-  CkPrintf("dt: %f\n", globalParams.dt);
-  */
+  globalParams.dtime = params.getrparam("dtime", DEFAULT_DTIME, table);
+  CkPrintf("dtime: %f\n", globalParams.dtime);
+
+  globalParams.dthf = globalParams.dtime/2.0;
+
+  globalParams.epssq = params.getrparam("eps", DEFAULT_EPS, table);
+  CkPrintf("eps: %f\n", globalParams.epssq);
+  globalParams.epssq = globalParams.epssq*globalParams.epssq;
+
+  globalParams.tolsq = params.getrparam("tol", DEFAULT_TOL, table);
+  CkPrintf("tol: %f\n", globalParams.tolsq);
+  globalParams.tolsq = globalParams.tolsq*globalParams.tolsq;
 
   globalParams.ppc = params.getiparam("ppc", DEFAULT_PPC, table); 
   CkPrintf("ppc: %d\n", globalParams.ppc);

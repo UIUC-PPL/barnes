@@ -344,17 +344,16 @@ class Node {
     Real &mass = data.moments.totalMass;
     Vector3D<Real> &cm = data.moments.cm;
 
-    for(Node<ForceData> *child = getChildren(); child != getChildren()+getNumChildren(); child++){
-      MultipoleMoments &childMoments = child->data.moments;
+    for(Node<ForceData> *c = getChildren(); c != getChildren()+getNumChildren(); c++){
+      MultipoleMoments &childMoments = c->data.moments;
       mass += childMoments.totalMass;
       cm += childMoments.totalMass*childMoments.cm;
-      bb.grow(child->data.box);
-      child++;
+      bb.grow(c->data.box);
     }
-    cm /= mass;
+    if(mass > 0.0) cm /= mass;
 
-    Vector3D<Real> delta1 = data.cm - data.box.lesser_corner;	
-    Vector3D<Real> delta2 = data.box.greater_corner - data.cm;
+    Vector3D<Real> delta1 = data.moments.cm - data.box.lesser_corner;	
+    Vector3D<Real> delta2 = data.box.greater_corner - data.moments.cm;
     delta1.x = (delta1.x > delta2.x ? delta1.x : delta2.x);
     delta1.y = (delta1.y > delta2.y ? delta1.y : delta2.y);
     delta1.z = (delta1.z > delta2.z ? delta1.z : delta2.z);
@@ -365,21 +364,20 @@ class Node {
     OrientedBox<Real> &bb = data.box;
     Real &mass = data.moments.totalMass;
     Vector3D<Real> &cm = data.moments.cm;
-    Particle *particle;
 
-    for(particle = getParticles(); particle != getParticles()+getNumParticles(); particle++) {
-      mass += particle->mass;
-      cm += particle->mass*particle->position;
-      bb.grow(particle->position);
-      particle++;
+    Particle *p;
+    for(p = getParticles(); p != getParticles()+getNumParticles(); p++) {
+      mass += p->mass;
+      cm += p->mass*p->position;
+      bb.grow(p->position);
     }
-    cm /= mass;
+    if(mass > 0.0) cm /= mass;
 
     Real d;
-    data.rsq = 0;
-    for(particle = getParticles(); particle != getParticles()+getNumParticles(); particle++) {
-      d = (cm - particle->position).lengthSquared();
-      if(d > data.rsq) data.rsq = d;
+    data.moments.rsq = 0;
+    for(p = getParticles(); p != getParticles()+getNumParticles(); p++) {
+      d = (cm - p->position).lengthSquared();
+      if(d > data.moments.rsq) data.moments.rsq = d;
     }
 
   }
@@ -410,7 +408,7 @@ ostream &operator<<(ostream &os, const Node<T> &node){
      << "\\n" << oss.str() << ","
      << node.data.moments.totalMass << ","
      */
-     << "\\n" << node.data.moments.radius << ","
+     << "\\n" << node.data.moments.rsq << ","
      << "\\n" << node.getOwnerStart() << ":" 
      << node.getOwnerEnd() << ")\\n"
      << NodeTypeString[node.getType()]
@@ -442,19 +440,11 @@ struct MomentsExchangeStruct {
   OrientedBox<Real> box;
   Key key;
   NodeType type;
-#ifdef DECOMP_ALLTOALL
-  int ownerStart;
-  int ownerEnd;
-#endif
 
   MomentsExchangeStruct &operator=(const Node<ForceData> &node){
     moments = node.data.moments;
     box = node.data.box;
     key = node.getKey();
-#ifdef DECOMP_ALLTOALL
-    ownerStart = node.getOwnerStart();
-    ownerEnd = node.getOwnerEnd();
-#endif
     type = node.getType();
 
     return *this;

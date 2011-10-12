@@ -17,6 +17,10 @@ struct Parameters {
   string filename;
 
   Real theta;
+  Real dtime;
+  Real dthf;
+  Real epssq;
+  Real tolsq;
 
   int numTreePieces;
   int numParticles;
@@ -34,6 +38,10 @@ struct Parameters {
     p | filename;
     p | numTreePieces;
     p | numParticles;
+    p | dtime;
+    p | dthf;
+    p | tolsq;
+    p | epssq;
     //p | branchFactor;
     p | ppc;
     p | ppb;
