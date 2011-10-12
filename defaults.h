@@ -1,0 +1,13 @@
+#ifndef __DEFAULTS_H__
+#define __DEFAULTS_H__
+
+#define DEFAULT_THETA 0.5 
+#define DEFAULT_DT 0
+
+#define DEFAULT_PPC 1000
+#define DEFAULT_PPB 10
+#define DEFAULT_KILLAT 10
+#define DEFAULT_CHUNK_DEPTH 3
+#define DEFAULT_YIELD_PERIOD 5
+#define DEFAULT_TREE_PIECES_PER_PROC 8
+#endif
