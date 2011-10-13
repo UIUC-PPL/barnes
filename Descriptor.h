@@ -26,7 +26,6 @@ struct BoundingBox {
   }
 
   void grow(const BoundingBox &other){
-    CkPrintf("grow energy %f particles %d other %f particles %d\n", energy, numParticles, other.energy, other.numParticles);
     if(other.numParticles == 0) return;
     if(numParticles == 0){
       *this = other;
