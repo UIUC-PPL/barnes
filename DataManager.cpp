@@ -310,7 +310,7 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
       numTreePieces += (BRANCH_FACTOR-1);
       if(numTreePieces > globalParams.numTreePieces){
         CkPrintf("have %d treepieces need %d\n",globalParams.numTreePieces,numTreePieces);
-        CkAbort("bad universe?\n");
+        CkAbort("Need more tree pieces!\n");
       }
     }
     else{
@@ -392,11 +392,13 @@ void DataManager::flushParticles(){
 void DataManager::receiveSplitters(SplitterMsg *msg){
 
   int numRefineBins = msg->nSplitBins;
+  /*
   if(firstSplitterRound){
     firstSplitterRound = false;
     freeTree();
     nodeTable.clear();
   }
+  */
 
 #ifdef DECOMP_VERBOSE
   CkPrintf("[%d] received %d splitters\n", CkMyPe(), numRefineBins);
@@ -553,7 +555,6 @@ void DataManager::processSubmittedParticles(){
 
   // are all particles local to this PE? 
   if(root != NULL && root->getType() == Internal){
-    CkAssert(uniqueNodes.length() == 0);
     passMomentsUpward(root);
   }
 
@@ -1156,6 +1157,8 @@ void DataManager::advance(CkReductionMsg *msg){
   numTreePiecesDoneTraversals = 0;
 
   firstSplitterRound = true;
+  freeTree();
+  nodeTable.clear();
 
   CkAssert(activeBins.getNumCounts() == 0);
 
