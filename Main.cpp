@@ -21,13 +21,6 @@ Parameters globalParams;
 Main::Main(CkArgMsg *msg){
   setParameters(msg);
 
-  getNumParticles();
-
-  globalParams.numTreePieces = (globalParams.numParticles/(1.0*globalParams.ppc))*2;
-  if(globalParams.numTreePieces == 0) globalParams.numTreePieces = 1;
-
-  CkPrintf("tree pieces: %d\n", globalParams.numTreePieces);
-
   dataManagerProxy = CProxy_DataManager::ckNew();
 
   CkArrayOptions opts(globalParams.numTreePieces);
@@ -89,6 +82,21 @@ void Main::setParameters(CkArgMsg *m){
 
   globalParams.yieldPeriod = params.getiparam("yield", DEFAULT_YIELD_PERIOD, table);
   CkPrintf("yieldPeriod: %d\n", globalParams.yieldPeriod);
+
+  getNumParticles();
+
+  it = table.find("p");
+  if(it == table.end()){
+    globalParams.numTreePieces = ((Real)globalParams.numParticles/((Real)globalParams.ppc))*2.0;
+    if(globalParams.numTreePieces == 0) globalParams.numTreePieces = 1;
+  }
+  else{
+    globalParams.numTreePieces = atoi(it->second.c_str());
+  }
+
+  CkPrintf("tree pieces: %d\n", globalParams.numTreePieces);
+
+
 }
 
 void Main::getNumParticles(){

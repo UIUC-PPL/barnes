@@ -29,8 +29,11 @@ all: $(TARGET) gen
 $(TARGET): $(OBJECTS) Makefile.dep 
 	$(CHARMC) -o $(TARGET) $(LDFLAGS) $(OBJECTS)
 
-gen: particleGenerator.cpp 
+gen: particleGenerator.cpp  
 	g++ -o gen particleGenerator.cpp
+
+plummer: plummer.o gen_util.o 
+	g++ -o plummer plummer.o gen_util.o
 
 %.decl.h %.def.h : %.ci
 	$(CHARMC) $(APP_FLAGS) -E $<

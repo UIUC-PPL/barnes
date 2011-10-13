@@ -4,17 +4,10 @@
 #include "limits.h"
 #include "charm++.h"
 
-typedef CmiUInt8 Key;
+#include "common.h"
+
 
 #define TREE_KEY_BITS (sizeof(Key)*CHAR_BIT)
-
-#define PREAMBLE_INTS 2 
-#define PREAMBLE_REALS 1
-#define PREAMBLE_SIZE ((PREAMBLE_INTS)*sizeof(int)+(PREAMBLE_REALS)*sizeof(Real))
-#define REALS_PER_PARTICLE 8
-#define SIZE_PER_PARTICLE ((REALS_PER_PARTICLE)*sizeof(Real))
-
-typedef float Real;
 
 #define BITS_PER_DIM 21
 #define BOXES_PER_DIM (1<<(BITS_PER_DIM))

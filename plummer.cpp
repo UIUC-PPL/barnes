@@ -8,13 +8,20 @@
 
 #include "Vector3D.h"
 #include "Particle.h"
+#include <assert.h>
+#include <stdlib.h>
+#include <math.h>
+#include <iostream>
+#include <fstream>
+
+using namespace std;
 
 #define MFRAC  0.999                /* mass cut off at MFRAC of total */
 
-Real xrand();
-Real pow();
+Real xrand(Real,Real);
+void pickshell(Vector3D<Real> &vec, Real rad);
 
-void testdata(int nbody)
+Particle *testdata(int nbody)
 {
    Real rsc, vsc, rsq, r, v, x, y;
    Vector3D<Real> cmr, cmv;
@@ -26,10 +33,9 @@ void testdata(int nbody)
    Particle *cp;
    Real tmp;
 
-   Particle *bodytab = (bodyptr) G_MALLOC(nbody * sizeof(body));
-   if (bodytab == NULL) {
-      error("testdata: not enuf memory\n");
-   }
+   Particle *bodytab = new Particle[nbody * sizeof(Particle)];
+   assert(bodytab != NULL);
+
    rsc = 9 * PI / 16;
    vsc = sqrt(1.0 / rsc);
 
@@ -45,8 +51,10 @@ void testdata(int nbody)
       while (r > 9.0) {
 	 rejects++;
 	 r = 1 / sqrt(pow(xrand(0.0, MFRAC), -2.0/3.0) - 1);
+
       }        
       pickshell(p->position, rsc * r);
+      
       cmr += p->position;
       do {
 	 x = xrand(0.0, 1.0);
@@ -57,7 +65,11 @@ void testdata(int nbody)
       v = sqrt(2.0) * x / pow(1 + r*r, 0.25);
       pickshell(p->velocity, vsc * v);
       cmv += p->velocity;
+      
+      //cout << "particle generated" << endl;
    }
+
+   //cout << "done first loop" << endl;
 
    offset = 4.0;
 
@@ -77,6 +89,8 @@ void testdata(int nbody)
      p->position -= cmr;
      p->velocity -= cmv;
    }
+
+   return bodytab;
 }
 
 /*
@@ -95,6 +109,7 @@ void pickshell(Vector3D<Real> &vec, Real rad)
      vec.y = xrand(-1.0,1.0);
      vec.z = xrand(-1.0,1.0);
      rsq = vec.lengthSquared();
+     //cout << "rsq " << vec.x << "," << vec.y << "," << vec.z << "," << rsq << endl;
    } while (rsq > 1.0);
 
    rsc = rad / sqrt(rsq);
@@ -102,8 +117,7 @@ void pickshell(Vector3D<Real> &vec, Real rad)
 }
 
 
-int intpow(i,j)
-  int i,j;
+int intpow(int i, int j)
 {   
     int k;
     int temp = 1;
@@ -111,6 +125,50 @@ int intpow(i,j)
     for (k = 0; k < j; k++)
         temp = temp*i;
     return temp;
+}
+
+void pranset(int);
+
+int main(int argc, char **argv){
+  pranset(128363);
+  assert(argc == 3);
+
+  int nbody = atoi(argv[1]);
+  int ndims = 3;
+  Real tnow = 0.0;
+  ofstream out(argv[2], ios::out|ios::binary);
+  
+  Particle *p = testdata(nbody);
+  
+  out.write((char *)&nbody, sizeof(int));
+  out.write((char *)&ndims, sizeof(int));
+  out.write((char *)&tnow, sizeof(Real));
+
+  Real tmp[REALS_PER_PARTICLE];
+  Real soft = 0.001;
+  
+  for(int i = 0; i < nbody; i++){
+    tmp[0] = p->position.x;
+    tmp[1] = p->position.y;
+    tmp[2] = p->position.z;
+    tmp[3] = p->velocity.x;
+    tmp[4] = p->velocity.y;
+    tmp[5] = p->velocity.z;
+    tmp[6] = p->mass;
+    tmp[7] = soft;
+
+    cout << p->position.x << " "
+         << p->position.y << " "
+         << p->position.z << endl;
+
+    out.write((char*)tmp, REALS_PER_PARTICLE*sizeof(Real));
+
+    p++;
+  }
+
+  out.close();
+
+  return 0;
 }
 
 

@@ -3,16 +3,17 @@ Main.cpp \
 Main.h \
 Parameters.h \
 defines.h \
+common.h \
 OrientedBox.h \
 barnes.decl.h \
+Descriptor.h \
+MultipoleMoments.h \
+Vector3D.h \
 TreePiece.h \
 Particle.h \
-Vector3D.h \
 Messages.h \
-MultipoleMoments.h \
 Node.h \
 util.h \
-Descriptor.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
@@ -26,14 +27,15 @@ DataManager.o: \
 DataManager.cpp \
 DataManager.h \
 Particle.h \
-defines.h \
+common.h \
 Vector3D.h \
 OrientedBox.h \
 barnes.decl.h \
-Node.h \
-MultipoleMoments.h \
-util.h \
 Descriptor.h \
+defines.h \
+MultipoleMoments.h \
+Node.h \
+util.h \
 ActiveBinInfo.h \
 Traversal_decls.h \
 Worker.h \
@@ -48,15 +50,16 @@ TreePiece.o: \
 TreePiece.cpp \
 TreePiece.h \
 defines.h \
+common.h \
 OrientedBox.h \
 barnes.decl.h \
-Particle.h \
-Vector3D.h \
-Messages.h \
+Descriptor.h \
 MultipoleMoments.h \
+Vector3D.h \
+Particle.h \
+Messages.h \
 Node.h \
 util.h \
-Descriptor.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
@@ -68,6 +71,7 @@ Parameters.h \
 util.o: \
 util.cpp \
 defines.h \
+common.h \
 Particle.h \
 Vector3D.h \
 util.h \
@@ -85,6 +89,7 @@ Reduction.o: \
 Reduction.cpp \
 OrientedBox.h \
 defines.h \
+common.h \
 ActiveBinInfo.h \
 Node.h \
 MultipoleMoments.h \
@@ -99,6 +104,7 @@ Node.h \
 MultipoleMoments.h \
 Vector3D.h \
 defines.h \
+common.h \
 OrientedBox.h \
 Particle.h \
 util.h \
@@ -122,6 +128,7 @@ Node.h \
 MultipoleMoments.h \
 Vector3D.h \
 defines.h \
+common.h \
 OrientedBox.h \
 Particle.h \
 util.h \
@@ -141,6 +148,7 @@ Node.h \
 MultipoleMoments.h \
 Vector3D.h \
 defines.h \
+common.h \
 OrientedBox.h \
 Particle.h \
 util.h \
@@ -150,4 +158,14 @@ TreePiece.h \
 barnes.decl.h \
 Messages.h \
 Worker.h \
+
+particleGenerator.o: \
+
+gen_util.o: \
+gen_util.cpp \
+
+plummer.o: \
+plummer.cpp \
+Vector3D.h \
+Particle.h \
 

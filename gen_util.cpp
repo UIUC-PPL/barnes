@@ -15,9 +15,7 @@
 /*************************************************************************/
 
 #include <stdio.h>
-#include "stdinc.h"
-
-#include "define.h"
+#include "common.h"
 
 #define HZ 60.0
 #define MULT 1103515245

@@ -1,7 +1,7 @@
 #ifndef __PARTICLE_H__
 #define __PARTICLE_H__
 
-#include "defines.h"
+#include "common.h"
 #include "Vector3D.h"
 
 struct Particle;

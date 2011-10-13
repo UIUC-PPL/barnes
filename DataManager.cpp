@@ -306,7 +306,7 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
 #endif
       numTreePieces += (BRANCH_FACTOR-1);
       if(numTreePieces > globalParams.numTreePieces){
-        CkPrintf("have %d treepieces need %d\n",numTreePieces,globalParams.numTreePieces);
+        CkPrintf("have %d treepieces need %d\n",globalParams.numTreePieces,numTreePieces);
         CkAbort("bad universe?\n");
       }
     }
