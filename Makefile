@@ -21,10 +21,12 @@ CXX_DEPEND = $(CXX) -M -MM -MG -Wall $(APP_FLAGS)
 CFLAGS = $(OPTS) $(DEFINE_FLAGS) -g 
 
 OBJECTS = Main.o DataManager.o TreePiece.o util.o Reduction.o Worker.o Request.o State.o
-SRC = Main.cpp DataManager.cpp TreePiece.cpp util.cpp Reduction.cpp Worker.cpp Request.cpp State.cpp 
+SRC = Main.cpp DataManager.cpp TreePiece.cpp \
+      util.cpp Reduction.cpp Worker.cpp Request.cpp \
+      State.cpp particleGenerator.cpp gen_util.cpp plummer.cpp
 
 TARGET = barnes 
-all: $(TARGET) gen
+all: $(TARGET) gen plummer
 
 $(TARGET): $(OBJECTS) Makefile.dep 
 	$(CHARMC) -o $(TARGET) $(LDFLAGS) $(OBJECTS)
@@ -32,8 +34,14 @@ $(TARGET): $(OBJECTS) Makefile.dep
 gen: particleGenerator.cpp  
 	g++ -o gen particleGenerator.cpp
 
+plummer.o: plummer.cpp 
+	g++ -I$(STRUCTURES_PATH) -c plummer.cpp 
+
+gen_util.o: gen_util.cpp 
+	g++ -I$(STRUCTURES_PATH) -c gen_util.cpp 
+
 plummer: plummer.o gen_util.o 
-	g++ -o plummer plummer.o gen_util.o
+	g++ -I$(STRUCTURES_PATH) -o plummer plummer.o gen_util.o
 
 %.decl.h %.def.h : %.ci
 	$(CHARMC) $(APP_FLAGS) -E $<
