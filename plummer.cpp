@@ -10,7 +10,6 @@
 #include "Particle.h"
 #include <assert.h>
 #include <stdlib.h>
-#include <math.h>
 #include <iostream>
 #include <fstream>
 
@@ -46,11 +45,11 @@ Particle *testdata(int nbody)
    if (nbody % 2 != 0) halfnbody++;
    for (p = bodytab; p < bodytab+halfnbody; p++) {
       p->mass = 1.0/nbody;
-      r = 1 / sqrt(pow(xrand(0.0, MFRAC), -2.0/3.0) - 1);
+      r = 1 / sqrt(std::pow((double)xrand(0.0, MFRAC), (double)-2.0/3.0) - 1);
       /*   reject radii greater than 10 */
       while (r > 9.0) {
 	 rejects++;
-	 r = 1 / sqrt(pow(xrand(0.0, MFRAC), -2.0/3.0) - 1);
+	 r = 1 / sqrt(std::pow((double)xrand(0.0, MFRAC), (double)-2.0/3.0) - 1);
 
       }        
       pickshell(p->position, rsc * r);
@@ -60,9 +59,9 @@ Particle *testdata(int nbody)
 	 x = xrand(0.0, 1.0);
 	 y = xrand(0.0, 0.1);
 
-      } while (y > x*x * pow(1 - x*x, 3.5));
+      } while (y > x*x * std::pow((double)(1 - x*x), (double)3.5));
 
-      v = sqrt(2.0) * x / pow(1 + r*r, 0.25);
+      v = sqrt(2.0) * x / std::pow((double)(1 + r*r), (double)0.25);
       pickshell(p->velocity, vsc * v);
       cmv += p->velocity;
       
