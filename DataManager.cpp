@@ -48,6 +48,7 @@ DataManager::DataManager() :
   numInteractions[0] = 0;
   numInteractions[1] = 0;
 #endif
+  savedEnergy = 0.0;
 }
 
 void DataManager::loadParticles(CkCallback &cb){
@@ -113,6 +114,7 @@ void DataManager::loadParticles(CkCallback &cb){
     myParticles[numParticlesDone].acceleration.x = 0.0;
     myParticles[numParticlesDone].acceleration.y = 0.0;
     myParticles[numParticlesDone].acceleration.z = 0.0;
+    myParticles[numParticlesDone].potential = 0.0;
     myBox.grow(myParticles[numParticlesDone].position);
 
     numParticlesDone++;
@@ -194,14 +196,15 @@ void DataManager::decompose(BoundingBox &universe){
     CkPrintf("(%d) prev time %g s\n", CkMyPe(), CmiWallTimer()-prevIterationStart);
     CkPrintf("(%d) start iteration %d\n", CkMyPe(), iteration);
     CkPrintf("(%d) mem %.2f MB\n", CkMyPe(), memMB);
-    CkPrintf("(%d) univ %f %f %f %f %f %f\n", 
+    CkPrintf("(%d) univ %f %f %f %f %f %f energy %f\n", 
               CkMyPe(),
               universe.box.lesser_corner.x,
               universe.box.lesser_corner.y,
               universe.box.lesser_corner.z,
               universe.box.greater_corner.x,
               universe.box.greater_corner.y,
-              universe.box.greater_corner.z);
+              universe.box.greater_corner.z,
+              universe.energy);
  
 
     prevIterationStart = CkWallTimer();
@@ -1125,10 +1128,11 @@ void DataManager::advance(CkReductionMsg *msg){
   }
 
   BoundingBox myBox;
-  myBox.box = kickDriftKick();
+  kickDriftKick(myBox.box,myBox.energy);
 
   Real pad = 0.001;
   myBox.expand(pad);
+  myBox.numParticles = myNumParticles;
 
   if(CkMyPe() == 0){
 #ifdef STATISTICS
@@ -1270,34 +1274,46 @@ void DataManager::addBucketPartInteractions(Key k, CmiUInt8 pp){
 #endif
 }
 
-OrientedBox<Real> DataManager::kickDriftKick(){
-  OrientedBox<Real> box;
+void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
   Vector3D<Real> dv;
 
+  Particle *pstart = myParticles.getVec();
+  Particle *pend = myParticles.getVec()+myNumParticles;
   Real dt_k1, dt_k2;
   if(iteration == 0){
     dt_k1 = globalParams.dtime;
+    // won't have KE stored by a previous 
+    // iteration for this one
+    for(Particle *p = pstart; p != pend; p++){
+      energy += p->mass*(p->velocity.lengthSquared()); 
+    }
+    energy /= 2.0;
   }
   else{
     dt_k1 = globalParams.dthf;
+    energy = savedEnergy;
+    savedEnergy = 0.0;
   }
 
   dt_k2 = globalParams.dthf;
 
-  Particle *pstart = myParticles.getVec();
-  Particle *pend = myParticles.getVec()+myNumParticles;
   for(Particle *p = pstart; p != pend; p++){
+    energy += p->potential;
     // kick
     p->velocity += dt_k1*p->acceleration;
+    savedEnergy += p->mass*(p->velocity.lengthSquared()); 
     // drift
     p->position += globalParams.dtime*p->velocity;
     // kick
     p->velocity += dt_k2*p->acceleration;
-
+    
     box.grow(p->position);
+
+    p->acceleration = Vector3D<Real>(0.0);
+    p->potential = 0.0;
+
   }
-  //CkPrintf("[%d] particles:\n%s\n",CkMyPe(), oss.str().c_str());
-  return box;
+  savedEnergy /= 2.0;
 }
 
 void DataManager::resetParticleAccelerations(){

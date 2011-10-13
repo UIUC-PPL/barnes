@@ -9,6 +9,7 @@
 struct BoundingBox {
   OrientedBox<Real> box;
   int numParticles;
+  Real energy;
 
   BoundingBox(){
     reset();
@@ -17,6 +18,7 @@ struct BoundingBox {
   void reset(){
     numParticles = 0;
     box.reset();
+    energy = 0.0;
   }
 
   void grow(const Vector3D<Real> &v){
@@ -24,6 +26,7 @@ struct BoundingBox {
   }
 
   void grow(const BoundingBox &other){
+    CkPrintf("grow energy %f particles %d other %f particles %d\n", energy, numParticles, other.energy, other.numParticles);
     if(other.numParticles == 0) return;
     if(numParticles == 0){
       *this = other;
@@ -31,6 +34,7 @@ struct BoundingBox {
     else{
       box.grow(other.box);
       numParticles += other.numParticles;
+      energy += other.energy;
     }
   }
 

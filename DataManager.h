@@ -121,11 +121,13 @@ class DataManager : public CBase_DataManager {
   CacheStats nodeReqs;
   CacheStats partReqs;
 
+  Real savedEnergy;
+
 #ifdef STATISTICS
   CmiUInt8 numInteractions[2];
 #endif
 
-  OrientedBox<Real> kickDriftKick();
+  void kickDriftKick(OrientedBox<Real> &box, Real &energy);
 
   void hashParticleCoordinates(OrientedBox<Real> &universe);
   void initHistogramParticles();
