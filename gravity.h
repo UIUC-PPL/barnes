@@ -53,10 +53,11 @@ int nodeBucketForce(Node<ForceData> *node,
 inline int partBucketForce(ExternalParticle *part, 
 			   Node<ForceData> *req){ 
 
+  CkPrintf("partbucketforce\n");
   Particle *particles = req->getParticles();
   int numParticles = req->getNumParticles();
   grav(particles,particles+numParticles,part->mass,part->position);
-  return req->getNumParticles();
+  return numParticles;
 }
 
 #endif

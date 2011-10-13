@@ -64,7 +64,7 @@ void Main::setParameters(CkArgMsg *m){
   CkPrintf("eps: %f\n", globalParams.epssq);
   globalParams.epssq = globalParams.epssq*globalParams.epssq;
 
-  globalParams.tolsq = params.getrparam("tol", DEFAULT_TOL, table);
+  globalParams.tolsq = globalParams.theta;
   CkPrintf("tol: %f\n", globalParams.tolsq);
   globalParams.tolsq = globalParams.tolsq*globalParams.tolsq;
 
