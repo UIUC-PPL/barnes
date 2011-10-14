@@ -1301,7 +1301,7 @@ void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
   dt_k2 = globalParams.dthf;
 
   for(Particle *p = pstart; p != pend; p++){
-    energy += p->potential;
+    energy += p->mass*p->potential;
     // kick
     p->velocity += dt_k1*p->acceleration;
     savedEnergy += p->mass*(p->velocity.lengthSquared()); 
