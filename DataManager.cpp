@@ -47,6 +47,7 @@ DataManager::DataManager() :
 #ifdef STATISTICS
   numInteractions[0] = 0;
   numInteractions[1] = 0;
+  numInteractions[2] = 0;
 #endif
   savedEnergy = 0.0;
 }
@@ -1075,7 +1076,7 @@ void DataManager::recvNode(NodeReplyMsg *msg){
 }
 
 #ifdef STATISTICS
-void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter)
+void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit)
 #else
 void DataManager::traversalsDone()
 #endif
@@ -1084,6 +1085,7 @@ void DataManager::traversalsDone()
 #ifdef STATISTICS
   numInteractions[0] += pnInter;
   numInteractions[1] += ppInter;
+  numInteractions[2] += openCrit;
 #endif
   if(numTreePiecesDoneTraversals == numLocalTreePieces){
     finishIteration();
@@ -1107,8 +1109,10 @@ void DataManager::finishIteration(){
 #ifdef STATISTICS
   dtred.pnInteractions = numInteractions[0];
   dtred.ppInteractions = numInteractions[1];
+  dtred.openCrit = numInteractions[2];
   numInteractions[0] = 0;
   numInteractions[1] = 0;
+  numInteractions[2] = 0;
 #endif
 
   CkCallback cb(CkIndex_DataManager::advance(NULL),thisProxy);
@@ -1137,7 +1141,7 @@ void DataManager::advance(CkReductionMsg *msg){
 
   if(CkMyPe() == 0){
 #ifdef STATISTICS
-    CkPrintf("[STATS] node inter %lu part inter %lu dt %f\n", dtred->pnInteractions, dtred->ppInteractions, globalParams.dtime);
+    CkPrintf("[STATS] node inter %lu part inter %lu open crit %lu dt %f\n", dtred->pnInteractions, dtred->ppInteractions, dtred->openCrit, globalParams.dtime);
 #endif
   }
 

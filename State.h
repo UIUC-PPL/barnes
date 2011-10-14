@@ -25,7 +25,7 @@ struct State {
 #endif
 
 #ifdef STATISTICS
-  CmiUInt8 numInteractions[2];
+  CmiUInt8 numInteractions[3];
 #endif
 
 #ifdef TREE_PIECE_LOG
@@ -62,6 +62,7 @@ struct State {
 #ifdef STATISTICS
     numInteractions[0] = 0;
     numInteractions[1] = 0;
+    numInteractions[2] = 0;
 #endif
   }
   
@@ -81,6 +82,7 @@ struct State {
 #ifdef STATISTICS
     numInteractions[0] = 0;
     numInteractions[1] = 0;
+    numInteractions[2] = 0;
 #endif
   }
 
@@ -103,6 +105,7 @@ struct State {
 #ifdef STATISTICS
     numInteractions[0] = 0;
     numInteractions[1] = 0;
+    numInteractions[2] = 0;
 #endif
 #ifdef CHECK_NUM_INTERACTIONS
     bucketNodeInteractions.clear();
@@ -138,6 +141,12 @@ struct State {
 #endif
 #ifdef CHECK_NUM_INTERACTIONS
     bucketPartInteractions[bucketKey] += n;
+#endif
+  }
+
+  void incrOpenCriterion(){
+#ifdef STATISTICS
+    numInteractions[2]++;
 #endif
   }
 };

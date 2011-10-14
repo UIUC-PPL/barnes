@@ -162,6 +162,7 @@ struct DtReductionStruct {
 #ifdef STATISTICS 
   CmiUInt8 pnInteractions;
   CmiUInt8 ppInteractions;
+  CmiUInt8 openCrit;
 #endif
   Real vbya;
   bool haveNaN;
@@ -170,6 +171,7 @@ struct DtReductionStruct {
 #ifdef STATISTICS
     pnInteractions += other.pnInteractions;
     ppInteractions += other.ppInteractions;
+    openCrit += other.openCrit;
 #endif
     if(other.haveNaN) haveNaN = true;
 

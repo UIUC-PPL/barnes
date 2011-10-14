@@ -133,6 +133,7 @@ void TreePiece::traversalDone(){
 #ifdef STATISTICS
     CmiUInt8 pn = localTraversalState.numInteractions[0]+remoteTraversalState.numInteractions[0];
     CmiUInt8 pp = localTraversalState.numInteractions[1]+remoteTraversalState.numInteractions[1];
+    CmiUInt8 oc = localTraversalState.numInteractions[2]+remoteTraversalState.numInteractions[2];
 #ifdef CHECK_NUM_INTERACTIONS
     map<Key,CmiUInt8>::iterator it;
     for(it = localTraversalState.bucketNodeInteractions.begin(); 
@@ -161,8 +162,7 @@ void TreePiece::traversalDone(){
     }
     CkPrintf("[%d] iter %d local %lu remote %lu\n", thisIndex, iteration, pn, pp);
 #endif
-
-    dataManagerProxy[CkMyPe()].traversalsDone(pn,pp);
+    dataManagerProxy[CkMyPe()].traversalsDone(pn,pp,oc);
 #else
     dataManagerProxy[CkMyPe()].traversalsDone();
 #endif

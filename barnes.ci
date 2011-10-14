@@ -76,7 +76,7 @@ mainmodule barnes {
     entry void recvNode(NodeReplyMsg *msg);
     entry void advance(CkReductionMsg *msg);
 #ifdef STATISTICS
-    entry void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter);
+    entry void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit);
 #else
     entry void traversalsDone();
 #endif

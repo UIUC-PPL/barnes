@@ -124,7 +124,7 @@ class DataManager : public CBase_DataManager {
   Real savedEnergy;
 
 #ifdef STATISTICS
-  CmiUInt8 numInteractions[2];
+  CmiUInt8 numInteractions[3];
 #endif
 
   void kickDriftKick(OrientedBox<Real> &box, Real &energy);
@@ -189,7 +189,7 @@ class DataManager : public CBase_DataManager {
   void requestMoments(Key k, int replyTo);
   void advance(CkReductionMsg *);
 #ifdef STATISTICS
-  void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter);
+  void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit);
 #else
   void traversalsDone();
 #endif
