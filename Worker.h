@@ -78,28 +78,18 @@ class TraversalWorker : public CutoffWorker<ForceData> {
   TreePiece *ownerTreePiece;
   State *state;
   
-  // XXX for later
-  Vector3D<Real> offset;
-
   Node<ForceData> *currentBucket;
-
-  TraversalWorker(TreePiece *tp) : 
-    ownerTreePiece(tp),
-    offset(), 
-    currentBucket(NULL)
-  {
-  }
 
   TraversalWorker() : 
     ownerTreePiece(NULL),
-    offset(), 
     currentBucket(NULL)
   {
   }
 
   public:
 
-  void reset(State *s, Node<ForceData> *bucket){
+  void reset(TreePiece *owner, State *s, Node<ForceData> *bucket){
+    ownerTreePiece = owner;
     state = s;
     currentBucket = bucket;
   }
@@ -127,7 +117,6 @@ class TraversalWorker : public CutoffWorker<ForceData> {
 class LocalTraversalWorker : public TraversalWorker {
   static const bool keep[];
   public:
-  LocalTraversalWorker(TreePiece *tp) : TraversalWorker(tp) {}
   LocalTraversalWorker() : TraversalWorker() {}
   bool getKeep(NodeType type);
 };
@@ -135,7 +124,6 @@ class LocalTraversalWorker : public TraversalWorker {
 class RemoteTraversalWorker : public TraversalWorker {
   static const bool keep[];
   public:
-  RemoteTraversalWorker(TreePiece *tp) : TraversalWorker(tp) {}
   RemoteTraversalWorker() : TraversalWorker() {}
   void done();
   bool getKeep(NodeType type);

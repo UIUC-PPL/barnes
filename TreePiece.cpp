@@ -14,17 +14,18 @@ TreePiece::TreePiece() :
   numDecompMsgsRecvd(0),
   smallestKey(~Key(0)),
   largestKey(Key(0)),
-  localTraversalState(thisIndex,"local",this),
-  remoteTraversalState(thisIndex,"remote",this),
+  localTraversalState(),
+  remoteTraversalState(),
   localStateID(0), 
   remoteStateID(1),
-  localTraversalWorker(this),
-  remoteTraversalWorker(this),
+  localTraversalWorker(),
+  remoteTraversalWorker(),
   totalNumTraversals(2),
   iteration(0),
   numTraversalsDone(0)
 {
   myDM = dataManagerProxy.ckLocalBranch();
+  usesAtSync = true;
 }
 
 void TreePiece::receiveParticles(ParticleMsg *msg){
@@ -69,15 +70,15 @@ void TreePiece::startTraversal(){
     return;
   }
 
-  remoteTraversalState.reset(myNumBuckets,myBuckets);
-  remoteTraversalWorker.reset(&remoteTraversalState,*myBuckets);
+  remoteTraversalState.reset(this,myNumBuckets,myBuckets);
+  remoteTraversalWorker.reset(this,&remoteTraversalState,*myBuckets);
   RescheduleMsg *msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = REMOTE_GRAVITY_PRIORITY;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
   thisProxy[thisIndex].doRemoteGravity(msg);
 
-  localTraversalState.reset(myNumBuckets,myBuckets);
-  localTraversalWorker.reset(&localTraversalState,*myBuckets);
+  localTraversalState.reset(this,myNumBuckets,myBuckets);
+  localTraversalWorker.reset(this,&localTraversalState,*myBuckets);
 
   msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = LOCAL_GRAVITY_PRIORITY;
@@ -100,7 +101,7 @@ void TreePiece::doLocalGravity(RescheduleMsg *msg){
     localGravityDone();
     delete msg;
   }
-  else{
+  else if(localTraversalState.current < myNumBuckets) {
     thisProxy[thisIndex].doLocalGravity(msg);
   }
 }
@@ -120,7 +121,7 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
     remoteGravityDone();
     delete msg;
   }
-  else{
+  else if (remoteTraversalState.current < myNumBuckets) {
     thisProxy[thisIndex].doRemoteGravity(msg);
   }
 }
@@ -262,6 +263,12 @@ void TreePiece::requestNode(RequestMsg *msg){
 
 int TreePiece::getIteration() {
   return iteration;
+}
+
+void TreePiece::pup(PUP::er &p){
+  p | iteration;
+  if(p.isUnpacking()){
+  }
 }
 
 #include "Traversal_defs.h"

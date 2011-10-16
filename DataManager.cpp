@@ -917,6 +917,9 @@ void DataManager::startTraversal(){
 void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
   Key key = leaf->getKey();
   Request &request = particleRequestTable[key];
+#ifdef TRACE_REMOTE_DATA_REQUESTS
+  traceUserEvent(REMOTE_PARTICLE_REQUEST);
+#endif
   if(!request.sent){
     partReqs.incrRequests();
 
@@ -971,6 +974,9 @@ void DataManager::requestParticles(RequestMsg *msg){
 void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
   Key key = leaf->getKey();
   Request &request = nodeRequestTable[key];
+#ifdef TRACE_REMOTE_DATA_REQUESTS
+  traceUserEvent(REMOTE_NODE_REQUEST);
+#endif
   if(!request.sent){
     nodeReqs.incrRequests();
 

@@ -127,7 +127,7 @@ int TraversalWorker::work(Node<ForceData> *node){
   }
 
   // basic opening criterion
-  bool open = openCriterionBucket(node,currentBucket,offset);
+  bool open = openCriterionBucket(node,currentBucket);
   state->incrOpenCriterion();
   if(open){
     state->nodeOpened(currentBucket->getKey(),node);

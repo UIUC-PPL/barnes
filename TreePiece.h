@@ -74,6 +74,8 @@ class TreePiece : public CBase_TreePiece {
 
   void quiescence();
   int getIteration();
+
+  void pup(PUP::er &p);
 };
 
 #endif

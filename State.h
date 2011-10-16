@@ -11,8 +11,6 @@ using namespace std;
 
 extern string NodeTypeString[];
 
-//typedef void (*StateCompletionFn)(void *context);
-
 class TreePiece;
 struct State {
   int pending;
@@ -22,14 +20,11 @@ struct State {
 
 #ifdef DEBUG_TRAVERSALS
   map<Key,set<Key> > bucketKeys;
+  string description;
 #endif
 
 #ifdef STATISTICS
   CmiUInt8 numInteractions[3];
-#endif
-
-#ifdef TREE_PIECE_LOG
-  ofstream logFile;
 #endif
 
 #ifdef CHECK_NUM_INTERACTIONS
@@ -37,7 +32,6 @@ struct State {
   map<Key,CmiUInt8> bucketPartInteractions;
 #endif
 
-  string description;
 
   void incrPending() { pending++; }
   bool decrPending() {
@@ -66,27 +60,10 @@ struct State {
 #endif
   }
   
-  State(int i, string id, TreePiece *tp) : 
-    pending(-1), 
-    current(-1), 
-    ownerTreePiece(tp),
-    currentBucketPtr(NULL) 
-  {
-#ifdef TREE_PIECE_LOG
-    ostringstream oss;
-    oss << "tp." << i << "." << id << ".log";
-    logFile.open(oss.str().c_str());
-#endif
-    description = id;
-
-#ifdef STATISTICS
-    numInteractions[0] = 0;
-    numInteractions[1] = 0;
-    numInteractions[2] = 0;
-#endif
-  }
-
-  void reset(int p, Node<ForceData> **bucketPtr){
+  void reset(TreePiece *owner, int p, Node<ForceData> **bucketPtr){
+  //void reset(TreePiece *owner, string &id, int p, Node<ForceData> **bucketPtr){
+    ownerTreePiece = owner;
+    //description = id;
     pending = p;
     current = 0;
     currentBucketPtr = bucketPtr;
@@ -99,9 +76,6 @@ struct State {
   void bucketComputed(Node<ForceData> *bucket, Key k);
 
   void finishedIteration(){
-#ifdef TREE_PIECE_LOG
-    logFile.close();
-#endif
 #ifdef STATISTICS
     numInteractions[0] = 0;
     numInteractions[1] = 0;
@@ -150,14 +124,5 @@ struct State {
 #endif
   }
 };
-
-/*
-struct TraversalState {
-  int curBucket;
-
-  TraversalState() : curBucket(0), State(cb,context,pending) {}
-};
-*/
-
 
 #endif

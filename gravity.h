@@ -11,9 +11,7 @@ extern Parameters globalParams;
 
 inline bool
 openCriterionBucket(Node<ForceData> *node,
-                   Node<ForceData> *bucketNode,
-                   Vector3D<Real> &offset 
-                   ) {
+                   Node<ForceData> *bucketNode) {
 
   Vector3D<Real> dr = node->data.moments.cm - bucketNode->data.moments.cm;
   Real drsq = dr.lengthSquared();
