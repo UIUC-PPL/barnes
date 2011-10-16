@@ -58,4 +58,7 @@ struct MomentsMsg : public CMessage_MomentsMsg {
     data = (*node);
   }
 };
+
+struct RescheduleMsg : public CMessage_RescheduleMsg {
+};
 #endif

@@ -34,4 +34,15 @@ const double opening_geometry_factor = 2 / sqrt(3.0);
 //#define TB_DEBUG CkPrintf
 #define TB_DEBUG /* empty */
 
+#define NUM_PRIORITY_BITS (sizeof(int)*CHAR_BIT)
+
+#define REQUEST_MOMENTS_PRIORITY (-8)
+#define RECV_MOMENTS_PRIORITY (-7)
+#define REQUEST_NODE_PRIORITY (-6)
+#define REQUEST_PARTICLES_PRIORITY (-5)
+#define RECV_NODE_PRIORITY (-4)
+#define RECV_PARTICLES_PRIORITY (-3)
+#define REMOTE_GRAVITY_PRIORITY (-2)
+#define LOCAL_GRAVITY_PRIORITY (-1)
+
 #endif

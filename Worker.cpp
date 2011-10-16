@@ -69,10 +69,14 @@ void MomentsWorker::setLeafType(Node<ForceData> *leaf){
     // type could have been set to EmptyBucket during construction
     if(leaf->getType() == Invalid){
       leaf->setType(Remote); 
-      // XXX - randomize?
-      int oneOwner = leaf->getOwnerStart();
-      TB_DEBUG("(%d) requestMoments %lu from tree piece %d\n", CkMyPe(), leaf->getKey(), oneOwner);
-      treePieceProxy[oneOwner].requestMoments(leaf->getKey(),CkMyPe());
+      int numOwners = leaf->getOwnerEnd()-leaf->getOwnerStart()+1;
+      int requestOwner = leaf->getOwnerStart()+(rand()%numOwners);
+      TB_DEBUG("(%d) requestMoments %lu from tree piece %d\n", CkMyPe(), leaf->getKey(), requestOwner);
+
+      CkEntryOptions opts;
+      opts.setQueueing(CK_QUEUEING_IFIFO);
+      opts.setPriority(REQUEST_MOMENTS_PRIORITY);
+      treePieceProxy[requestOwner].requestMoments(leaf->getKey(),CkMyPe(),&opts);
     }
     return;
   }
@@ -137,11 +141,6 @@ int TraversalWorker::work(Node<ForceData> *node){
 }
 
 void TraversalWorker::work(ExternalParticle *particle){
-  /*
-  for(int i = 0; i < currentBucket->getNumParticles(); i++){
-    CkAssert(!isnan((currentBucket->getParticles()+i)->position.length()));
-  }
-  */
   int computed = partBucketForce(particle,currentBucket);
   state->incrPartPartInteractions(currentBucket->getKey(),computed);
 }
@@ -156,10 +155,6 @@ bool LocalTraversalWorker::getKeep(NodeType type){
 
 bool RemoteTraversalWorker::getKeep(NodeType type){
   return keep[type];
-}
-
-void LocalTraversalWorker::done(){
-  CkAbort("Cache should never call local traversal worker!\n");
 }
 
 void RemoteTraversalWorker::done(){

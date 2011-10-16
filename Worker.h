@@ -120,7 +120,7 @@ class TraversalWorker : public CutoffWorker<ForceData> {
   void work(ExternalParticle *particle);
   void bucketDone(Key k);
   
-  virtual void done() = 0;
+  virtual void done() {}
   virtual bool getKeep(NodeType type) = 0;
 };
 
@@ -129,7 +129,6 @@ class LocalTraversalWorker : public TraversalWorker {
   public:
   LocalTraversalWorker(TreePiece *tp) : TraversalWorker(tp) {}
   LocalTraversalWorker() : TraversalWorker() {}
-  void done();
   bool getKeep(NodeType type);
 };
 

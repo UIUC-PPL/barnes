@@ -676,7 +676,9 @@ void DataManager::flushMomentRequests(){
 
 void DataManager::respondToMomentsRequest(Node<ForceData> *node, CkVec<int> &replyTo){
   for(int i = 0; i < replyTo.length(); i++){
-    MomentsMsg *m = new (0) MomentsMsg(node);
+    MomentsMsg *m = new (NUM_PRIORITY_BITS) MomentsMsg(node);
+    *(int *)CkPriorityPtr(m) = RECV_MOMENTS_PRIORITY;
+    CkSetQueueing(m,CK_QUEUEING_IFIFO);
     TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), replyTo[i], node->getKey());
     thisProxy[replyTo[i]].receiveMoments(m);
   }
@@ -917,7 +919,11 @@ void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData
   Request &request = particleRequestTable[key];
   if(!request.sent){
     partReqs.incrRequests();
-    RequestMsg *reqMsg = new RequestMsg(key,CkMyPe());
+
+    RequestMsg *reqMsg = new (NUM_PRIORITY_BITS) RequestMsg(key,CkMyPe());
+    *(int *)CkPriorityPtr(reqMsg) = REQUEST_PARTICLES_PRIORITY;
+    CkSetQueueing(reqMsg,CK_QUEUEING_IFIFO);
+
     CkAssert(leaf->getOwnerStart() == leaf->getOwnerEnd());
     int owner = leaf->getOwnerStart();
     treePieceProxy[owner].requestParticles(reqMsg);
@@ -947,7 +953,11 @@ void DataManager::requestParticles(RequestMsg *msg){
 
   Particle *data = bucket->getParticles();
   int np = bucket->getNumParticles();
-  ParticleReplyMsg *pmsg = new (np,0) ParticleReplyMsg;
+
+  ParticleReplyMsg *pmsg = new (np,NUM_PRIORITY_BITS) ParticleReplyMsg;
+  *(int *)CkPriorityPtr(pmsg) = RECV_PARTICLES_PRIORITY;
+  CkSetQueueing(pmsg,CK_QUEUEING_IFIFO);
+
   pmsg->key = msg->key;
   pmsg->np = np;
   for(int i = 0; i < np; i++){
@@ -963,12 +973,16 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
   Request &request = nodeRequestTable[key];
   if(!request.sent){
     nodeReqs.incrRequests();
-    RequestMsg *reqMsg = new RequestMsg(key,CkMyPe());
-    // XXX - which of the owners should i ask? 
-    int owner = leaf->getOwnerStart();
+
+    RequestMsg *reqMsg = new (NUM_PRIORITY_BITS) RequestMsg(key,CkMyPe());
+    *(int *)CkPriorityPtr(reqMsg) = REQUEST_NODE_PRIORITY;
+    CkSetQueueing(reqMsg,CK_QUEUEING_IFIFO);
+
+    int numOwners = leaf->getOwnerEnd()-leaf->getOwnerStart()+1;
+    int requestOwner = leaf->getOwnerStart()+(rand()%numOwners);
     RRDEBUG("(%d) REQUEST node %lu from tp %d\n", 
-            CkMyPe(), key, owner);
-    treePieceProxy[owner].requestNode(reqMsg);
+            CkMyPe(), key, requestOwner);
+    treePieceProxy[requestOwner].requestNode(reqMsg);
     request.sent = true;
     request.parent = leaf;
   }
@@ -999,7 +1013,11 @@ void DataManager::requestNode(RequestMsg *msg){
   fillTrav.topDownTraversal_local(node,&tsz);
 
   int nn = tsz.getNumNodes();
-  NodeReplyMsg *nmsg = new (nn,0) NodeReplyMsg;
+
+  NodeReplyMsg *nmsg = new (nn,NUM_PRIORITY_BITS) NodeReplyMsg;
+  *(int *)CkPriorityPtr(nmsg) = RECV_NODE_PRIORITY;
+  CkSetQueueing(nmsg,CK_QUEUEING_IFIFO);
+
   nmsg->key = msg->key;
   nmsg->nn = nn;
 
