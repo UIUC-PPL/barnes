@@ -42,11 +42,9 @@ DataManager::DataManager() :
   numTreePiecesDoneTraversals(0),
   prevIterationStart(0.0)
 {
-#ifdef STATISTICS
   numInteractions[0] = 0;
   numInteractions[1] = 0;
   numInteractions[2] = 0;
-#endif
   savedEnergy = 0.0;
 }
 
@@ -802,18 +800,12 @@ void DataManager::recvNode(NodeReplyMsg *msg){
           CkMyPe(), msg->key);
 }
 
-#ifdef STATISTICS
 void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit)
-#else
-void DataManager::traversalsDone()
-#endif
 {
   numTreePiecesDoneTraversals++;
-#ifdef STATISTICS
   numInteractions[0] += pnInter;
   numInteractions[1] += ppInter;
   numInteractions[2] += openCrit;
-#endif
   if(numTreePiecesDoneTraversals == numLocalTreePieces){
     finishIteration();
   }
@@ -830,14 +822,12 @@ void DataManager::finishIteration(){
   DtReductionStruct dtred;
   findMinVByA(dtred);
 
-#ifdef STATISTICS
   dtred.pnInteractions = numInteractions[0];
   dtred.ppInteractions = numInteractions[1];
   dtred.openCrit = numInteractions[2];
   numInteractions[0] = 0;
   numInteractions[1] = 0;
   numInteractions[2] = 0;
-#endif
 
   CkCallback cb(CkIndex_DataManager::advance(NULL),thisProxy);
   contribute(sizeof(DtReductionStruct),&dtred,DtReductionType,cb);
@@ -864,9 +854,7 @@ void DataManager::advance(CkReductionMsg *msg){
   myBox.numParticles = myNumParticles;
 
   if(CkMyPe() == 0){
-#ifdef STATISTICS
     CkPrintf("[STATS] node inter %lu part inter %lu open crit %lu dt %f\n", dtred->pnInteractions, dtred->ppInteractions, dtred->openCrit, globalParams.dtime);
-#endif
   }
 
   CkAssert(pendingMoments.empty());

@@ -63,8 +63,7 @@ void TreePiece::startTraversal(){
   trav.setDataManager(myDM);
 
   if(myNumBuckets == 0){
-    localGravityDone();
-    remoteGravityDone();
+    finishIteration();
     return;
   }
 
@@ -73,7 +72,6 @@ void TreePiece::startTraversal(){
   RescheduleMsg *msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = REMOTE_GRAVITY_PRIORITY;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-  //thisProxy[thisIndex].doRemoteGravity();
   thisProxy[thisIndex].doRemoteGravity(msg);
 
   localTraversalState.reset(this,myNumBuckets,myBuckets);
@@ -82,11 +80,9 @@ void TreePiece::startTraversal(){
   msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = LOCAL_GRAVITY_PRIORITY;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-  //thisProxy[thisIndex].doLocalGravity();
   thisProxy[thisIndex].doLocalGravity(msg);
 }
 
-//void TreePiece::doLocalGravity(){
 void TreePiece::doLocalGravity(RescheduleMsg *msg){
   int i;
   for(i = 0; i < globalParams.yieldPeriod && 
@@ -98,17 +94,17 @@ void TreePiece::doLocalGravity(RescheduleMsg *msg){
     localTraversalWorker.setContext(*localTraversalState.currentBucketPtr);
   }
 
-  if(localTraversalState.decrPending(i)){
-    localGravityDone();
-    delete msg;
-  }
-  else if(localTraversalState.current < myNumBuckets) {
-    //thisProxy[thisIndex].doLocalGravity();
+  localTraversalState.decrPending(i);
+  if(localTraversalState.current < myNumBuckets){
+    CkAssert(!localTraversalState.complete());
     thisProxy[thisIndex].doLocalGravity(msg);
+  }
+  else{
+    delete msg;
+    if(localTraversalState.complete()) traversalDone();
   }
 }
 
-//void TreePiece::doRemoteGravity(){
 void TreePiece::doRemoteGravity(RescheduleMsg *msg){
   int i;
   for(i = 0; i < globalParams.yieldPeriod &&
@@ -120,42 +116,28 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
     remoteTraversalWorker.setContext(*remoteTraversalState.currentBucketPtr);
   }
 
-  if(remoteTraversalState.decrPending(i)){
-    remoteGravityDone();
-    delete msg;
-  }
-  else if (remoteTraversalState.current < myNumBuckets) {
-    //thisProxy[thisIndex].doRemoteGravity();
+  remoteTraversalState.decrPending(i);
+  if(remoteTraversalState.current < myNumBuckets){
+    CkAssert(!remoteTraversalState.complete());
     thisProxy[thisIndex].doRemoteGravity(msg);
   }
-}
-
-void TreePiece::localGravityDone(){
-  traversalDone();
-}
-
-void TreePiece::remoteGravityDone(){ 
-  traversalDone();
+  else{
+    delete msg;
+    if(remoteTraversalState.complete()) traversalDone();
+  }
 }
 
 void TreePiece::traversalDone(){ 
   numTraversalsDone++;
-
-  if(numTraversalsDone == totalNumTraversals){
-#ifdef STATISTICS
-    CmiUInt8 pn = localTraversalState.numInteractions[0]+remoteTraversalState.numInteractions[0];
-    CmiUInt8 pp = localTraversalState.numInteractions[1]+remoteTraversalState.numInteractions[1];
-    CmiUInt8 oc = localTraversalState.numInteractions[2]+remoteTraversalState.numInteractions[2];
-    dataManagerProxy[CkMyPe()].traversalsDone(pn,pp,oc);
-#else
-    dataManagerProxy[CkMyPe()].traversalsDone();
-#endif
-
-    finishIteration();
-  }
+  if(numTraversalsDone == totalNumTraversals) finishIteration();
 }
 
 void TreePiece::finishIteration(){
+  CmiUInt8 pn = localTraversalState.numInteractions[0]+remoteTraversalState.numInteractions[0];
+  CmiUInt8 pp = localTraversalState.numInteractions[1]+remoteTraversalState.numInteractions[1];
+  CmiUInt8 oc = localTraversalState.numInteractions[2]+remoteTraversalState.numInteractions[2];
+  dataManagerProxy[CkMyPe()].traversalsDone(pn,pp,oc);
+
   numTraversalsDone = 0;
 
   localTraversalState.finishedIteration();

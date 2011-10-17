@@ -148,7 +148,7 @@ bool RemoteTraversalWorker::getKeep(NodeType type){
 }
 
 void RemoteTraversalWorker::done(){
-  ownerTreePiece->remoteGravityDone();
+  ownerTreePiece->traversalDone();
 }
 
 const bool LocalTraversalWorker::keep[] = {false,true,true,false,true,false,false,false};

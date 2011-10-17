@@ -134,19 +134,15 @@ struct ForceData {
 };
 
 struct DtReductionStruct {
-#ifdef STATISTICS 
   CmiUInt8 pnInteractions;
   CmiUInt8 ppInteractions;
   CmiUInt8 openCrit;
-#endif
   bool haveNaN;
 
   DtReductionStruct &operator+=(const DtReductionStruct &other){
-#ifdef STATISTICS
     pnInteractions += other.pnInteractions;
     ppInteractions += other.ppInteractions;
     openCrit += other.openCrit;
-#endif
     if(other.haveNaN) haveNaN = true;
     return *this;
   }

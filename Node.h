@@ -73,27 +73,15 @@ class Node {
 
   public:
   T data;
-#ifdef CHECK_NUM_INTERACTIONS
-  CmiUInt8 nodeInteractions;
-  CmiUInt8 partInteractions;
-#endif
 
   Node(Key k, int d, Particle *p, int np, Node<T> *par=NULL) : 
     core(k,d,p,np), parent(par), children(NULL), data(),
-#ifdef CHECK_NUM_INTERACTIONS
-    nodeInteractions(0),
-    partInteractions(0),
-#endif
     numChildrenMomentsReady(0)
   {
   }
 
   Node() : 
     core(), parent(NULL), children(NULL), data(),
-#ifdef CHECK_NUM_INTERACTIONS
-    nodeInteractions(0),
-    partInteractions(0),
-#endif
     numChildrenMomentsReady(0)
   {
   }
@@ -388,16 +376,6 @@ class Node {
     }
 
   }
-
-#ifdef CHECK_NUM_INTERACTIONS
-  void addNodeInteractions(CmiUInt8 pn){
-    nodeInteractions += pn;
-  }
-
-  void addPartInteractions(CmiUInt8 pp){
-    partInteractions += pp;
-  }
-#endif
 };
 
 template<typename T>
@@ -407,14 +385,6 @@ ostream &operator<<(ostream &os, const Node<T> &node){
   os << node.getKey() 
      << " [label=\"" << node.getKey() 
      << " (" << node.getNumParticles() << ","
-#ifdef CHECK_NUM_INTERACTIONS
-     << node.nodeInteractions << ","
-     << node.partInteractions << ","
-#endif
-     /*
-     << "\\n" << oss.str() << ","
-     << node.data.moments.totalMass << ","
-     */
      << "\\n" << node.data.moments.rsq << ","
      << "\\n" << node.getOwnerStart() << ":" 
      << node.getOwnerEnd() << ")\\n"

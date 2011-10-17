@@ -101,9 +101,7 @@ class DataManager : public CBase_DataManager {
 
   Real savedEnergy;
 
-#ifdef STATISTICS
   CmiUInt8 numInteractions[3];
-#endif
 
   void kickDriftKick(OrientedBox<Real> &box, Real &energy);
 
