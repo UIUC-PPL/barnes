@@ -1,0 +1,31 @@
+1) Get the utility repository from the ChaNGa collection. This is located at:
+
+          git://charm.cs.illinois.edu/cosmo/utility
+
+
+2) Edit the Makefile to set STRUCTURES_PATH to point to the structures
+directory under the utility repository that you just cloned
+
+
+3) Point the Makefile to your installation of charm by setting CHARM_PATH
+
+
+4) Build the program and associated utilities (eg: make -j8)
+
+
+5) Generate a dataset: ./plummer numparticles datafilename
+   eg: ./plummer 1000 1k.dat
+
+
+6) Run the program
+
+   ./charmrun +p2 ++local ./barnes -in=1k.dat -ppc=100 -p=40
+   -b=8 -dtime=0.0001 -killat=1000
+
+
+-in  = dataset file name
+-ppc = part per chare (tree piece)
+-p   = maximum number of allowed of tree pieces
+
+Overdecompose the problem by setting ppc to a medium-low value and allow a
+correspondingly large number of chares by setting p to a somewhat higher value.
