@@ -840,7 +840,6 @@ void DataManager::advance(CkReductionMsg *msg){
   if(dtred->haveNaN){
     CkPrintf("(%d) iteration %d NaN accel detected! Exit...\n", CkMyPe(), iteration);
     markNaNBuckets();
-    printTree();
     CkCallback exitCb(CkCallback::ckExit);
     contribute(0,0,CkReduction::sum_int,exitCb);
     return;
@@ -961,22 +960,6 @@ void DataManager::freeTree(){
     delete root;
     root = NULL;
   }
-}
-
-void DataManager::printTree(){
-  ostringstream oss;
-  oss << "pe" << CkMyPe() << "." << iteration << ".dot";
-
-  ofstream ofs(oss.str().c_str());
-
-  ofs << "digraph PE" << CkMyPe() << "_" << iteration << " {" << endl;
-  ofs << "node [style=\"filled\"]" << endl;
-  if(root != NULL){
-    Node<ForceData> &rootRef = *root;
-    ofs << rootRef;
-  }
-  ofs << "}" << endl;
-  ofs.close();
 }
 
 void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){

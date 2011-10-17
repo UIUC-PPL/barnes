@@ -1,6 +1,7 @@
 #ifndef MULTIPOLEMOMENTS_H
 #define MULTIPOLEMOMENTS_H
 
+#include "pup.h"
 #include "Vector3D.h"
 #include "defines.h"
 
@@ -26,12 +27,12 @@ public:
           totalMass = 0;
           cm.x = cm.y = cm.z = 0;
         }
+
+        void pup(PUP::er &p){
+          p | rsq;
+          p | totalMass;
+          p | cm;
+        }
 };
 
-#include "pup.h"
-inline void operator|(PUP::er& p, MultipoleMoments& m) {
-	p | m.rsq;
-	p | m.totalMass;
-	p | m.cm;
-}
 #endif //MULTIPOLEMOMENTS_H

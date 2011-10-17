@@ -112,7 +112,6 @@ class DataManager : public CBase_DataManager {
   void senseTreePieces();
   void buildTree();
 
-  void printTree();
   void flushParticles();
 
   void processSubmittedParticles();

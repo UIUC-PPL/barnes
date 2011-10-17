@@ -180,17 +180,6 @@ class Node {
 
   }
 
-  void fullyDelete(){
-    if(core.numChildren == 0){
-      delete this;
-      return;
-    }
-
-    for(int i = 0; i < core.numChildren; i++){
-      children[i].fullyDelete();
-    }
-  }
-
   void refine(){
     CkAssert(core.numChildren == 0);
     int numRankBits = LOG_BRANCH_FACTOR;
@@ -238,20 +227,6 @@ class Node {
     child->core.particleStart = core.particleStart+childPartStart;
     child->core.numParticles = childNumParticles;
     child->core.numChildren = 0;
-  }
-
-  void printBoundingBox(ostream &os){
-    os << getKey() << " bb ";
-    os << data.box.lesser_corner.x << " ";
-    os << data.box.lesser_corner.y << " ";
-    os << data.box.lesser_corner.z << " ";
-    os << data.box.greater_corner.x << " ";
-    os << data.box.greater_corner.y << " ";
-    os << data.box.greater_corner.z << endl;
-
-    for(int i = 0; i < getNumChildren(); i++){
-      getChild(i)->printBoundingBox(os);
-    }
   }
 
   void serialize(Node<T> *placeInBuf, Node<T> *&emptyBuf, int subtreeDepth){
@@ -377,40 +352,6 @@ class Node {
 
   }
 };
-
-template<typename T>
-ostream &operator<<(ostream &os, const Node<T> &node){
-  ostringstream oss;
-  oss << hex << &node;
-  os << node.getKey() 
-     << " [label=\"" << node.getKey() 
-     << " (" << node.getNumParticles() << ","
-     << "\\n" << node.data.moments.rsq << ","
-     << "\\n" << node.getOwnerStart() << ":" 
-     << node.getOwnerEnd() << ")\\n"
-     << NodeTypeString[node.getType()]
-     << "\"";
-
-  if(node.getType() == Internal) os << ", color=\"darkolivegreen3\"";
-  else if(node.getType() == Boundary) os << ", color=\"darkgoldenrod1\"";
-  else if(node.getType() == Bucket) os << ", color=\"chartreuse\"";
-  else if(node.getType() == EmptyBucket) os << ", color=\"coral\"";
-  else if(node.getType() == Remote) os << ", color=\"aquamarine3\"";
-  else if(node.getType() == RemoteBucket) os << ", color=\"aquamarine1\"";
-  else if(node.getType() == Invalid) os << ", color=\"firebrick1\"";
-
-  os << "]" << endl;
-
-  //if(node.getType() == Internal) return os;
-
-  for(int i = 0; i < node.getNumChildren(); i++){
-    Node<T> &childref = *(node.getChild(i));
-    os << node.getKey() << " -> " << childref.getKey() << endl;
-    os << childref;
-  }
-
-  return os;
-}
 
 struct MomentsExchangeStruct {
   MultipoleMoments moments;
