@@ -149,31 +149,10 @@ class FreeTreeWorker : public CutoffWorker<T> {
   public:
   int work(Node<T> *node){
     if(node->getNumChildren() > 0){
-      /*
-         CkPrintf("(%d) deleting %d children of %lu ptr %lx\n", 
-         CkMyPe(), 
-         node->getNumChildren(),
-         node->getKey(),
-         node->getChildren()
-         );
-         */
       delete[] node->getChildren();
     }
     return 1;
   }
-};
-
-class TreeChecker : public CutoffWorker<ForceData> {
-  ostream &os;
-  public: 
-  TreeChecker(ostream &o) : os(o) {}
-  int work(Node<ForceData> *node);
-};
-
-class InteractionChecker : public CutoffWorker<ForceData> {
-  public:
-  InteractionChecker() {}
-  int work(Node<ForceData> *node);
 };
 
 #endif

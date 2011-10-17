@@ -31,22 +31,6 @@ class TreePieceCounter : public CkLocIterator {
   }                                                         
 };
 
-struct RequestedMomentsDescriptor {
-  Node<ForceData> *node;
-  int numOutstanding;
-
-  RequestedMomentsDescriptor() : 
-    node(NULL), numOutstanding(-1)
-  {
-  }
-
-  RequestedMomentsDescriptor(Node<ForceData> *nd, int n) : 
-    node(nd), numOutstanding(n)
-  {
-  }
-
-};
-
 struct CacheStats {
   int outstandingRequests;
   int outstandingDeliveries;
@@ -93,7 +77,6 @@ class DataManager : public CBase_DataManager {
   // I am done constructing the tree 
   // from particles present on this PE
   bool doneTreeBuild;
-  //CkVec<RequestedMomentsDescriptor> requestedMoments;
   map<Key,Node<ForceData>*> nodeTable;
 
   map<Key,CkVec<int> > pendingMoments;
@@ -170,7 +153,6 @@ class DataManager : public CBase_DataManager {
   
   // called by tree pieces
   void submitParticles(CkVec<ParticleMsg *> *vec, int numParticles, TreePiece *tp, Key smallestKey, Key largestKey); 
-  //void requestMoments(MomentsRequestMsg *msg);
   void requestMoments(Key k, int replyTo);
   void advance(CkReductionMsg *);
 #ifdef STATISTICS

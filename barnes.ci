@@ -51,8 +51,10 @@ mainmodule barnes {
     entry void requestMoments(Key k, int replyTo);
 
     entry void startTraversal();
-    entry void doLocalGravity(RescheduleMsg *);
-    entry void doRemoteGravity(RescheduleMsg *);
+    entry void doLocalGravity();
+    entry void doRemoteGravity();
+    //entry void doLocalGravity(RescheduleMsg *);
+    //entry void doRemoteGravity(RescheduleMsg *);
 
     entry void requestParticles(RequestMsg *msg);
     entry void requestNode(RequestMsg *msg);

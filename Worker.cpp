@@ -7,7 +7,6 @@
 extern CProxy_TreePiece treePieceProxy;
 
 int ParticleFlushWorker::work(Node<NodeDescriptor> *node){
-  //CkPrintf("(%d) traverse node %lu\n", CkMyPe(), node->getKey());
   if(node->getNumChildren() > 0) return 1;
 
   dataManager->sendParticlesToTreePiece(node,leafCnt); 
@@ -16,12 +15,6 @@ int ParticleFlushWorker::work(Node<NodeDescriptor> *node){
 }
 
 int MomentsWorker::work(Node<ForceData> *node){
-  /*
-  CkPrintf("(%d) moments node %lu children %d particles %lx\n",
-            CkMyPe(), node->getKey(), 
-            node->getNumChildren(), node->getParticles());
-  */
-  
   int numChildren = node->getNumChildren();
   Particle *particles = node->getParticles();
   Node<ForceData> *parent = node->getParent();
@@ -33,7 +26,6 @@ int MomentsWorker::work(Node<ForceData> *node){
     setLeafType(node);
 
     if(node->getType() == Bucket || node->getType() == EmptyBucket){
-      //CkPrintf("[%d] moments from particles key %lu\n", CkMyPe(), node->getKey());
       node->getMomentsFromParticles();
       if(parent != NULL) parent->childMomentsReady();
     }
@@ -42,7 +34,6 @@ int MomentsWorker::work(Node<ForceData> *node){
     setTypeFromChildren(node);
     // don't have moments of remote nodes yet
     if(node->getType() == Internal){ 
-      //CkPrintf("[%d] moments from children %lu\n", CkMyPe(), node->getKey());
       node->getMomentsFromChildren();
       if(parent != NULL) parent->childMomentsReady();
     }
@@ -61,7 +52,6 @@ void MomentsWorker::setLeafType(Node<ForceData> *leaf){
     if(leaf->getNumParticles() > 0) leaf->setType(Bucket);
     else leaf->setType(EmptyBucket);
 
-    //CkPrintf("(%d) bucket %d key %lu\n", CkMyPe(), buckets.length(), leaf->getKey());
     buckets.push_back(leaf);
     return;
   }
@@ -171,32 +161,5 @@ int TreeSizeWorker::work(Node<ForceData> *node){
     return 1;
   }
   return 0;
-}
-
-int TreeChecker::work(Node<ForceData> *node){
-  CkAssert(node != NULL);
-  if(node->getParent() != NULL){
-    os << "CHECK: " << node->getKey() << " parent " << node->getParent()->getKey() << endl;
-  }
-  if(node->getChildren() > 0){
-    for(int i = 0; i < node->getNumChildren(); i++){
-      os << "CHECK: " << node->getKey() << " child " << i << " " << node->getChild(i)->getKey() << endl;
-    }
-  }
-  else{
-    os << "CHECK: " << node->getKey() << " 0 children" << endl;
-  }
-  return 1;
-}
-
-int InteractionChecker::work(Node<ForceData> *node){
-  if(node->getNumChildren() == 0) return 1;
-
-  for(int i = 0; i < BRANCH_FACTOR; i++){
-#ifdef CHECK_NUM_INTERACTIONS
-    node->nodeInteractions += node->getChild(i)->nodeInteractions;
-    node->partInteractions += node->getChild(i)->partInteractions;
-#endif
-  }
 }
 

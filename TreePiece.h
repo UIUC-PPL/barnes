@@ -62,8 +62,10 @@ class TreePiece : public CBase_TreePiece {
   void prepare(Node<ForceData> *_root, Node<ForceData> **buckets, int bucketStart, int bucketEnd);
   void startTraversal();
 
-  void doLocalGravity(RescheduleMsg *);
-  void doRemoteGravity(RescheduleMsg *);
+  void doLocalGravity();
+  void doRemoteGravity();
+  //void doLocalGravity(RescheduleMsg *);
+  //void doRemoteGravity(RescheduleMsg *);
 
   void requestParticles(RequestMsg *msg);
   void requestNode(RequestMsg *msg);

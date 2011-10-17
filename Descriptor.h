@@ -164,7 +164,6 @@ struct DtReductionStruct {
   CmiUInt8 ppInteractions;
   CmiUInt8 openCrit;
 #endif
-  Real vbya;
   bool haveNaN;
 
   DtReductionStruct &operator+=(const DtReductionStruct &other){
@@ -174,11 +173,6 @@ struct DtReductionStruct {
     openCrit += other.openCrit;
 #endif
     if(other.haveNaN) haveNaN = true;
-
-    if(other.vbya < 0.0) {} 
-    else if(vbya < 0.0) vbya = other.vbya;
-    else if(other.vbya < vbya) vbya = other.vbya;
-
     return *this;
   }
 };
