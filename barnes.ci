@@ -22,10 +22,6 @@ mainmodule barnes {
     Key keys[];
   };
 
-  message MomentsExchangeMsg {
-    MomentsExchangeStruct data[];
-  };
-
   message RequestMsg;
   message ParticleReplyMsg {
     ExternalParticle data[];
@@ -71,7 +67,6 @@ mainmodule barnes {
     entry void receiveSplitters(SplitterMsg *msg);
     entry void sendParticles(RangeMsg *msg);
     entry void receiveMoments(MomentsMsg *msg);
-    entry void recvUniqueNodes(MomentsExchangeMsg *msg);
 
     entry void recvParticles(ParticleReplyMsg *msg);
     entry void recvNode(NodeReplyMsg *msg);

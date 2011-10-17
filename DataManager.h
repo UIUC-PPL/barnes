@@ -95,14 +95,9 @@ class DataManager : public CBase_DataManager {
   bool doneTreeBuild;
   //CkVec<RequestedMomentsDescriptor> requestedMoments;
   map<Key,Node<ForceData>*> nodeTable;
-  CkVec<Node<ForceData>*> uniqueNodes;
 
   map<Key,CkVec<int> > pendingMoments;
 
-  CkVec<MomentsExchangeMsg *> uniqueNodeMsgs;
-  int numUniqueNodeMsgsRecvd;
-  // I have recvd all unique nodes 
-  bool recvdAllUniqueNodes;
   // I have processed the moment 
   // contributions from all other PEs, so that
   // the tree on this PE is now ready for 
@@ -135,10 +130,8 @@ class DataManager : public CBase_DataManager {
   
   void senseTreePieces();
   void buildTree();
-  //void mergeTreePieces();
 
   void printTree();
-  void printBoundingBoxes();
   void flushParticles();
 
   void processSubmittedParticles();
@@ -147,13 +140,8 @@ class DataManager : public CBase_DataManager {
   void respondToMomentsRequest(Node<ForceData> *,CkVec<int>&);
   Node<ForceData> *lookupNode(Key k);
 
-  void exchangeUniqueNodes();
-  void processMomentUpdates();
-  void extendTree(MomentsExchangeMsg *msg);
-  Node<ForceData> *createNode(Key k);
   void updateLeafMoments(Node<ForceData> *node, MomentsExchangeStruct &data);
   void passMomentsUpward(Node<ForceData> *node);
-  void afterMomentsUpdated();
   void treeReady();
 
   void startTraversal();
@@ -163,7 +151,6 @@ class DataManager : public CBase_DataManager {
   void freeTree();
   void finishIteration();
 
-  void resetParticleAccelerations();
   void findMinVByA(DtReductionStruct &);
 
   void markNaNBuckets();
@@ -180,8 +167,6 @@ class DataManager : public CBase_DataManager {
   void sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp);
 
   void receiveMoments(MomentsMsg *msg);
-  void recvUniqueNodes(MomentsExchangeMsg *msg);
-  
   
   // called by tree pieces
   void submitParticles(CkVec<ParticleMsg *> *vec, int numParticles, TreePiece *tp, Key smallestKey, Key largestKey); 
@@ -211,8 +196,6 @@ class DataManager : public CBase_DataManager {
 
   void addBucketNodeInteractions(Key k, CmiUInt8 pn);
   void addBucketPartInteractions(Key k, CmiUInt8 pp);
-
-  int getIteration() const {return iteration;}
 };
 
 #endif

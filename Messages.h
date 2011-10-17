@@ -20,14 +20,6 @@ struct RangeMsg : public CMessage_RangeMsg {
   int numTreePieces;
 };
 
-struct MomentsExchangeStruct;
-struct MomentsExchangeMsg : public CMessage_MomentsExchangeMsg {
-  MomentsExchangeStruct *data;
-
-  int numNodes;
-  int fromPE;
-};
-
 struct RequestMsg : public CMessage_RequestMsg {
   Key key;
   int replyTo;
@@ -50,6 +42,7 @@ struct NodeReplyMsg : public CMessage_NodeReplyMsg {
   int nn;
 };
 
+struct MomentsExchangeStruct;
 struct MomentsMsg : public CMessage_MomentsMsg {
   MomentsExchangeStruct data;
 

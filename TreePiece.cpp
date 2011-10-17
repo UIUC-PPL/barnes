@@ -25,7 +25,7 @@ TreePiece::TreePiece() :
   numTraversalsDone(0)
 {
   myDM = dataManagerProxy.ckLocalBranch();
-  usesAtSync = true;
+  //usesAtSync = true;
 }
 
 void TreePiece::receiveParticles(ParticleMsg *msg){

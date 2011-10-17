@@ -39,6 +39,8 @@ struct NodeCore {
   int ownerStart;
   int ownerEnd;
 
+  bool cached;
+
   NodeCore(){
     particleStart = NULL;
     numParticles = 0;
@@ -47,13 +49,14 @@ struct NodeCore {
     depth = -1;
     ownerStart = -1;
     ownerEnd = -1;
+    cached = false;
   }
 
   NodeCore(Key k, int d, Particle *p, int np) : 
     key(k), depth(d), 
     particleStart(p), numParticles(np),
     type(Invalid), numChildren(0),
-    ownerStart(-1), ownerEnd(-1)
+    ownerStart(-1), ownerEnd(-1), cached(false)
   {
   }
 };
@@ -319,10 +322,14 @@ class Node {
 
       buf->setParticles(NULL,0);
       buf->setType(makeRemote(buf->getType()));
+      buf->setCached();
 
       buf++;
     }
   }
+
+  void setCached(){ core.cached = true; }
+  bool isCached(){ return core.cached; }
 
   static NodeType makeRemote(NodeType type){
     switch(type){

@@ -39,8 +39,6 @@ DataManager::DataManager() :
   numLocalTreePieces(-1),
   doneTreeBuild(false),
   treeMomentsReady(false),
-  recvdAllUniqueNodes(false),
-  numUniqueNodeMsgsRecvd(0),
   numTreePiecesDoneTraversals(0),
   prevIterationStart(0.0)
 {
@@ -618,7 +616,6 @@ void DataManager::makeMoments(){
 
   MomentsWorker mw(submittedParticles,
                    nodeTable,
-                   uniqueNodes,
                    myBuckets
                    );
   fillTrav.postorderTraversal(root,&mw);
@@ -697,120 +694,7 @@ void DataManager::receiveMoments(MomentsMsg *msg){
   delete msg;
 }
 
-void DataManager::exchangeUniqueNodes(){
-  int num = uniqueNodes.length();
-  MomentsExchangeMsg *msg = new (num,0) MomentsExchangeMsg;
-  for(int i = 0; i < num; i++){
-    Node<ForceData> *node = uniqueNodes[i];
-    msg->data[i] = *node;
-  }
-  msg->numNodes = num;
-  msg->fromPE = CkMyPe();
-  // XXX make allgather/all-to-all bcast more efficient
-  thisProxy.recvUniqueNodes(msg);
-}
-
-void DataManager::recvUniqueNodes(MomentsExchangeMsg *msg){
-  if(!doneTreeBuild){
-    uniqueNodeMsgs.push_back(msg); 
-    return;
-  }
-
-  extendTree(msg);
-  numUniqueNodeMsgsRecvd++;
-  afterMomentsUpdated();
-}
-
-void DataManager::processMomentUpdates(){
-  CkAssert(doneTreeBuild);
-  for(int i = 0; i < uniqueNodeMsgs.length(); i++){
-    MomentsExchangeMsg *msg = uniqueNodeMsgs[i];
-    extendTree(msg);
-  }
-  numUniqueNodeMsgsRecvd += uniqueNodeMsgs.length();
-  afterMomentsUpdated();
-}
-
-void DataManager::extendTree(MomentsExchangeMsg *msg){
-  if(msg->fromPE != CkMyPe()){
-    for(int i = 0; i < msg->numNodes; i++){
-      MomentsExchangeStruct &data = msg->data[i];
-      
-      CkAssert(data.key > Key(0));
-
-      Node<ForceData> *node = lookupNode(data.key);
-      if(node == NULL){
-        node = createNode(data.key);
-        CkAssert(data.type != Boundary);
-        if(data.type == Internal) node->setType(Remote);
-        else if(data.type == Bucket) node->setType(RemoteBucket);
-        else if(data.type == EmptyBucket) node->setType(RemoteEmptyBucket);
-      }
-      updateLeafMoments(node,data);
-    }
-  }
-  delete msg;
-}
-
-Node<ForceData> *DataManager::createNode(Key k){
-  Key curKey = Key(1);
-  int curDepth = 0;
-
-  if(root == NULL){
-    root = new Node<ForceData>(curKey,curDepth,NULL,0);
-    root->setType(Remote);
-    nodeTable[curKey] = root;
-  }
-
-  Node<ForceData> *curNode = root;
-
-  int kDepth = Node<ForceData>::getDepthFromKey(k);
-  Key mask = Key((1<<LOG_BRANCH_FACTOR)-1);
-  int nshift = ((kDepth-1)*LOG_BRANCH_FACTOR);
-  mask <<= nshift;
-
-  while(curKey != k){
-    CkAssert(curDepth >= 0);
-    CkAssert(curDepth < ((TREE_KEY_BITS-1)/LOG_BRANCH_FACTOR));
-
-    if(curNode->getNumChildren() == 0){
-      // need to create children of current node
-      Node<ForceData> *child = new Node<ForceData>[BRANCH_FACTOR];
-      curNode->setChildren(child,BRANCH_FACTOR);
-
-      int childDepth = curDepth+1;
-      Key childKey = (curKey << LOG_BRANCH_FACTOR);
-      for(int i = 0; i < BRANCH_FACTOR; i++){
-        child->setKey(childKey);
-        child->setDepth(childDepth);
-        child->setParent(curNode);
-        child->setType(Remote);
-
-        nodeTable[childKey] = child;
-        childKey++;
-        child++;
-      }
-    }
-
-    // the children of this node (now) exist
-    // they were created either during initial tree building
-    // or by the code above
-
-    int whichChild = ((k & mask)>>nshift);
-    nshift -= LOG_BRANCH_FACTOR;
-    mask >>= LOG_BRANCH_FACTOR;
-    curNode = curNode->getChild(whichChild);
-    curKey = ((curKey<<LOG_BRANCH_FACTOR)+whichChild);
-    
-    curDepth++;
-
-  }
-
-  return curNode;
-}
-
 void DataManager::updateLeafMoments(Node<ForceData> *node, MomentsExchangeStruct &data){
-  //node->data.moments = moments;
   copyMomentsToNode(node,data);
   TB_DEBUG("(%d) updateLeafMoments %lu\n", CkMyPe(), node->getKey());
   passMomentsUpward(node);
@@ -836,17 +720,6 @@ void DataManager::passMomentsUpward(Node<ForceData> *node){
       parent->getMomentsFromChildren();
       parent->getOwnershipFromChildren();
       passMomentsUpward(parent);
-    }
-  }
-}
-
-void DataManager::afterMomentsUpdated(){
-  if(numUniqueNodeMsgsRecvd == CkNumPes()){
-    numUniqueNodeMsgsRecvd = 0;
-    uniqueNodeMsgs.length() = 0;
-    recvdAllUniqueNodes = true;
-    if(treeMomentsReady){
-      startTraversal();
     }
   }
 }
@@ -923,6 +796,9 @@ void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData
   if(!request.sent){
     partReqs.incrRequests();
 
+    if(leaf->isCached()) request.parentCached = true;
+    else request.parentCached = false;
+
     RequestMsg *reqMsg = new (NUM_PRIORITY_BITS) RequestMsg(key,CkMyPe());
     *(int *)CkPriorityPtr(reqMsg) = REQUEST_PARTICLES_PRIORITY;
     CkSetQueueing(reqMsg,CK_QUEUEING_IFIFO);
@@ -979,6 +855,9 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
 #endif
   if(!request.sent){
     nodeReqs.incrRequests();
+
+    if(leaf->isCached()) request.parentCached = true;
+    else request.parentCached = false;
 
     RequestMsg *reqMsg = new (NUM_PRIORITY_BITS) RequestMsg(key,CkMyPe());
     *(int *)CkPriorityPtr(reqMsg) = REQUEST_NODE_PRIORITY;
@@ -1178,9 +1057,6 @@ void DataManager::advance(CkReductionMsg *msg){
   haveRanges = false;
   myBuckets.length() = 0;
   doneTreeBuild = false;
-  numUniqueNodeMsgsRecvd = 0;
-  uniqueNodes.length() = 0;
-  recvdAllUniqueNodes = false;
   treeMomentsReady = false;
   numTreePiecesDoneTraversals = 0;
 
@@ -1214,6 +1090,24 @@ void DataManager::recvUnivBoundingBox(CkReductionMsg *msg){
 
 void DataManager::freeCachedData(){
   map<Key,Request>::iterator it;
+
+  for(it = particleRequestTable.begin(); it != particleRequestTable.end(); it++){
+    Request &request = it->second;
+    CkAssert(request.sent);
+    CkAssert(request.data != NULL);
+    CkAssert(request.requestors.length() == 0);
+    CkAssert(request.msg != NULL);
+    
+    // no need to set the particles of a cached
+    // bucket to NULL: we will delete the bucket
+    // anyway
+    if(!request.parentCached){
+      request.parent->setParticles(NULL,0);
+    }
+
+    delete (ParticleReplyMsg *)(request.msg);
+  }
+
   for(it = nodeRequestTable.begin(); it != nodeRequestTable.end(); it++){
     Request &request = it->second;
     CkAssert(request.sent);
@@ -1224,21 +1118,14 @@ void DataManager::freeCachedData(){
     // tell the root of the nodes in this 
     // fetched entry that its children don't
     // exist anymore
-    request.parent->setChildren(NULL,0);
+    // cached parents may be deleted before
+    // their children, so we don't set their
+    // children
+    if(!request.parentCached){
+      request.parent->setChildren(NULL,0);
+    }
 
     delete (NodeReplyMsg *)(request.msg);
-  }
-
-  for(it = particleRequestTable.begin(); it != particleRequestTable.end(); it++){
-    Request &request = it->second;
-    CkAssert(request.sent);
-    CkAssert(request.data != NULL);
-    CkAssert(request.requestors.length() == 0);
-    CkAssert(request.msg != NULL);
-
-    request.parent->setParticles(NULL,0);
-
-    delete (ParticleReplyMsg *)(request.msg);
   }
 
   nodeRequestTable.clear();
@@ -1259,9 +1146,9 @@ void DataManager::quiescence(){
 }
 
 void DataManager::freeTree(){
-  FreeTreeWorker<ForceData> freeWorker;
-  fillTrav.postorderTraversal(root,&freeWorker); 
   if(root != NULL){
+    FreeTreeWorker<ForceData> freeWorker;
+    fillTrav.postorderTraversal(root,&freeWorker); 
     delete root;
     root = NULL;
   }
@@ -1280,14 +1167,6 @@ void DataManager::printTree(){
     ofs << rootRef;
   }
   ofs << "}" << endl;
-  ofs.close();
-}
-
-void DataManager::printBoundingBoxes(){
-  ostringstream oss;
-  oss << "bb.pe" << CkMyPe() << ".dat";
-  ofstream ofs(oss.str().c_str());
-  root->printBoundingBox(ofs);
   ofs.close();
 }
 
@@ -1345,14 +1224,6 @@ void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
 
   }
   savedEnergy /= 2.0;
-}
-
-void DataManager::resetParticleAccelerations(){
-  for(int i = 0; i < myNumParticles; i++){
-    myParticles[i].acceleration.x = 0.0;
-    myParticles[i].acceleration.y = 0.0;
-    myParticles[i].acceleration.z = 0.0;
-  }
 }
 
 void DataManager::findMinVByA(DtReductionStruct &dtred){

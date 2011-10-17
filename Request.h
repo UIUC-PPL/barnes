@@ -36,6 +36,7 @@ struct Request {
   void *msg;
 
   Node<ForceData> *parent; 
+  bool parentCached;
 
   Request() : 
     data(NULL),
