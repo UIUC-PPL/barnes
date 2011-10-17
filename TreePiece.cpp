@@ -16,8 +16,6 @@ TreePiece::TreePiece() :
   largestKey(Key(0)),
   localTraversalState(),
   remoteTraversalState(),
-  localStateID(0), 
-  remoteStateID(1),
   localTraversalWorker(),
   remoteTraversalWorker(),
   totalNumTraversals(2),
@@ -72,28 +70,24 @@ void TreePiece::startTraversal(){
 
   remoteTraversalState.reset(this,myNumBuckets,myBuckets);
   remoteTraversalWorker.reset(this,&remoteTraversalState,*myBuckets);
-  /*
   RescheduleMsg *msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = REMOTE_GRAVITY_PRIORITY;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-  */
-  thisProxy[thisIndex].doRemoteGravity();
-  //thisProxy[thisIndex].doRemoteGravity(msg);
+  //thisProxy[thisIndex].doRemoteGravity();
+  thisProxy[thisIndex].doRemoteGravity(msg);
 
   localTraversalState.reset(this,myNumBuckets,myBuckets);
   localTraversalWorker.reset(this,&localTraversalState,*myBuckets);
 
-  /*
   msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = LOCAL_GRAVITY_PRIORITY;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-  */
-  thisProxy[thisIndex].doLocalGravity();
-  //thisProxy[thisIndex].doLocalGravity(msg);
+  //thisProxy[thisIndex].doLocalGravity();
+  thisProxy[thisIndex].doLocalGravity(msg);
 }
 
-void TreePiece::doLocalGravity(){
-//void TreePiece::doLocalGravity(RescheduleMsg *msg){
+//void TreePiece::doLocalGravity(){
+void TreePiece::doLocalGravity(RescheduleMsg *msg){
   int i;
   for(i = 0; i < globalParams.yieldPeriod && 
                  localTraversalState.current < myNumBuckets; 
@@ -106,16 +100,16 @@ void TreePiece::doLocalGravity(){
 
   if(localTraversalState.decrPending(i)){
     localGravityDone();
-    //delete msg;
+    delete msg;
   }
   else if(localTraversalState.current < myNumBuckets) {
-    thisProxy[thisIndex].doLocalGravity();
-    //thisProxy[thisIndex].doLocalGravity(msg);
+    //thisProxy[thisIndex].doLocalGravity();
+    thisProxy[thisIndex].doLocalGravity(msg);
   }
 }
 
-void TreePiece::doRemoteGravity(){
-//void TreePiece::doRemoteGravity(RescheduleMsg *msg){
+//void TreePiece::doRemoteGravity(){
+void TreePiece::doRemoteGravity(RescheduleMsg *msg){
   int i;
   for(i = 0; i < globalParams.yieldPeriod &&
                  remoteTraversalState.current < myNumBuckets;
@@ -128,11 +122,11 @@ void TreePiece::doRemoteGravity(){
 
   if(remoteTraversalState.decrPending(i)){
     remoteGravityDone();
-    //delete msg;
+    delete msg;
   }
   else if (remoteTraversalState.current < myNumBuckets) {
-    thisProxy[thisIndex].doRemoteGravity();
-    //thisProxy[thisIndex].doRemoteGravity(msg);
+    //thisProxy[thisIndex].doRemoteGravity();
+    thisProxy[thisIndex].doRemoteGravity(msg);
   }
 }
 
@@ -170,6 +164,9 @@ void TreePiece::finishIteration(){
   myNumParticles = 0;
   numDecompMsgsRecvd = 0;
   decompMsgsRecvd.length() = 0;
+
+  largestKey = Key(0);
+  smallestKey = ~largestKey; 
 
   iteration++;
 }

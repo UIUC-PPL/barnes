@@ -6,14 +6,14 @@ defines.h \
 common.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-MultipoleMoments.h \
-Vector3D.h \
 TreePiece.h \
 Particle.h \
+Vector3D.h \
 Messages.h \
+MultipoleMoments.h \
 Node.h \
 util.h \
+Descriptor.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
@@ -31,11 +31,11 @@ common.h \
 Vector3D.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-defines.h \
-MultipoleMoments.h \
 Node.h \
+MultipoleMoments.h \
+defines.h \
 util.h \
+Descriptor.h \
 ActiveBinInfo.h \
 Traversal_decls.h \
 Worker.h \
@@ -53,13 +53,13 @@ defines.h \
 common.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-MultipoleMoments.h \
-Vector3D.h \
 Particle.h \
+Vector3D.h \
 Messages.h \
+MultipoleMoments.h \
 Node.h \
 util.h \
+Descriptor.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
@@ -158,8 +158,6 @@ TreePiece.h \
 barnes.decl.h \
 Messages.h \
 Worker.h \
-
-particleGenerator.o: \
 
 gen_util.o: \
 gen_util.cpp \

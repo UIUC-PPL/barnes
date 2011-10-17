@@ -155,11 +155,7 @@ class DataManager : public CBase_DataManager {
   void submitParticles(CkVec<ParticleMsg *> *vec, int numParticles, TreePiece *tp, Key smallestKey, Key largestKey); 
   void requestMoments(Key k, int replyTo);
   void advance(CkReductionMsg *);
-#ifdef STATISTICS
   void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit);
-#else
-  void traversalsDone();
-#endif
 
   // called by tree piece that is making a request
   void requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);

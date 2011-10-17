@@ -36,7 +36,6 @@ struct ActiveBinInfo{
 
     Key kfirst, klast;
 
-    //CkPrintf("[%d] add new node %ld\n", CkMyPe(), node->getKey());
     newvec->push_back(pr);
     int np = node->getNumParticles();
     Particle *particles = node->getParticles();
@@ -55,7 +54,6 @@ struct ActiveBinInfo{
       (*oldvec)[bin].second = true;
       Node<T> *node = (*oldvec)[bin].first;
 
-      //CkPrintf("[%d] processRefine node %ld\n", CkMyPe(), node->getKey());
       refine(node);
 
       Key kfirst, klast;
@@ -66,7 +64,6 @@ struct ActiveBinInfo{
         Node<T> *child = node->getChild(i);
         pr.first = child;
         
-        //CkPrintf("[%d] add child node %ld\n", CkMyPe(), child->getKey());
         newvec->push_back(pr);
         int np = child->getNumParticles();
         Particle *particles = child->getParticles();
@@ -151,21 +148,10 @@ struct OwnershipActiveBinInfo : public ActiveBinInfo<T> {
     int start = (ownerStart<<1);
     int end = (ownerEnd<<1)+2;
 
-#ifdef VERBOSE_NODE_REFINE
-    CkPrintf("(%d) node %lu considering tps %d (%d) - %d (%d)\n", 
-                CkMyPe(), node->getKey(), node->getOwnerStart(), start, node->getOwnerEnd(), end);
-    for(int i = node->getOwnerStart(); i <= node->getOwnerEnd(); i++){
-      CkPrintf("(%d) tp %d key %lx - %lx\n",CkMyPe(),i,owners[(i<<1)],owners[(i<<1)+1]);
-    }
-#endif
-    
     Node<T> *children = node->getChildren();
     Key childKey = children[0].getKey();
 
     children[0].setOwnerStart(ownerStart);
-#ifdef VERBOSE_NODE_REFINE
-    CkPrintf("(%d) child %d key %lu ownerStart %d\n", CkMyPe(), 0, childKey, node->getOwnerStart());
-#endif
     int childDepth = children[0].getDepth();
     childKey++;
 
@@ -178,46 +164,24 @@ struct OwnershipActiveBinInfo : public ActiveBinInfo<T> {
       // array (a lo and a hi), we divide by two to get the tp
       int tp_idx = (owner_idx>>1);
 
-#ifdef VERBOSE_NODE_REFINE
-      CkPrintf("(%d) check tps for child %d key %lu : idx %d tp %d\n",
-                CkMyPe(), i, testKey, owner_idx, tp_idx);
-#endif
-
       // is the range of the tree piece contained completely
       // within the child node or does it straddle this child
       // and the previous one?
       if(EVEN(owner_idx)) children[i-1].setOwnerEnd(tp_idx-1);
       else                children[i-1].setOwnerEnd(tp_idx);
 
-#ifdef VERBOSE_NODE_REFINE
-      CkPrintf("(%d) child %d key %lu ownerend %d\n", CkMyPe(), i-1, children[i-1].getKey(), children[i-1].getOwnerEnd());
-#endif
       if(children[i-1].getOwnerEnd() < children[i-1].getOwnerStart()){
         children[i-1].setOwners(-69,-69);
         children[i-1].setType(EmptyBucket);
-#ifdef VERBOSE_NODE_REFINE
-        CkPrintf("(%d) child %d key %lu EMPTYBUCKET\n", CkMyPe(), i-1, children[i-1].getKey());
-#endif
       }
 
       children[i].setOwnerStart(tp_idx);
-#ifdef VERBOSE_NODE_REFINE
-      CkPrintf("(%d) child %d key %lu ownerstart %d\n", CkMyPe(), i, children[i].getKey(), children[i].getOwnerStart());
-#endif
-
       start = owner_idx;
-
       childKey++;
     }
 
     children[BRANCH_FACTOR-1].setOwnerEnd(ownerEnd);
-#ifdef VERBOSE_NODE_REFINE
-    CkPrintf("(%d) child %d key %lu ownerend %d\n", CkMyPe(), BRANCH_FACTOR-1, children[BRANCH_FACTOR-1].getKey(), children[BRANCH_FACTOR-1].getOwnerEnd());
-#endif
     if(children[BRANCH_FACTOR-1].getOwnerEnd() < children[BRANCH_FACTOR-1].getOwnerStart()){
-#ifdef VERBOSE_NODE_REFINE
-      CkPrintf("(%d) child %d key %lu EMPTYBUCKET\n", CkMyPe(), BRANCH_FACTOR-1, children[BRANCH_FACTOR-1].getKey());
-#endif
       children[BRANCH_FACTOR-1].setOwners(-171,-171);
       children[BRANCH_FACTOR-1].setType(EmptyBucket);
     }
