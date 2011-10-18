@@ -146,7 +146,7 @@ class DataManager : public CBase_DataManager {
   void sendParticles(RangeMsg *msg);
   void sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp);
 
-  void receiveMoments(MomentsMsg *msg);
+  void receiveMoments(MomentsExchangeStruct moments);
   
   // called by tree pieces
   void submitParticles(CkVec<ParticleMsg *> *vec, int numParticles, TreePiece *tp, Key smallestKey, Key largestKey); 

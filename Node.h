@@ -359,17 +359,12 @@ struct MomentsExchangeStruct {
   Key key;
   NodeType type;
 
-  MomentsExchangeStruct &operator=(const Node<ForceData> &node){
-    moments = node.data.moments;
-    box = node.data.box;
-    key = node.getKey();
-    type = node.getType();
-
-    return *this;
-  }
-
+  MomentsExchangeStruct() {}
+  MomentsExchangeStruct(const Node<ForceData> &node):
+    moments(node.data.moments), box(node.data.box),
+    key(node.getKey()), type(node.getType()) {}
 };
-
+PUPbytes(MomentsExchangeStruct)
 
 
 #endif

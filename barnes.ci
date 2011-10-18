@@ -27,7 +27,6 @@ mainmodule barnes {
     Node<ForceData> data[];
   };
 
-  message MomentsMsg;
   message RescheduleMsg;
 
   include "Descriptor.h";
@@ -57,6 +56,8 @@ mainmodule barnes {
     entry void quiescence();
   };
 
+  include "Node.h";
+
   group DataManager {
     entry DataManager();
     entry void loadParticles(CkCallback &cb);
@@ -64,7 +65,7 @@ mainmodule barnes {
     entry void receiveHistogram(CkReductionMsg *msg);
     entry void receiveSplitters(CkVec<int> splitBins);
     entry void sendParticles(RangeMsg *msg);
-    entry void receiveMoments(MomentsMsg *msg);
+    entry void receiveMoments(MomentsExchangeStruct moments);
 
     entry void recvParticles(ParticleReplyMsg *msg);
     entry void recvNode(NodeReplyMsg *msg);

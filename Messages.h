@@ -37,16 +37,6 @@ struct NodeReplyMsg : public CMessage_NodeReplyMsg {
   int nn;
 };
 
-struct MomentsExchangeStruct;
-struct MomentsMsg : public CMessage_MomentsMsg {
-  MomentsExchangeStruct data;
-
-  MomentsMsg(Node<ForceData> *node) 
-  {
-    data = (*node);
-  }
-};
-
 struct RescheduleMsg : public CMessage_RescheduleMsg {
 };
 #endif

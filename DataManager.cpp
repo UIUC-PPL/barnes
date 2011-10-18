@@ -493,26 +493,22 @@ void DataManager::flushMomentRequests(){
 }
 
 void DataManager::respondToMomentsRequest(Node<ForceData> *node, CkVec<int> &replyTo){
+  MomentsExchangeStruct moments = *node;
   for(int i = 0; i < replyTo.length(); i++){
-    MomentsMsg *m = new (NUM_PRIORITY_BITS) MomentsMsg(node);
-    *(int *)CkPriorityPtr(m) = RECV_MOMENTS_PRIORITY;
-    CkSetQueueing(m,CK_QUEUEING_IFIFO);
     TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), replyTo[i], node->getKey());
-    thisProxy[replyTo[i]].receiveMoments(m);
+    thisProxy[replyTo[i]].receiveMoments(moments);
   }
   replyTo.length() = 0;
 }
 
-void DataManager::receiveMoments(MomentsMsg *msg){
-  Node<ForceData> *node = lookupNode(msg->data.key);
+void DataManager::receiveMoments(MomentsExchangeStruct moments){
+  Node<ForceData> *node = lookupNode(moments.key);
   CkAssert(node != NULL);
 
   // update moments of leaf and pass these on 
   // to parent recursively; if there are requests
   // for these nodes, respond to them
-  updateLeafMoments(node,msg->data);
-   
-  delete msg;
+  updateLeafMoments(node,moments);
 }
 
 void DataManager::updateLeafMoments(Node<ForceData> *node, MomentsExchangeStruct &data){
