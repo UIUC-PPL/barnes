@@ -10,10 +10,6 @@ mainmodule barnes {
   class Parameters;
   class MultipoleMoments;
 
-  message SplitterMsg {
-    int splitBins[];
-  };
-
   message ParticleMsg {
     Particle part[];
   };
@@ -66,7 +62,7 @@ mainmodule barnes {
     entry void loadParticles(CkCallback &cb);
     entry void decompose(BoundingBox &universe);
     entry void receiveHistogram(CkReductionMsg *msg);
-    entry void receiveSplitters(SplitterMsg *msg);
+    entry void receiveSplitters(CkVec<int> splitBins);
     entry void sendParticles(RangeMsg *msg);
     entry void receiveMoments(MomentsMsg *msg);
 

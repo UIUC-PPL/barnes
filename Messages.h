@@ -5,11 +5,6 @@
 #include "MultipoleMoments.h"
 #include "Node.h" 
 
-struct SplitterMsg : public CMessage_SplitterMsg {
-  int *splitBins;
-  int nSplitBins;
-};
-
 struct ParticleMsg : public CMessage_ParticleMsg {
   Particle *part;
   int numParticles;

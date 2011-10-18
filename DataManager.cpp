@@ -233,13 +233,8 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
     particlesHistogrammed += descriptors[i].numParticles;
   }
 
-  int numBinsToRefine = binsToRefine.length();
-
-  if(numBinsToRefine > 0){
-    SplitterMsg *m = new (numBinsToRefine,0) SplitterMsg;
-    memcpy(m->splitBins,binsToRefine.getVec(),sizeof(int)*numBinsToRefine);
-    m->nSplitBins = numBinsToRefine; 
-    thisProxy.receiveSplitters(m);
+  if(binsToRefine.size()) {
+    thisProxy.receiveSplitters(binsToRefine);
     decompIterations++;
   }
   else{
@@ -286,17 +281,15 @@ void DataManager::flushParticles(){
 
 }
 
-void DataManager::receiveSplitters(SplitterMsg *msg){
+void DataManager::receiveSplitters(CkVec<int> splitBins) {
 
-  int numRefineBins = msg->nSplitBins;
   // process bins to refine
-  activeBins.processRefine(msg->splitBins,msg->nSplitBins);
+  activeBins.processRefine(splitBins.getVec(), splitBins.size());
 
   // We traverse the final tree to flush particles to 
   // appropriate tree pieces
 
   sendHistogram();
-  delete msg;
 }
 
 void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {

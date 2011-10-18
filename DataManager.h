@@ -142,7 +142,7 @@ class DataManager : public CBase_DataManager {
 
   void decompose(BoundingBox &universe);
   void receiveHistogram(CkReductionMsg *msg);
-  void receiveSplitters(SplitterMsg *msg);
+  void receiveSplitters(CkVec<int> splitBins);
   void sendParticles(RangeMsg *msg);
   void sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp);
 
