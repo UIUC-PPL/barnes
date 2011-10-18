@@ -552,11 +552,11 @@ void DataManager::treeReady(){
 void DataManager::flushBufferedRemoteDataRequests(){
   CkAssert(treeMomentsReady);
   for(int i = 0; i < bufferedNodeRequests.length(); i++){
-    RequestMsg *msg = bufferedNodeRequests[i];
+    RequestMsg *msg = new RequestMsg( bufferedNodeRequests[i].first, bufferedNodeRequests[i].second);
     requestNode(msg);
   }
   for(int i = 0; i < bufferedParticleRequests.length(); i++){
-    RequestMsg *msg = bufferedParticleRequests[i];
+    RequestMsg *msg = new RequestMsg(bufferedParticleRequests[i].first, bufferedParticleRequests[i].second);
     requestParticles(msg);
   }
   bufferedNodeRequests.length() = 0;
@@ -635,7 +635,8 @@ void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData
 
 void DataManager::requestParticles(RequestMsg *msg){
   if(!treeMomentsReady){
-    bufferedParticleRequests.push_back(msg);
+    bufferedParticleRequests.push_back( std::make_pair(msg->key, msg->replyTo) );
+    delete msg;
     return;
   }
 
@@ -694,7 +695,8 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
 
 void DataManager::requestNode(RequestMsg *msg){
   if(!treeMomentsReady){
-    bufferedNodeRequests.push_back(msg);
+    bufferedNodeRequests.push_back( std::make_pair(msg->key, msg->replyTo) );
+    delete msg;
     return;
   }
 

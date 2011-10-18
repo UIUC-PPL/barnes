@@ -86,8 +86,8 @@ class DataManager : public CBase_DataManager {
   // the tree on this PE is now ready for 
   // traversal
   bool treeMomentsReady;
-  CkVec<RequestMsg *> bufferedNodeRequests;
-  CkVec<RequestMsg *> bufferedParticleRequests;
+  CkVec< std::pair<Key, int> > bufferedNodeRequests;
+  CkVec< std::pair<Key, int> > bufferedParticleRequests;
 
   Traversal<NodeDescriptor> scaffoldTrav;
   Traversal<ForceData> fillTrav;
