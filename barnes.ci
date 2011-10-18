@@ -65,7 +65,7 @@ mainmodule barnes {
     entry void receiveHistogram(CkReductionMsg *msg);
     entry void receiveSplitters(CkVec<int> splitBins);
     entry void sendParticles(RangeMsg *msg);
-    entry void receiveMoments(MomentsExchangeStruct moments);
+    entry [expedited] void receiveMoments(MomentsExchangeStruct moments);
 
     entry void recvParticles(ParticleReplyMsg *msg);
     entry void recvNode(NodeReplyMsg *msg);
