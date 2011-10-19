@@ -90,6 +90,9 @@ struct NodeDescriptor {
 
 class TreePiece;
 struct ParticleMsg;
+struct ForceData;
+template<typename T> class Node;
+
 struct TreePieceDescriptor {
   CkVec<ParticleMsg*> *vec;
   TreePiece *owner;

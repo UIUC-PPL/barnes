@@ -49,16 +49,19 @@ class MomentsWorker : public CutoffWorker<ForceData> {
   CkVec<TreePieceDescriptor> &peTreePieces;
   map<Key,Node<ForceData>*> &nodeTable;
   CkVec<Node<ForceData>*> &buckets;
+  map<int,Node<ForceData>*> &tpRoots; 
 
   int curTP;
 
   public: 
   MomentsWorker(CkVec<TreePieceDescriptor> &petps,
                 map<Key,Node<ForceData>*> &tab,
+                map<int,Node<ForceData>*> &roots,
                 CkVec<Node<ForceData>*> &bucks
                 ) : 
     peTreePieces(petps),
     nodeTable(tab),
+    tpRoots(roots),
     buckets(bucks),
     curTP(0)
   {

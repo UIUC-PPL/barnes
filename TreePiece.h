@@ -15,6 +15,8 @@
 #include "MultipoleMoments.h"
 #include "Traversal_decls.h"
 
+extern CProxy_DataManager dataManagerProxy;
+
 class TreePiece : public CBase_TreePiece {
   int numDecompMsgsRecvd;
   CkVec<ParticleMsg *> decompMsgsRecvd;
@@ -25,6 +27,7 @@ class TreePiece : public CBase_TreePiece {
   int myNumBuckets;
   Node<ForceData> **myBuckets;
   Node<ForceData> *root;
+  Node<ForceData> *myRoot;
 
   State localTraversalState;
   State remoteTraversalState;
@@ -39,10 +42,10 @@ class TreePiece : public CBase_TreePiece {
   DataManager *myDM;
 
   int totalNumTraversals;
-  int numTraversalsDone;
 
   void submitParticles();
   void finishIteration();
+  void init();
 
   public:
   TreePiece();
@@ -53,7 +56,7 @@ class TreePiece : public CBase_TreePiece {
   void receiveParticles(ParticleMsg *msg);
   void receiveParticles();
 
-  void prepare(Node<ForceData> *_root, Node<ForceData> **buckets, int bucketStart, int bucketEnd);
+  void prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int bucketStart, int bucketEnd);
   void startTraversal();
 
   void doLocalGravity(RescheduleMsg *);
@@ -69,6 +72,13 @@ class TreePiece : public CBase_TreePiece {
   int getIteration();
 
   void pup(PUP::er &p);
+  void doAtSync() { 
+    AtSync(); 
+  }
+  void ResumeFromSync() {
+    CkCallback cb(CkIndex_DataManager::resumeFromLB(),dataManagerProxy);
+    contribute(0,0,CkReduction::sum_int,cb);
+  }
 };
 
 #endif

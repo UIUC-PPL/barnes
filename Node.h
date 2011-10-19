@@ -24,7 +24,9 @@ enum NodeType {
   RemoteEmptyBucket
 };
 
+#if 0
 extern string NodeTypeString[];
+#endif
 
 struct NodeCore {
   Key key;

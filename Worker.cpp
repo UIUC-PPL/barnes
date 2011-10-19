@@ -39,6 +39,30 @@ int MomentsWorker::work(Node<ForceData> *node){
     }
   }
   nodeTable[node->getKey()] = node;
+
+  // check whether this node is the root of a tree piece
+  // on this PE
+  int ostart = node->getOwnerStart();
+  int oend = node->getOwnerEnd();
+  // is the root owned by a single tree piece?
+  if(node->getKey() == Key(1) && node->getType() == Internal && ostart == oend){
+    tpRoots[ostart] = node;
+  }
+  // this node cannot be the root of a local TP
+  else if(ostart != oend){
+    // can its children be roots of some TPs?
+    Node<ForceData> *child = node->getChildren();
+    for(int i = 0; i < node->getNumChildren(); i++){
+      int childOwnerStart = child->getOwnerStart();
+      int childOwnerEnd = child->getOwnerEnd();
+      NodeType childType = child->getType();
+      if(childOwnerStart == childOwnerEnd
+         && (childType == Internal || childType == Bucket || childType == EmptyBucket)){
+        tpRoots[childOwnerStart] = child;
+      }
+      child++;
+    }
+  }
   return 1;
 }
 

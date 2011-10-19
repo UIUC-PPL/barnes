@@ -29,23 +29,14 @@ void copyMomentsToNode(Node<ForceData> *node, const MomentsExchangeStruct &mes){
 }
 
 DataManager::DataManager() : 
-  numTreePieces(1),
-  firstSplitterRound(false),
-  decompIterations(0),
   iteration(0),
-  haveRanges(false),
-  keyRanges(NULL),
-  rangeMsg(NULL),
-  numLocalTreePieces(-1),
-  doneTreeBuild(false),
-  treeMomentsReady(false),
-  numTreePiecesDoneTraversals(0),
-  prevIterationStart(0.0)
+  prevIterationStart(0.0),
+  savedEnergy(0.0),
+  root(NULL),
+  keyRanges(NULL), 
+  rangeMsg(NULL)
 {
-  numInteractions[0] = 0;
-  numInteractions[1] = 0;
-  numInteractions[2] = 0;
-  savedEnergy = 0.0;
+  init();
 }
 
 void DataManager::loadParticles(CkCallback &cb){
@@ -358,8 +349,7 @@ void DataManager::senseTreePieces(){
 void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp, Key smallestKey, Key largestKey){ 
   submittedParticles.push_back(TreePieceDescriptor(vec,numParticles,tp,tp->getIndex(),smallestKey,largestKey));
   myNumParticles += numParticles;
-  if(submittedParticles.length() == numLocalTreePieces &&
-     haveRanges){
+  if(submittedParticles.length() == numLocalTreePieces && haveRanges){
     processSubmittedParticles();
   }
 }
@@ -393,6 +383,17 @@ void DataManager::processSubmittedParticles(){
   // makeMoments also sends out requests for moments 
   // of remote nodes
   makeMoments();
+
+#if 0
+  ostringstream oss;
+  oss << "tree." << CkMyPe() << ".dot";
+
+  ofstream ofs(oss.str().c_str());
+  ofs << "digraph PE" << CkMyPe() << "{" << endl;
+  if(root != NULL) printTree(root,ofs);
+  ofs << "}" << endl;
+  ofs.close();
+#endif
 
   doneTreeBuild = true;
 
@@ -430,8 +431,8 @@ void DataManager::buildTree(){
 
     for(int i = 0; i < active->length(); i++){
       Node<ForceData> *node = (*active)[i].first;
-      if((node->getOwnerEnd() > node->getOwnerStart()) || 
-         (node->getNumParticles() > limit)){
+      if(node->getNumParticles() > 0 && ((node->getOwnerEnd() > node->getOwnerStart()) || 
+         (node->getNumParticles() > limit))){
         refines.push_back(i);
       }
     }
@@ -445,7 +446,7 @@ void DataManager::buildTree(){
 void DataManager::makeMoments(){
   if(root == NULL) return;
 
-  MomentsWorker mw(submittedParticles, nodeTable, myBuckets);
+  MomentsWorker mw(submittedParticles, nodeTable, localTPRoots, myBuckets);
   fillTrav.postorderTraversal(root,&mw);
 }
 
@@ -590,22 +591,22 @@ void DataManager::startTraversal(){
       TreePieceDescriptor &descr = submittedParticles[i];
       int bucketIdx = binary_search_ge<Node<ForceData>*>(descr.largestKey,bucketPtrs,start,end,CompareNodePtrToKey);
       descr.bucketEndIdx = bucketIdx;
-      descr.owner->prepare(root,myBuckets.getVec(),descr.bucketStartIdx,descr.bucketEndIdx);
       int tpIndex = descr.owner->getIndex();
+      descr.owner->prepare(root,localTPRoots[tpIndex],myBuckets.getVec(),descr.bucketStartIdx,descr.bucketEndIdx);
       treePieceProxy[tpIndex].startTraversal();
       submittedParticles[i+1].bucketStartIdx = bucketIdx;
       start = bucketIdx;
     }
     TreePieceDescriptor &descr = submittedParticles[numLocalTreePieces-1];
     descr.bucketEndIdx = myBuckets.length();
-    descr.owner->prepare(root,myBuckets.getVec(),descr.bucketStartIdx,descr.bucketEndIdx);
     int tpIndex = descr.owner->getIndex();
+    descr.owner->prepare(root,localTPRoots[tpIndex],myBuckets.getVec(),descr.bucketStartIdx,descr.bucketEndIdx);
     treePieceProxy[tpIndex].startTraversal();
   }
   else if(numLocalTreePieces > 0){
     for(int i = 0; i < numLocalTreePieces; i++){
       TreePieceDescriptor &descr = submittedParticles[i];
-      descr.owner->prepare(root,myBuckets.getVec(),0,0);
+      descr.owner->prepare(root,NULL,myBuckets.getVec(),0,0);
       int tpIndex = descr.owner->getIndex();
       treePieceProxy[tpIndex].startTraversal();
     }
@@ -717,10 +718,13 @@ void DataManager::requestNode(RequestMsg *msg){
   CkAssert(it != nodeTable.end());
   Node<ForceData> *node = it->second;
 
+  CkAssert(node->getNumChildren() > 0);
+#if 0
   if(node->getNumChildren() == 0){
     CkPrintf("[%d] children of leaf node %lu type %s requested!\n", CkMyPe(), node->getKey(), NodeTypeString[node->getType()].c_str());
     CkAbort("Leaf children request\n");
   }
+#endif
 
   TreeSizeWorker tsz(node->getDepth()+globalParams.cacheLineSize);
   fillTrav.topDownTraversal_local(node,&tsz);
@@ -825,9 +829,6 @@ void DataManager::finishIteration(){
   dtred.pnInteractions = numInteractions[0];
   dtred.ppInteractions = numInteractions[1];
   dtred.openCrit = numInteractions[2];
-  numInteractions[0] = 0;
-  numInteractions[1] = 0;
-  numInteractions[2] = 0;
 
   CkCallback cb(CkIndex_DataManager::advance(NULL),thisProxy);
   contribute(sizeof(DtReductionStruct),&dtred,DtReductionType,cb);
@@ -845,7 +846,7 @@ void DataManager::advance(CkReductionMsg *msg){
     return;
   }
 
-  BoundingBox myBox;
+  myBox.reset();
   kickDriftKick(myBox.box,myBox.energy);
 
   Real pad = 0.001;
@@ -856,37 +857,25 @@ void DataManager::advance(CkReductionMsg *msg){
     CkPrintf("[STATS] node inter %lu part inter %lu open crit %lu dt %f\n", dtred->pnInteractions, dtred->ppInteractions, dtred->openCrit, globalParams.dtime);
   }
 
-  CkAssert(pendingMoments.empty());
-  // safe to reset here, since all tree pieces 
-  // must have finished iteration
-  freeCachedData();
-
-  submittedParticles.length() = 0;
-  haveRanges = false;
-  myBuckets.length() = 0;
-  doneTreeBuild = false;
-  treeMomentsReady = false;
-  numTreePiecesDoneTraversals = 0;
-
-  firstSplitterRound = true;
-  freeTree();
-  nodeTable.clear();
-
-  CkAssert(activeBins.getNumCounts() == 0);
-
-  if(CkMyPe() == 0) delete[] keyRanges;
-  else delete rangeMsg;
-
   iteration++;
   CkCallback cb;
   if(iteration == globalParams.iterations){
     cb = CkCallback(CkIndex_Main::niceExit(),mainProxy);
     contribute(0,0,CkReduction::sum_int,cb);
   }
+  else if(iteration % globalParams.balancePeriod == 0){
+    if(CkMyPe() == 0) CkPrintf("(%d) INITIATE LB\n", CkMyPe()); 
+    for(int i = 0; i < submittedParticles.length()-1; i++){
+      TreePiece *tp = submittedParticles[i].owner;
+      tp->doAtSync();
+    }
+  }
   else{
+    init();
     cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
     contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
   }
+  
   delete msg;
 }
 
@@ -1022,6 +1011,7 @@ void DataManager::findMinVByA(DtReductionStruct &dtred){
 }
 
 void DataManager::markNaNBuckets(){
+#if 0
   for(int i = 0; i < myBuckets.length(); i++){
     Node<ForceData> *bucket = myBuckets[i];
     Particle *part = bucket->getParticles();
@@ -1033,7 +1023,79 @@ void DataManager::markNaNBuckets(){
       }
     }
   }
+#endif
 }
+
+void DataManager::init(){
+  CkAssert(pendingMoments.empty());
+  // safe to reset here, since all tree pieces 
+  // must have finished iteration
+  freeCachedData();
+
+  decompIterations = 0;
+
+  haveRanges = false;
+  numLocalTreePieces = -1;
+  myBuckets.length() = 0;
+  doneTreeBuild = false;
+  treeMomentsReady = false;
+  numTreePiecesDoneTraversals = 0;
+
+  firstSplitterRound = true;
+  freeTree();
+  nodeTable.clear();
+  localTPRoots.clear();
+
+  CkAssert(activeBins.getNumCounts() == 0);
+
+  if(CkMyPe() == 0 && keyRanges != NULL){
+    delete[] keyRanges;
+    keyRanges = NULL;
+  }
+  else if(CkMyPe() != 0){
+    delete rangeMsg;
+    rangeMsg = NULL;
+  }
+
+
+  numInteractions[0] = 0;
+  numInteractions[1] = 0;
+  numInteractions[2] = 0;
+  submittedParticles.length() = 0;
+}
+
+void DataManager::resumeFromLB(){
+  /* we delay the freeing of data structures to this point
+   * because we want the tree pieces to be able to use the
+   * tree, and in particular their roots for load balancing
+   * */
+  init();
+  CkCallback cb(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
+  contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
+}
+
+#if 0
+extern string NodeTypeColor[];
+void DataManager::printTree(Node<ForceData> *nd, ostream &os){
+  os << nd->getKey() 
+     << "[label=\""<< nd->getKey() 
+     << "," << nd->getNumParticles() 
+     << "," << nd->getOwnerStart() << ":" << nd->getOwnerEnd() 
+     << "\","
+     << "style=\"filled\""
+     << "color=\"" << NodeTypeColor[nd->getType()] << "\""
+     << "]" << endl;
+  if(nd->getOwnerStart() == nd->getOwnerEnd()) return;
+  for(int i = 0; i < nd->getNumChildren(); i++){
+    Node<ForceData> *child = nd->getChildren()+i;
+    if(child != NULL){
+      os << nd->getKey() << " -> " << child->getKey() << endl;
+      printTree(child,os);
+    }
+  }
+}
+
+#endif
 
 #include "Traversal_defs.h"
 

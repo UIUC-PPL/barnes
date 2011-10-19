@@ -54,6 +54,7 @@ class DataManager : public CBase_DataManager {
 
   CkVec<Particle> myParticles;
   int myNumParticles;
+  BoundingBox myBox;
 
   bool firstSplitterRound;
 
@@ -78,6 +79,7 @@ class DataManager : public CBase_DataManager {
   // from particles present on this PE
   bool doneTreeBuild;
   map<Key,Node<ForceData>*> nodeTable;
+  map<int,Node<ForceData>*> localTPRoots;
 
   map<Key,CkVec<int> > pendingMoments;
 
@@ -134,6 +136,9 @@ class DataManager : public CBase_DataManager {
   void findMinVByA(DtReductionStruct &);
 
   void markNaNBuckets();
+  void printTree(Node<ForceData>*, ostream &);
+
+  void init();
 
   public:
   DataManager();
@@ -171,6 +176,8 @@ class DataManager : public CBase_DataManager {
 
   void addBucketNodeInteractions(Key k, CmiUInt8 pn);
   void addBucketPartInteractions(Key k, CmiUInt8 pp);
+
+  void resumeFromLB();
 };
 
 #endif

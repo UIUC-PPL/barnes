@@ -9,21 +9,24 @@ extern CProxy_Main mainProxy;
 extern CProxy_DataManager dataManagerProxy;
 extern Parameters globalParams;
 
-TreePiece::TreePiece() : 
-  myNumParticles(0),
-  numDecompMsgsRecvd(0),
-  smallestKey(~Key(0)),
-  largestKey(Key(0)),
-  localTraversalState(),
-  remoteTraversalState(),
-  localTraversalWorker(),
-  remoteTraversalWorker(),
-  totalNumTraversals(2),
-  iteration(0),
-  numTraversalsDone(0)
-{
+TreePiece::TreePiece() {
+  usesAtSync = CmiTrue;
+  iteration = 0;
+  init();
+}
+
+void TreePiece::init(){
+  myNumParticles = 0;
+  numDecompMsgsRecvd = 0;
+  decompMsgsRecvd.length() = 0;
+  largestKey = Key(0);
+  smallestKey = ~largestKey;
+  totalNumTraversals = 2;
   myDM = dataManagerProxy.ckLocalBranch();
-  //usesAtSync = true;
+  myRoot = NULL;
+  root = NULL;
+  myBuckets = NULL;
+  myNumBuckets = 0;
 }
 
 void TreePiece::receiveParticles(ParticleMsg *msg){
@@ -52,16 +55,18 @@ void TreePiece::submitParticles(){
   myDM->submitParticles(&decompMsgsRecvd,myNumParticles,this,smallestKey,largestKey);
 }
 
-void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> **buckets, int bucketStart, int bucketEnd){
+void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int bucketStart, int bucketEnd){
   root = _root;
+  myRoot = _myRoot;
   myBuckets = buckets+bucketStart;
   myNumBuckets = bucketEnd-bucketStart;
+
+  if(myRoot != NULL) CkPrintf("tree piece %d prepare root %lu pe %d \n", thisIndex, myRoot->getKey(), CkMyPe());
 }
 
 void TreePiece::startTraversal(){
-  numTraversalsDone = 0;
   trav.setDataManager(myDM);
-
+  
   if(myNumBuckets == 0){
     finishIteration();
     return;
@@ -128,8 +133,8 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
 }
 
 void TreePiece::traversalDone(){ 
-  numTraversalsDone++;
-  if(numTraversalsDone == totalNumTraversals) finishIteration();
+  totalNumTraversals--;
+  if(totalNumTraversals == 0) finishIteration();
 }
 
 void TreePiece::finishIteration(){
@@ -138,17 +143,10 @@ void TreePiece::finishIteration(){
   CmiUInt8 oc = localTraversalState.numInteractions[2]+remoteTraversalState.numInteractions[2];
   dataManagerProxy[CkMyPe()].traversalsDone(pn,pp,oc);
 
-  numTraversalsDone = 0;
-
   localTraversalState.finishedIteration();
   remoteTraversalState.finishedIteration();
-
-  myNumParticles = 0;
-  numDecompMsgsRecvd = 0;
-  decompMsgsRecvd.length() = 0;
-
-  largestKey = Key(0);
-  smallestKey = ~largestKey; 
+  
+  init();
 
   iteration++;
 }
@@ -159,7 +157,7 @@ void TreePiece::quiescence(){
                 CkMyPe(),
                 myNumParticles,
                 myNumBuckets,
-                numTraversalsDone,
+                totalNumTraversals,
                 localTraversalState.pending,
                 remoteTraversalState.pending);
 
@@ -186,8 +184,10 @@ int TreePiece::getIteration() {
 }
 
 void TreePiece::pup(PUP::er &p){
+  CBase_TreePiece::pup(p);
   p | iteration;
   if(p.isUnpacking()){
+    init();
   }
 }
 

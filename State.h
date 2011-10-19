@@ -9,7 +9,9 @@
 
 using namespace std;
 
+#if 0
 extern string NodeTypeString[];
+#endif
 
 class TreePiece;
 struct State {

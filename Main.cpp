@@ -40,7 +40,7 @@ Main::Main(CkArgMsg *msg){
   thisProxy.commence();
 
   CkCallback cb(CkIndex_Main::quiescence(),thisProxy);
-  CkStartQD(cb);
+  //CkStartQD(cb);
 
   numQuiescenceRecvd = 0;
   delete msg;
@@ -89,6 +89,9 @@ void Main::setParameters(CkArgMsg *m){
 
   globalParams.yieldPeriod = params.getiparam("yield", DEFAULT_YIELD_PERIOD, table);
   CkPrintf("yieldPeriod: %d\n", globalParams.yieldPeriod);
+
+  globalParams.balancePeriod = params.getiparam("balancePeriod", DEFAULT_BALANCE_PERIOD, table);
+  CkPrintf("balancePeriod: %d\n", globalParams.balancePeriod);
 
   getNumParticles();
 
@@ -156,6 +159,7 @@ void Main::quiescenceExit(){
   }
 }
 
+#if 0 
 string NodeTypeString[] = { 
   "Invalid",
   "Internal",
@@ -166,6 +170,18 @@ string NodeTypeString[] = {
   "RemoteBucket",
   "RemoteEmptyBucket"
 };
+
+string NodeTypeColor[] = {
+  "firebrick1",
+  "darkolivegreen1",
+  "darkolivegreen3",
+  "darksalmon",
+  "darkkhaki",
+  "deepskyblue1",
+  "dodgerblue4",
+  "deeppink"
+};
+#endif
 
 void Main::usage(){
   map<string,string> usage;

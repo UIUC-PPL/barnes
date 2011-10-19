@@ -31,6 +31,7 @@ struct Parameters {
   int cacheLineSize;
 
   int iterations;
+  int balancePeriod;
 
   //int branchFactor;
 
@@ -49,6 +50,7 @@ struct Parameters {
     p | theta;
     p | cacheLineSize;
     p | iterations;
+    p | balancePeriod;
   }
 
   void extractParameters(int argc, char **argv, map<string,string> &tab){
