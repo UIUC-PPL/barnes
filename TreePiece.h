@@ -58,6 +58,7 @@ class TreePiece : public CBase_TreePiece {
 
   int getIndex() {return thisIndex;}
 
+  void receiveParticles(CkReductionMsg *msg);
   void receiveParticles(ParticleMsg *msg);
   void receiveParticles();
 

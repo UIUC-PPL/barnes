@@ -47,6 +47,18 @@ void TreePiece::init(){
   myNumBuckets = 0;
 }
 
+void TreePiece::receiveParticles(CkReductionMsg *msg) {
+
+    CkAssert(msg->getSize() % sizeof(Particle) == 0);
+    int np = msg->getSize() / sizeof(Particle);
+    //CkPrintf("tpc %d received particle redn numParticles=%d\n",thisIndex, np);
+    ParticleMsg *pmsg = new (np,0) ParticleMsg;
+    memcpy(pmsg->part, msg->getData(), sizeof(Particle)*np);
+    pmsg->numParticles = np;
+    receiveParticles(pmsg);
+    delete msg;
+}
+
 void TreePiece::receiveParticles(ParticleMsg *msg){
   int msgNumParticles = msg->numParticles;
   decompMsgsRecvd.push_back(msg);
@@ -55,7 +67,7 @@ void TreePiece::receiveParticles(ParticleMsg *msg){
   if(smallestKey > msg->part[0].key) smallestKey = msg->part[0].key;
   if(largestKey < msg->part[msgNumParticles-1].key) largestKey = msg->part[msgNumParticles-1].key;
   
-  if(numDecompMsgsRecvd == CkNumPes()){
+  if(numDecompMsgsRecvd == 1){
     submitParticles();
     numDecompMsgsRecvd = 0;
   }
