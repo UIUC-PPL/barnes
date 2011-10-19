@@ -47,7 +47,6 @@ class TreePiece : public CBase_TreePiece {
 
   int totalNumTraversals;
 
-  void submitParticles();
   void finishIteration();
   void init();
   void findOrbLB();
