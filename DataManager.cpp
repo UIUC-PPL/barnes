@@ -255,13 +255,11 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
     
     //keyRanges.reserve(numTreePieces*2);
     keyRanges = new Key[numTreePieces*2];
-    // so that by the time tree pieces start submitting
-    // particles (which can only happen after the flushParticles()
-    // below, we have the right count of local tree pieces
-    senseTreePieces();
     flushParticles();
-    // PE 0 sets ranges in sendParticlesToTreePiece
+    // PE 0 sets ranges in sendParticlesToTreePiece, which is
+    // called by ParticleFlushWorker in flushParticles()
     haveRanges = true;
+    senseTreePieces();
 
     int numKeys = numTreePieces*2;
 
@@ -340,10 +338,6 @@ void DataManager::sendParticles(RangeMsg *msg){
     flushParticles();
 
     senseTreePieces();
-
-    if(submittedParticles.length() == numLocalTreePieces){
-      processSubmittedParticles();
-    }
   }
   else{
     CkAssert(numTreePieces == msg->numTreePieces);
@@ -357,6 +351,8 @@ void DataManager::senseTreePieces(){
   CkLocMgr *mgr = treePieceProxy.ckLocMgr();
   mgr->iterate(localTreePieces);
   numLocalTreePieces = localTreePieces.count;
+
+  if(submittedParticles.length() == numLocalTreePieces) processSubmittedParticles();
 }
 
 void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp, Key smallestKey, Key largestKey){ 
