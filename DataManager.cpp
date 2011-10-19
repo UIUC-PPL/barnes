@@ -278,9 +278,8 @@ void DataManager::flushParticles(){
 
   int numUsefulTreePieces = pfw.getNumLeaves();
   for(int i = numUsefulTreePieces; i < globalParams.numTreePieces; i++){
-    CkCallback cb(CkIndex_TreePiece::receiveParticles((CkReductionMsg*)NULL), CkArrayIndex1D(i), treePieceProxy);
     //CkPrintf("tpc %d recvd from mgr %d numparticles 0\n", i, CkMyPe());
-    contribute(cb);
+    contribute( CkCallback(CkIndex_TreePiece::receiveParticles((CkReductionMsg*)NULL), CkArrayIndex1D(i), treePieceProxy) );
   }
 
   // done with sorting tree; delete
@@ -306,15 +305,10 @@ void DataManager::receiveSplitters(CkVec<int> splitBins) {
 void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
   CkAssert(nd->getNumChildren() == 0);
   int np = nd->getNumParticles();
-  CkCallback cb(CkIndex_TreePiece::receiveParticles((CkReductionMsg*)NULL), CkArrayIndex1D(tp), treePieceProxy);
   //CkPrintf("tpc %d recvd from mgr %d numparticles %d\n", tp, CkMyPe(), np);
 
-  if(np > 0){
-    contribute(np*sizeof(Particle), nd->getParticles(), CkReduction::concat, cb);
-  }
-  else{
-    contribute(cb);
-  }
+  CkCallback cb(CkIndex_TreePiece::receiveParticles((CkReductionMsg*)NULL), CkArrayIndex1D(tp), treePieceProxy);
+  contribute(np*sizeof(Particle), nd->getParticles(), CkReduction::concat, cb);
 
   // only PE 0 has the correct ranges
   if(CkMyPe() == 0){
