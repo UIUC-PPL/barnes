@@ -61,7 +61,9 @@ void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<F
   myBuckets = buckets+bucketStart;
   myNumBuckets = bucketEnd-bucketStart;
 
+#if 0
   if(myRoot != NULL) CkPrintf("tree piece %d prepare root %lu pe %d \n", thisIndex, myRoot->getKey(), CkMyPe());
+#endif
 }
 
 void TreePiece::startTraversal(){

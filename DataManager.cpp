@@ -8,6 +8,7 @@
 #include "TreePiece.h"
 
 #include "Request.h"
+#include "defaults.h"
 
 #include <fstream>
 #include <iostream>
@@ -146,6 +147,19 @@ void DataManager::decompose(BoundingBox &universe){
   myParticles.quickSort();
 
   if(CkMyPe()==0){
+    if(iteration == 2){
+      // save this value so that can compare
+      // against it in future iterations. The
+      // energy shouldn't grow in magnitude
+      // by more than a percent or so.
+      compareEnergy = universe.energy;
+    }
+    else if(iteration > 2){
+      Real deltaE = compareEnergy-universe.energy;
+      if(deltaE < 0) deltaE = -deltaE;
+      CkAssert(deltaE < ENERGY_DRIFT_FRAC_TOLERANCE*compareEnergy);
+    }
+
     float memMB = (1.0*CmiMemoryUsage())/(1<<20);
     ostringstream oss; 
     CkPrintf("(%d) prev time %g s\n", CkMyPe(), CmiWallTimer()-prevIterationStart);
