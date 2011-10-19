@@ -620,8 +620,7 @@ void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData
     request.sent = true;
     
     request.parent = leaf;
-    RRDEBUG("(%d) REQUEST particles %lu from tp %d\n", 
-            CkMyPe(), key, owner);
+    RRDEBUG("(%d) REQUEST particles %lu from tp %d\n", CkMyPe(), key, owner);
   }
   request.requestors.push_back(Requestor(worker,state,traversal,worker->getContext()));
   partReqs.incrDeliveries();
@@ -633,8 +632,7 @@ void DataManager::requestParticles(std::pair<Key, int> request) {
     return;
   }
 
-  RRDEBUG("(%d) REPLY particles key %lu to %d\n", 
-          CkMyPe(), request.first, request.second);
+  RRDEBUG("(%d) REPLY particles key %lu to %d\n", CkMyPe(), request.first, request.second);
 
   map<Key,Node<ForceData>*>::iterator it = nodeTable.find(request.first);
   CkAssert(it != nodeTable.end());
@@ -671,8 +669,7 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
 
     int numOwners = leaf->getOwnerEnd()-leaf->getOwnerStart()+1;
     int requestOwner = leaf->getOwnerStart()+(rand()%numOwners);
-    RRDEBUG("(%d) REQUEST node %lu from tp %d\n", 
-            CkMyPe(), key, requestOwner);
+    RRDEBUG("(%d) REQUEST node %lu from tp %d\n", CkMyPe(), key, requestOwner);
     treePieceProxy[requestOwner].requestNode( std::make_pair(key, CkMyPe()) );
     request.sent = true;
     request.parent = leaf;
@@ -687,8 +684,7 @@ void DataManager::requestNode(std::pair<Key, int> request) {
     return;
   }
 
-  RRDEBUG("(%d) REPLY node %lu to %d\n", 
-          CkMyPe(), request.first, request.second);
+  RRDEBUG("(%d) REPLY node %lu to %d\n", CkMyPe(), request.first, request.second);
 
 
   map<Key,Node<ForceData>*>::iterator it = nodeTable.find(request.first);
@@ -723,8 +719,7 @@ void DataManager::recvParticles(ParticleReplyMsg *msg){
   map<Key,Request>::iterator it = particleRequestTable.find(msg->key);
   CkAssert(it != particleRequestTable.end());
 
-  RRDEBUG("(%d) RECVD particle REPLY for key %lu\n", 
-          CkMyPe(), msg->key);
+  RRDEBUG("(%d) RECVD particle REPLY for key %lu\n", CkMyPe(), msg->key);
 
   Request &req = it->second;
   CkAssert(req.requestors.length() > 0);
@@ -749,8 +744,7 @@ void DataManager::recvNode(NodeReplyMsg *msg){
   map<Key,Request>::iterator it = nodeRequestTable.find(msg->key);
   CkAssert(it != nodeRequestTable.end());
 
-  RRDEBUG("(%d) RECVD node REPLY for key %lu\n", 
-          CkMyPe(), msg->key);
+  RRDEBUG("(%d) RECVD node REPLY for key %lu\n", CkMyPe(), msg->key);
 
   Request &req = it->second;
   CkAssert(req.requestors.length() > 0);
@@ -768,12 +762,10 @@ void DataManager::recvNode(NodeReplyMsg *msg){
 
   nodeReqs.decrRequests();
   nodeReqs.decrDeliveries(req.requestors.length());
-  RRDEBUG("(%d) DELIVERING key %lu\n", 
-          CkMyPe(), msg->key);
+  RRDEBUG("(%d) DELIVERING key %lu\n", CkMyPe(), msg->key);
 
   req.deliverNode();
-  RRDEBUG("(%d) DELIVERED key %lu\n", 
-          CkMyPe(), msg->key);
+  RRDEBUG("(%d) DELIVERED key %lu\n", CkMyPe(), msg->key);
 }
 
 void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit)
