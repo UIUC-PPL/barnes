@@ -52,8 +52,11 @@ void TreePiece::receiveParticles(CkReductionMsg *msg) {
     //CkPrintf("tpc %d received particle redn numParticles=%d\n",thisIndex, myNumParticles);
 
     Particle *particles = (Particle*) msg->getData();
-    if(smallestKey > particles[0].key) smallestKey = particles[0].key;
-    if(largestKey < particles[myNumParticles-1].key) largestKey = particles[myNumParticles-1].key;
+    smallestKey = largestKey = particles[0].key;
+    for (int i=0; i < myNumParticles; i++) {
+      if(smallestKey > particles[i].key) smallestKey = particles[i].key;
+      if(largestKey  < particles[i].key) largestKey  = particles[i].key;
+    }
     
     myDM->submitParticles(msg,myNumParticles,this,smallestKey,largestKey);
 }
