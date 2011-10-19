@@ -15,16 +15,6 @@ struct RangeMsg : public CMessage_RangeMsg {
   int numTreePieces;
 };
 
-struct RequestMsg : public CMessage_RequestMsg {
-  Key key;
-  int replyTo;
-
-  RequestMsg(Key k, int reply) : 
-    key(k), replyTo(reply)
-  {
-  }
-};
-
 struct ParticleReplyMsg : public CMessage_ParticleReplyMsg {
   Key key;
   ExternalParticle *data;

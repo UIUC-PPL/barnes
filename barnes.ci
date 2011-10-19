@@ -18,7 +18,6 @@ mainmodule barnes {
     Key keys[];
   };
 
-  message RequestMsg;
   message ParticleReplyMsg {
     ExternalParticle data[];
   };
