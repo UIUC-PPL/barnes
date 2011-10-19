@@ -366,9 +366,8 @@ void DataManager::processSubmittedParticles(){
   myParticles.resize(myNumParticles);
 
   for(int i = 0; i < submittedParticles.length(); i++){
-    TreePieceDescriptor &descr = submittedParticles[i];
-    CkReductionMsg *msg = descr.msg;
-    memcpy(myParticles.getVec()+offset,msg->getData(),msg->getSize());
+    CkReductionMsg *msg = submittedParticles[i].msg;
+    memcpy(myParticles.getVec() + offset, msg->getData(), msg->getSize());
     offset += msg->getSize() / sizeof(Particle);
     delete msg;
   }
