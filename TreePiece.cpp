@@ -171,14 +171,14 @@ void TreePiece::requestMoments(Key k, int replyTo){
   myDM->requestMoments(k,replyTo);
 }
 
-void TreePiece::requestParticles(RequestMsg *msg){
+void TreePiece::requestParticles(std::pair<Key, int> request) {
   // forward the request to the DM, since TPs don't
   // really own particles or nodes
-  myDM->requestParticles(msg);
+  myDM->requestParticles(request);
 }
 
-void TreePiece::requestNode(RequestMsg *msg){
-  myDM->requestNode(msg);
+void TreePiece::requestNode(std::pair<Key, int> request) {
+  myDM->requestNode(request);
 }
 
 int TreePiece::getIteration() {

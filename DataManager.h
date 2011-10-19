@@ -159,8 +159,8 @@ class DataManager : public CBase_DataManager {
   void requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
 
   // called by tree piece that is forwarding a remote request
-  void requestNode(RequestMsg *msg);
-  void requestParticles(RequestMsg *msg);
+  void requestNode(std::pair<Key, int> request);
+  void requestParticles(std::pair<Key, int> request);
   
   void recvParticles(ParticleReplyMsg *msg);
   void recvNode(NodeReplyMsg *msg);

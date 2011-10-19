@@ -51,8 +51,8 @@ mainmodule barnes {
     entry void doLocalGravity(RescheduleMsg *);
     entry void doRemoteGravity(RescheduleMsg *);
 
-    entry void requestParticles(RequestMsg *msg);
-    entry void requestNode(RequestMsg *msg);
+    entry void requestParticles(std::pair<Key, int> request);
+    entry void requestNode(std::pair<Key, int> request);
     entry void quiescence();
   };
 
