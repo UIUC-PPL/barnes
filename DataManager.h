@@ -12,6 +12,8 @@
 #include "Traversal_decls.h"
 #include "Request.h"
 
+#include <vector>
+
 class TreePiece;
 
 #include <map>
@@ -52,7 +54,7 @@ class DataManager : public CBase_DataManager {
   int numRankBits;
   double prevIterationStart;
 
-  CkVec<Particle> myParticles;
+  std::vector<Particle> myParticles;
   int myNumParticles;
   BoundingBox myBox;
 

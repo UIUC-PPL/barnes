@@ -10,6 +10,7 @@
 #include "Request.h"
 #include "defaults.h"
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -66,8 +67,7 @@ void DataManager::loadParticles(CkCallback &cb){
   offset *= SIZE_PER_PARTICLE;
   offset += PREAMBLE_SIZE;
 
-  myParticles.reserve(myNumParticles);
-  myParticles.length() = myNumParticles;
+  myParticles.resize(myNumParticles);
 
   partFile.clear();
   partFile.seekg(offset,ios::beg);
@@ -101,7 +101,6 @@ void DataManager::loadParticles(CkCallback &cb){
     myBox.grow(p.position);
     // accumulate KE for this time period
     myBox.energy += p.mass*p.velocity.lengthSquared();
-
     numParticlesDone++;
   }
   myBox.energy /= 2.0;
@@ -149,7 +148,7 @@ void DataManager::hashParticleCoordinates(OrientedBox<Real> &universe){
 void DataManager::decompose(BoundingBox &universe){
 
   hashParticleCoordinates(universe.box);
-  myParticles.quickSort();
+  std::sort(myParticles.begin(), myParticles.end());
 
   if(CkMyPe()==0){
     if(iteration == 1){
@@ -195,7 +194,7 @@ void DataManager::initHistogramParticles(){
   
   sortingRoot = new Node<NodeDescriptor>(Key(1),
                          rootDepth,
-                         myParticles.getVec(),
+                         &myParticles[0],
                          myNumParticles);
   activeBins.addNewNode(sortingRoot);
 
@@ -203,7 +202,7 @@ void DataManager::initHistogramParticles(){
   // anyway. these must be reset before this DM starts
   // to receive submitted particles from TPs placed on it
   myNumParticles = 0;
-  myParticles.length() = 0;
+  myParticles.clear();
 }
 
 void DataManager::sendHistogram(){
@@ -367,12 +366,12 @@ void DataManager::processSubmittedParticles(){
 
   for(int i = 0; i < submittedParticles.length(); i++){
     CkReductionMsg *msg = submittedParticles[i].msg;
-    memcpy(myParticles.getVec() + offset, msg->getData(), msg->getSize());
+    memcpy(&myParticles[0] + offset, msg->getData(), msg->getSize());
     offset += msg->getSize() / sizeof(Particle);
     delete msg;
   }
 
-  myParticles.quickSort();
+  std::sort(myParticles.begin(), myParticles.end());
 
   buildTree();
   // add dummy tree piece whose index is larger than
@@ -397,7 +396,7 @@ void DataManager::processSubmittedParticles(){
 void DataManager::buildTree(){
 
   int rootDepth = 0;
-  root = new Node<ForceData>(Key(1),rootDepth,myParticles.getVec(),myNumParticles);
+  root = new Node<ForceData>(Key(1), rootDepth, &myParticles[0], myNumParticles);
   root->setOwners(0,numTreePieces-1);
   nodeTable[Key(1)] = root;
   if(myNumParticles == 0){
@@ -936,8 +935,8 @@ void DataManager::freeTree(){
 void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
   Vector3D<Real> dv;
 
-  Particle *pstart = myParticles.getVec();
-  Particle *pend = myParticles.getVec()+myNumParticles;
+  Particle *pstart = &myParticles[0];
+  Particle *pend = &myParticles[myNumParticles];
 
   Real particleEnergy;
   Real particleKinetic;

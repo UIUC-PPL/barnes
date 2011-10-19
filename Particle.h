@@ -20,19 +20,11 @@ struct Particle : public ExternalParticle {
   // for debugging energy
   int id;
 
-  Particle() : 
-    potential(0.0),
-    acceleration(0.0)
-  {
-  }
+  Particle() : potential(0.0), acceleration(0.0) { }
 
-  bool operator>=(const Particle &other){
-    return key >= other.key;
-  }
-
-  bool operator<=(const Particle &other){
-    return key <= other.key;
-  }
+  bool operator>=(const Particle &other) const { return key >= other.key; }
+  bool operator<=(const Particle &other) const { return key <= other.key; }
+  bool operator< (const Particle &other) const { return key <  other.key; }
 };
 
 
