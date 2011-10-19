@@ -281,7 +281,6 @@ void DataManager::flushParticles(){
     CkCallback cb(CkIndex_TreePiece::receiveParticles((CkReductionMsg*)NULL), CkArrayIndex1D(i), treePieceProxy);
     //CkPrintf("tpc %d recvd from mgr %d numparticles 0\n", i, CkMyPe());
     contribute(cb);
-    //treePieceProxy[i].receiveParticles();
   }
 
   // done with sorting tree; delete
@@ -314,12 +313,10 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
     ParticleMsg *msg = new (np,0) ParticleMsg;
     memcpy(msg->part, nd->getParticles(), sizeof(Particle)*np);
     msg->numParticles = np;
-    //treePieceProxy[tp].receiveParticles(msg);
     contribute(np*sizeof(Particle), nd->getParticles(), CkReduction::concat, cb);
   }
   else{
     contribute(cb);
-    //treePieceProxy[tp].receiveParticles();
   }
 
   // only PE 0 has the correct ranges

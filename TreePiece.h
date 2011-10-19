@@ -59,8 +59,6 @@ class TreePiece : public CBase_TreePiece {
   int getIndex() {return thisIndex;}
 
   void receiveParticles(CkReductionMsg *msg);
-  void receiveParticles(ParticleMsg *msg);
-  void receiveParticles();
 
   void prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int bucketStart, int bucketEnd);
   void startTraversal();

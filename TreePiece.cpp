@@ -55,30 +55,13 @@ void TreePiece::receiveParticles(CkReductionMsg *msg) {
     ParticleMsg *pmsg = new (np,0) ParticleMsg;
     memcpy(pmsg->part, msg->getData(), sizeof(Particle)*np);
     pmsg->numParticles = np;
-    receiveParticles(pmsg);
     delete msg;
-}
 
-void TreePiece::receiveParticles(ParticleMsg *msg){
-  int msgNumParticles = msg->numParticles;
-  decompMsgsRecvd.push_back(msg);
-  myNumParticles += msgNumParticles;
-  numDecompMsgsRecvd++;
-  if(smallestKey > msg->part[0].key) smallestKey = msg->part[0].key;
-  if(largestKey < msg->part[msgNumParticles-1].key) largestKey = msg->part[msgNumParticles-1].key;
-  
-  if(numDecompMsgsRecvd == 1){
+    myNumParticles += np;
+    decompMsgsRecvd.push_back(pmsg);
+    if(smallestKey > pmsg->part[0].key) smallestKey = pmsg->part[0].key;
+    if(largestKey < pmsg->part[myNumParticles-1].key) largestKey = pmsg->part[myNumParticles-1].key;
     submitParticles();
-    numDecompMsgsRecvd = 0;
-  }
-}
-
-void TreePiece::receiveParticles(){
-  numDecompMsgsRecvd++;
-  if(numDecompMsgsRecvd == CkNumPes()){
-    submitParticles();
-    numDecompMsgsRecvd = 0;
-  }
 }
 
 void TreePiece::submitParticles(){
