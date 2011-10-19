@@ -58,7 +58,8 @@ void TreePiece::receiveParticles(CkReductionMsg *msg) {
       if(largestKey  < particles[i].key) largestKey  = particles[i].key;
     }
     
-    myDM->submitParticles(msg,myNumParticles,this,smallestKey,largestKey);
+    myDM->submitParticles(particles, myNumParticles, this, smallestKey, largestKey);
+    delete msg;
 }
 
 void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int bucketStart, int bucketEnd){

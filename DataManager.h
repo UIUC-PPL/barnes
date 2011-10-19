@@ -157,7 +157,7 @@ class DataManager : public CBase_DataManager {
   void receiveMoments(MomentsExchangeStruct moments);
   
   // called by tree pieces
-  void submitParticles(CkReductionMsg *msg, int numParticles, TreePiece *tp, Key smallestKey, Key largestKey); 
+  void submitParticles(Particle *particles, int numParticles, TreePiece *tp, Key smallestKey, Key largestKey); 
   void requestMoments(Key k, int replyTo);
   void advance(CkReductionMsg *);
   void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit);

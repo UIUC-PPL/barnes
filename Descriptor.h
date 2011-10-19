@@ -92,7 +92,6 @@ class TreePiece;
 template<typename T> class Node;
 
 struct TreePieceDescriptor {
-  CkReductionMsg *msg;
   TreePiece *owner;
   int index;
   int numParticles;
@@ -102,12 +101,12 @@ struct TreePieceDescriptor {
   int bucketStartIdx;
   int bucketEndIdx;
 
-  TreePieceDescriptor(CkReductionMsg *m, int np, TreePiece *o, int i, Key sk, Key lk) : 
-    msg(m), owner(o), index(i), smallestKey(sk), largestKey(lk), numParticles(np)
+  TreePieceDescriptor(int np, TreePiece *o, int i, Key sk, Key lk) : 
+    owner(o), index(i), smallestKey(sk), largestKey(lk), numParticles(np)
   { }
 
   TreePieceDescriptor(int i = -1) : 
-    msg(NULL), owner(NULL), numParticles(0), index(i), smallestKey(~Key(0)), largestKey(Key(0))
+    owner(NULL), numParticles(0), index(i), smallestKey(~Key(0)), largestKey(Key(0))
   { }
 
   bool operator<=(const TreePieceDescriptor &t){ return smallestKey <= t.smallestKey; }

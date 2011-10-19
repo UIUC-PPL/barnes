@@ -349,28 +349,21 @@ void DataManager::senseTreePieces(){
   if(submittedParticles.length() == numLocalTreePieces) processSubmittedParticles();
 }
 
-void DataManager::submitParticles(CkReductionMsg *msg, int numParticles, TreePiece * tp, Key smallestKey, Key largestKey){ 
-  submittedParticles.push_back(TreePieceDescriptor(msg,numParticles,tp,tp->getIndex(),smallestKey,largestKey));
+void DataManager::submitParticles(Particle *particles, int numParticles, TreePiece * tp, Key smallestKey, Key largestKey){
+  submittedParticles.push_back(TreePieceDescriptor(numParticles,tp,tp->getIndex(),smallestKey,largestKey));
   myNumParticles += numParticles;
+  int origSize = myParticles.size();
+  myParticles.resize(origSize + numParticles);
+  memcpy(&myParticles[origSize], particles, numParticles * sizeof(Particle));
   if(submittedParticles.length() == numLocalTreePieces && haveRanges){
     processSubmittedParticles();
   }
 }
 
 void DataManager::processSubmittedParticles(){
-  int offset = 0;
 
   submittedParticles.quickSort();
   
-  myParticles.resize(myNumParticles);
-
-  for(int i = 0; i < submittedParticles.length(); i++){
-    CkReductionMsg *msg = submittedParticles[i].msg;
-    memcpy(&myParticles[0] + offset, msg->getData(), msg->getSize());
-    offset += msg->getSize() / sizeof(Particle);
-    delete msg;
-  }
-
   std::sort(myParticles.begin(), myParticles.end());
 
   buildTree();
