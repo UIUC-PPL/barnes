@@ -101,7 +101,6 @@ class DataManager : public CBase_DataManager {
   CacheStats nodeReqs;
   CacheStats partReqs;
 
-  Real savedEnergy;
   /* used only on PE 0 to track drift in energy */ 
   Real compareEnergy;
 

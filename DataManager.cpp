@@ -32,7 +32,6 @@ void copyMomentsToNode(Node<ForceData> *node, const MomentsExchangeStruct &mes){
 DataManager::DataManager() : 
   iteration(0),
   prevIterationStart(0.0),
-  savedEnergy(0.0),
   root(NULL),
   keyRanges(NULL), 
   rangeMsg(NULL)
@@ -82,24 +81,30 @@ void DataManager::loadParticles(CkCallback &cb){
   BoundingBox myBox;
 
   Real tmp[REALS_PER_PARTICLE];
+  myBox.energy = 0.0;
   while(numParticlesDone < myNumParticles && !partFile.eof()){
     partFile.read((char *)tmp, SIZE_PER_PARTICLE);
-    myParticles[numParticlesDone].position.x = tmp[0];
-    myParticles[numParticlesDone].position.y = tmp[1];
-    myParticles[numParticlesDone].position.z = tmp[2];
-    myParticles[numParticlesDone].velocity.x = tmp[3];
-    myParticles[numParticlesDone].velocity.y = tmp[4];
-    myParticles[numParticlesDone].velocity.z = tmp[5];
-    myParticles[numParticlesDone].mass = tmp[6];
+    Particle &p = myParticles[numParticlesDone];
+    p.position.x = tmp[0];
+    p.position.y = tmp[1];
+    p.position.z = tmp[2];
+    p.velocity.x = tmp[3];
+    p.velocity.y = tmp[4];
+    p.velocity.z = tmp[5];
+    p.mass = tmp[6];
 
-    myParticles[numParticlesDone].acceleration.x = 0.0;
-    myParticles[numParticlesDone].acceleration.y = 0.0;
-    myParticles[numParticlesDone].acceleration.z = 0.0;
-    myParticles[numParticlesDone].potential = 0.0;
-    myBox.grow(myParticles[numParticlesDone].position);
+    p.acceleration.x = 0.0;
+    p.acceleration.y = 0.0;
+    p.acceleration.z = 0.0;
+    p.potential = 0.0;
+
+    myBox.grow(p.position);
+    // accumulate KE for this time period
+    myBox.energy += p.mass*p.velocity.lengthSquared();
 
     numParticlesDone++;
   }
+  myBox.energy /= 2.0;
 
   CkAssert(numParticlesDone == myNumParticles);
   myBox.numParticles = myNumParticles;
@@ -147,26 +152,27 @@ void DataManager::decompose(BoundingBox &universe){
   myParticles.quickSort();
 
   if(CkMyPe()==0){
-    if(iteration == 2){
-      // save this value so that can compare
-      // against it in future iterations. The
-      // energy shouldn't grow in magnitude
-      // by more than a percent or so.
+    if(iteration == 1){
+      // save this value so that we can compare
+      // against it in future iterations. 
       compareEnergy = universe.energy;
     }
-    else if(iteration > 2){
+    else if(iteration > 1){
       Real deltaE = compareEnergy-universe.energy;
       if(deltaE < 0) deltaE = -deltaE;
-      CkAssert(deltaE < ENERGY_DRIFT_FRAC_TOLERANCE*compareEnergy);
+      // The energy should grow in magnitude
+      // by less than a tenth of one per cent.
+      CkAssert(deltaE/compareEnergy < 0.001);
+      CkPrintf("(%d) iteration %d delta %f\n", CkMyPe(), iteration, deltaE/compareEnergy);
     }
 
     float memMB = (1.0*CmiMemoryUsage())/(1<<20);
     ostringstream oss; 
     CkPrintf("(%d) prev time %g s\n", CkMyPe(), CmiWallTimer()-prevIterationStart);
-    CkPrintf("(%d) start iteration %d\n", CkMyPe(), iteration);
     CkPrintf("(%d) mem %.2f MB\n", CkMyPe(), memMB);
-    CkPrintf("(%d) univ %f %f %f %f %f %f energy %f\n", 
+    CkPrintf("(%d) iteration %d univ %f %f %f %f %f %f energy %f\n", 
               CkMyPe(),
+              iteration,
               universe.box.lesser_corner.x,
               universe.box.lesser_corner.y,
               universe.box.lesser_corner.z,
@@ -831,7 +837,7 @@ void DataManager::advance(CkReductionMsg *msg){
   myBox.reset();
   kickDriftKick(myBox.box,myBox.energy);
 
-  Real pad = 0.001;
+  Real pad = 0.00001;
   myBox.expand(pad);
   myBox.numParticles = myNumParticles;
 
@@ -938,33 +944,17 @@ void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
 
   Particle *pstart = myParticles.getVec();
   Particle *pend = myParticles.getVec()+myNumParticles;
-  Real dt_k1, dt_k2;
-  if(iteration == 0){
-    dt_k1 = globalParams.dtime;
-    // won't have KE stored by a previous 
-    // iteration for this one
-    for(Particle *p = pstart; p != pend; p++){
-      energy += p->mass*(p->velocity.lengthSquared()); 
-    }
-    energy /= 2.0;
-  }
-  else{
-    dt_k1 = globalParams.dthf;
-    energy = savedEnergy;
-    savedEnergy = 0.0;
-  }
-
-  dt_k2 = globalParams.dthf;
 
   for(Particle *p = pstart; p != pend; p++){
     energy += p->mass*p->potential;
+    energy += 0.5*p->mass*p->velocity.lengthSquared();
+
     // kick
-    p->velocity += dt_k1*p->acceleration;
-    savedEnergy += p->mass*(p->velocity.lengthSquared()); 
+    p->velocity += globalParams.dthf*p->acceleration;
     // drift
     p->position += globalParams.dtime*p->velocity;
     // kick
-    p->velocity += dt_k2*p->acceleration;
+    p->velocity += globalParams.dthf*p->acceleration;
     
     box.grow(p->position);
 
@@ -972,7 +962,6 @@ void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
     p->potential = 0.0;
 
   }
-  savedEnergy /= 2.0;
 }
 
 void DataManager::findMinVByA(DtReductionStruct &dtred){
