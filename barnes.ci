@@ -10,10 +10,6 @@ mainmodule barnes {
   class Parameters;
   class MultipoleMoments;
 
-  message SplitterMsg {
-    int splitBins[];
-  };
-
   message ParticleMsg {
     Particle part[];
   };
@@ -22,7 +18,6 @@ mainmodule barnes {
     Key keys[];
   };
 
-  message RequestMsg;
   message ParticleReplyMsg {
     ExternalParticle data[];
   };
@@ -31,7 +26,6 @@ mainmodule barnes {
     Node<ForceData> data[];
   };
 
-  message MomentsMsg;
   message RescheduleMsg;
 
   include "Descriptor.h";
@@ -56,19 +50,21 @@ mainmodule barnes {
     entry void doLocalGravity(RescheduleMsg *);
     entry void doRemoteGravity(RescheduleMsg *);
 
-    entry void requestParticles(RequestMsg *msg);
-    entry void requestNode(RequestMsg *msg);
+    entry [expedited] void requestParticles(std::pair<Key, int> request);
+    entry [expedited] void requestNode(std::pair<Key, int> request);
     entry void quiescence();
   };
+
+  include "Node.h";
 
   group DataManager {
     entry DataManager();
     entry void loadParticles(CkCallback &cb);
     entry void decompose(BoundingBox &universe);
     entry void receiveHistogram(CkReductionMsg *msg);
-    entry void receiveSplitters(SplitterMsg *msg);
+    entry void receiveSplitters(CkVec<int> splitBins);
     entry void sendParticles(RangeMsg *msg);
-    entry void receiveMoments(MomentsMsg *msg);
+    entry [expedited] void receiveMoments(MomentsExchangeStruct moments);
 
     entry void recvParticles(ParticleReplyMsg *msg);
     entry void recvNode(NodeReplyMsg *msg);

@@ -62,8 +62,8 @@ class TreePiece : public CBase_TreePiece {
   void doLocalGravity(RescheduleMsg *);
   void doRemoteGravity(RescheduleMsg *);
 
-  void requestParticles(RequestMsg *msg);
-  void requestNode(RequestMsg *msg);
+  void requestParticles(std::pair<Key, int> request);
+  void requestNode(std::pair<Key, int> request);
 
   void requestMoments(Key k, int replyTo);
   void traversalDone();

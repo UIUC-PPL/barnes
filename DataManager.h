@@ -88,8 +88,8 @@ class DataManager : public CBase_DataManager {
   // the tree on this PE is now ready for 
   // traversal
   bool treeMomentsReady;
-  CkVec<RequestMsg *> bufferedNodeRequests;
-  CkVec<RequestMsg *> bufferedParticleRequests;
+  CkVec< std::pair<Key, int> > bufferedNodeRequests;
+  CkVec< std::pair<Key, int> > bufferedParticleRequests;
 
   Traversal<NodeDescriptor> scaffoldTrav;
   Traversal<ForceData> fillTrav;
@@ -147,11 +147,11 @@ class DataManager : public CBase_DataManager {
 
   void decompose(BoundingBox &universe);
   void receiveHistogram(CkReductionMsg *msg);
-  void receiveSplitters(SplitterMsg *msg);
+  void receiveSplitters(CkVec<int> splitBins);
   void sendParticles(RangeMsg *msg);
   void sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp);
 
-  void receiveMoments(MomentsMsg *msg);
+  void receiveMoments(MomentsExchangeStruct moments);
   
   // called by tree pieces
   void submitParticles(CkVec<ParticleMsg *> *vec, int numParticles, TreePiece *tp, Key smallestKey, Key largestKey); 
@@ -164,8 +164,8 @@ class DataManager : public CBase_DataManager {
   void requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
 
   // called by tree piece that is forwarding a remote request
-  void requestNode(RequestMsg *msg);
-  void requestParticles(RequestMsg *msg);
+  void requestNode(std::pair<Key, int> request);
+  void requestParticles(std::pair<Key, int> request);
   
   void recvParticles(ParticleReplyMsg *msg);
   void recvNode(NodeReplyMsg *msg);
