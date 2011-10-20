@@ -851,7 +851,7 @@ void DataManager::advance(CkReductionMsg *msg){
     if(CkMyPe() == 0) CkPrintf("(%d) INITIATE LB\n", CkMyPe()); 
     for(int i = 0; i < submittedParticles.length()-1; i++){
       TreePiece *tp = submittedParticles[i].owner;
-      tp->doAtSync();
+      tp->startlb();
     }
   }
   else{

@@ -3,6 +3,9 @@
 #include "DataManager.h"
 #include "Parameters.h"
 
+#include "TaggedVector3D.h"
+#include "Orb3dLB_notopo.h"
+
 #include <fstream>
 
 extern CProxy_Main mainProxy;
@@ -12,7 +15,23 @@ extern Parameters globalParams;
 TreePiece::TreePiece() {
   usesAtSync = CmiTrue;
   iteration = 0;
+  myRoot = NULL;
+  findOrbLB();
   init();
+}
+
+void TreePiece::findOrbLB(){
+  LBDatabase *lbdb = LBDatabaseObj();
+  numLB = lbdb->getNLoadBalancers();
+  BaseLB **lb = lbdb->getLoadBalancers();
+  haveOrbLB = false;
+  for(int i = 0; i < numLB; i++){
+    if(string(lb[i]->lbName()) == "Orb3dLB_notopo"){
+      orbLBProxy = lb[i]->getGroupID();
+      haveOrbLB = true;
+      break;
+    }
+  }
 }
 
 void TreePiece::init(){
@@ -23,7 +42,6 @@ void TreePiece::init(){
   smallestKey = ~largestKey;
   totalNumTraversals = 2;
   myDM = dataManagerProxy.ckLocalBranch();
-  myRoot = NULL;
   root = NULL;
   myBuckets = NULL;
   myNumBuckets = 0;
@@ -61,9 +79,7 @@ void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<F
   myBuckets = buckets+bucketStart;
   myNumBuckets = bucketEnd-bucketStart;
 
-#if 0
-  if(myRoot != NULL) CkPrintf("tree piece %d prepare root %lu pe %d \n", thisIndex, myRoot->getKey(), CkMyPe());
-#endif
+  //if(myRoot != NULL) CkPrintf("tree piece %d prepare root %lu pe %d \n", thisIndex, myRoot->getKey(), CkMyPe());
 }
 
 void TreePiece::startTraversal(){
@@ -190,8 +206,44 @@ void TreePiece::pup(PUP::er &p){
   p | iteration;
   if(p.isUnpacking()){
     init();
+    findOrbLB();
   }
 }
 
+void TreePiece::startlb(){
+  LDObjHandle handle = myRec->getLdHandle();
+  if(numLB == 0){
+    ResumeFromSync();
+    return;
+  }
+  else if(haveOrbLB){
+    Vector3D<Real> centroid(0.0);
+    if(myRoot != NULL) centroid = myRoot->data.moments.cm;
+    /*
+    CkPrintf("tree piece %d contributing %f %f %f\n", 
+                                        thisIndex,
+                                        centroid.x,
+                                        centroid.y,
+                                        centroid.z
+                                        );
+    */
+    TaggedVector3D tv(centroid,handle,myNumParticles,myNumParticles,0,0);
+    tv.tag = thisIndex;
+    CkCallback lbcb(CkIndex_Orb3dLB_notopo::receiveCentroids(NULL),0,orbLBProxy);
+    contribute(sizeof(TaggedVector3D), (char *)&tv, CkReduction::set, lbcb);
+  }
+  else{
+    AtSync();
+  }
+}
+
+void TreePiece::doAtSync(){
+  AtSync();
+}
+
+void TreePiece::ResumeFromSync() {
+  CkCallback cb(CkIndex_DataManager::resumeFromLB(),dataManagerProxy);
+  contribute(0,0,CkReduction::sum_int,cb);
+}
 #include "Traversal_defs.h"
 

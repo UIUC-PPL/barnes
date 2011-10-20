@@ -53,6 +53,7 @@ mainmodule barnes {
     entry [expedited] void requestParticles(std::pair<Key, int> request);
     entry [expedited] void requestNode(std::pair<Key, int> request);
     entry void quiescence();
+    entry void doAtSync();
   };
 
   include "Node.h";

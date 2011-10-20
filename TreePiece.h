@@ -41,11 +41,16 @@ class TreePiece : public CBase_TreePiece {
   Key largestKey;
   DataManager *myDM;
 
+  CkGroupID orbLBProxy;
+  int numLB;
+  bool haveOrbLB;
+
   int totalNumTraversals;
 
   void submitParticles();
   void finishIteration();
   void init();
+  void findOrbLB();
 
   public:
   TreePiece();
@@ -72,13 +77,9 @@ class TreePiece : public CBase_TreePiece {
   int getIteration();
 
   void pup(PUP::er &p);
-  void doAtSync() { 
-    AtSync(); 
-  }
-  void ResumeFromSync() {
-    CkCallback cb(CkIndex_DataManager::resumeFromLB(),dataManagerProxy);
-    contribute(0,0,CkReduction::sum_int,cb);
-  }
+  void startlb();
+  void doAtSync(); 
+  void ResumeFromSync();
 };
 
 #endif

@@ -6,14 +6,14 @@ defines.h \
 common.h \
 OrientedBox.h \
 barnes.decl.h \
-TreePiece.h \
-Particle.h \
-Vector3D.h \
-Messages.h \
-MultipoleMoments.h \
-Node.h \
-util.h \
 Descriptor.h \
+MultipoleMoments.h \
+Vector3D.h \
+Node.h \
+Particle.h \
+util.h \
+TreePiece.h \
+Messages.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
@@ -31,11 +31,11 @@ common.h \
 Vector3D.h \
 OrientedBox.h \
 barnes.decl.h \
-Node.h \
-MultipoleMoments.h \
-defines.h \
-util.h \
 Descriptor.h \
+defines.h \
+MultipoleMoments.h \
+Node.h \
+util.h \
 ActiveBinInfo.h \
 Traversal_decls.h \
 Worker.h \
@@ -45,6 +45,7 @@ Reduction.h \
 Messages.h \
 Parameters.h \
 TreePiece.h \
+defaults.h \
 
 TreePiece.o: \
 TreePiece.cpp \
@@ -53,13 +54,13 @@ defines.h \
 common.h \
 OrientedBox.h \
 barnes.decl.h \
-Particle.h \
-Vector3D.h \
-Messages.h \
-MultipoleMoments.h \
-Node.h \
-util.h \
 Descriptor.h \
+MultipoleMoments.h \
+Vector3D.h \
+Node.h \
+Particle.h \
+util.h \
+Messages.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
@@ -67,6 +68,9 @@ DataManager.h \
 ActiveBinInfo.h \
 Request.h \
 Parameters.h \
+TaggedVector3D.h \
+Orb3dLB_notopo.h \
+Orb3dLB_notopo.decl.h \
 
 util.o: \
 util.cpp \
@@ -141,6 +145,22 @@ barnes.decl.h \
 Messages.h \
 Traversal_defs.h \
 DataManager.h \
+
+Orb3dLB_notopo.o: \
+Orb3dLB_notopo.cpp \
+Orb3dLB_notopo.h \
+Orb3dLB_notopo.decl.h \
+TaggedVector3D.h \
+barnes.decl.h \
+Descriptor.h \
+defines.h \
+common.h \
+OrientedBox.h \
+MultipoleMoments.h \
+Vector3D.h \
+Node.h \
+Particle.h \
+util.h \
 
 State.o: \
 State.cpp \
