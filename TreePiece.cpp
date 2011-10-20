@@ -45,21 +45,18 @@ void TreePiece::init(){
   myNumBuckets = 0;
 }
 
-void TreePiece::receiveParticles(CkReductionMsg *msg) {
+void TreePiece::receiveParticles(Particle *particles, int numParticles) {
 
-    CkAssert(msg->getSize() % sizeof(Particle) == 0);
-    myNumParticles = msg->getSize() / sizeof(Particle);
+    myNumParticles = numParticles;
     //CkPrintf("tpc %d received particle redn numParticles=%d\n",thisIndex, myNumParticles);
 
-    Particle *particles = (Particle*) msg->getData();
     smallestKey = largestKey = particles[0].key;
     for (int i=0; i < myNumParticles; i++) {
       if(smallestKey > particles[i].key) smallestKey = particles[i].key;
       if(largestKey  < particles[i].key) largestKey  = particles[i].key;
     }
     
-    myDM->submitParticles(particles, myNumParticles, this, smallestKey, largestKey);
-    delete msg;
+    myDM->submitParticles(particles, numParticles, this, smallestKey, largestKey);
 }
 
 void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int bucketStart, int bucketEnd){

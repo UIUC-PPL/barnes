@@ -6,7 +6,8 @@ VPATH = $(STRUCTURES_PATH)
 
 APP_FLAGS = #
 OPTS = -O3 -g $(APP_FLAGS)
-CXXFLAGS += $(OPTS) -I$(INCPATH) -I$(STRUCTURES_PATH)
+CPPFLAGS += -I$(INCPATH) -I$(STRUCTURES_PATH)
+CXXFLAGS += $(OPTS) $(CPPFLAGS)
 LDFLAGS += $(OPTS) -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -module Orb3dLB_notopo -memory os #-tracemode projections
 
 CHARMC = $(CHARM_PATH)/bin/charmc
@@ -35,13 +36,13 @@ libmoduleOrb3dLB_notopo.a: Orb3dLB_notopo.o
 	$(CHARMC) -o libmoduleOrb3dLB_notopo.a Orb3dLB_notopo.o 
 
 plummer.o: plummer.cpp 
-	g++ -I$(STRUCTURES_PATH) -c plummer.cpp 
+	g++ $(CPPFLAGS) -c plummer.cpp
 
 gen_util.o: gen_util.cpp 
-	g++ -I$(STRUCTURES_PATH) -c gen_util.cpp 
+	g++ $(CPPFLAGS) -c gen_util.cpp
 
 plummer: plummer.o gen_util.o 
-	g++ -I$(STRUCTURES_PATH) -o plummer plummer.o gen_util.o
+	g++ $(CPPFLAGS) -o plummer plummer.o gen_util.o
 
 %.decl.h %.def.h : %.ci
 	$(CHARMC) $(APP_FLAGS) -E $<

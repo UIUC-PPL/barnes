@@ -278,7 +278,7 @@ void DataManager::flushParticles(){
   int numUsefulTreePieces = pfw.getNumLeaves();
   for(int i = numUsefulTreePieces; i < globalParams.numTreePieces; i++){
     //CkPrintf("tpc %d recvd from mgr %d numparticles 0\n", i, CkMyPe());
-    contribute( CkCallback(CkIndex_TreePiece::receiveParticles((CkReductionMsg*)NULL), CkArrayIndex1D(i), treePieceProxy) );
+    contribute( CkCallback(CkReductionTarget(TreePiece, receiveParticles), CkArrayIndex1D(i), treePieceProxy) );
   }
 
   // done with sorting tree; delete
@@ -306,7 +306,7 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
   int np = nd->getNumParticles();
   //CkPrintf("tpc %d recvd from mgr %d numparticles %d\n", tp, CkMyPe(), np);
 
-  CkCallback cb(CkIndex_TreePiece::receiveParticles((CkReductionMsg*)NULL), CkArrayIndex1D(tp), treePieceProxy);
+  CkCallback cb(CkReductionTarget(TreePiece, receiveParticles), CkArrayIndex1D(tp), treePieceProxy);
   contribute(np*sizeof(Particle), nd->getParticles(), CkReduction::concat, cb);
 
   // only PE 0 has the correct ranges

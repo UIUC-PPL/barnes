@@ -34,9 +34,11 @@ mainmodule barnes {
     entry void quiescenceExit();
   };
 
+  include "Particle.h";
+
   array[1D] TreePiece {
     entry TreePiece();
-    entry void receiveParticles(CkReductionMsg *msg);
+    entry [reductiontarget] void receiveParticles(Particle particles[numParticles], int numParticles);
     entry void requestMoments(Key k, int replyTo);
 
     entry void startTraversal();

@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "Vector3D.h"
+#include "pup.h"
 
 struct Particle;
 struct ExternalParticle {
@@ -26,6 +27,6 @@ struct Particle : public ExternalParticle {
   bool operator<=(const Particle &other) const { return key <= other.key; }
   bool operator< (const Particle &other) const { return key <  other.key; }
 };
-
+PUPbytes(Particle);
 
 #endif
