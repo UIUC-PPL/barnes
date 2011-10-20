@@ -22,7 +22,6 @@ struct State {
 
 #ifdef DEBUG_TRAVERSALS
   map<Key,set<Key> > bucketKeys;
-  string description;
 #endif
 
   CmiUInt8 numInteractions[3];
@@ -92,6 +91,16 @@ struct State {
   void incrOpenCriterion(){
     numInteractions[2]++;
   }
+
+  virtual string getDescription() = 0;
+};
+
+struct LocalState : public State {
+  string getDescription(){ return "LOCAL"; }
+};
+
+struct RemoteState : public State {
+  string getDescription(){ return "REMOTE"; }
 };
 
 #endif

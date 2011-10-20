@@ -29,8 +29,8 @@ class TreePiece : public CBase_TreePiece {
   Node<ForceData> *root;
   Node<ForceData> *myRoot;
 
-  State localTraversalState;
-  State remoteTraversalState;
+  LocalState localTraversalState;
+  RemoteState remoteTraversalState;
 
   LocalTraversalWorker localTraversalWorker;
   RemoteTraversalWorker remoteTraversalWorker;

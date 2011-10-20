@@ -98,6 +98,8 @@ void DataManager::loadParticles(CkCallback &cb){
     p.acceleration.z = 0.0;
     p.potential = 0.0;
 
+    p.id = myid*avgParticlesPerPE+numParticlesDone;
+
     myBox.grow(p.position);
     // accumulate KE for this time period
     myBox.energy += p.mass*p.velocity.lengthSquared();
@@ -162,7 +164,7 @@ void DataManager::decompose(BoundingBox &universe){
       if(deltaE < 0) deltaE = -deltaE;
       // The energy should grow in magnitude
       // by less than a tenth of one per cent.
-      CkAssert(deltaE/compareEnergy < 0.001);
+      //CkAssert(deltaE/compareEnergy < 0.001);
       CkPrintf("(%d) iteration %d delta %f\n", CkMyPe(), iteration, deltaE/compareEnergy);
     }
 
@@ -393,17 +395,6 @@ void DataManager::processSubmittedParticles(){
   // of remote nodes
   makeMoments();
 
-#if 0
-  ostringstream oss;
-  oss << "tree." << CkMyPe() << ".dot";
-
-  ofstream ofs(oss.str().c_str());
-  ofs << "digraph PE" << CkMyPe() << "{" << endl;
-  if(root != NULL) printTree(root,ofs);
-  ofs << "}" << endl;
-  ofs.close();
-#endif
-
   doneTreeBuild = true;
 
   // are all particles local to this PE? 
@@ -588,6 +579,24 @@ void DataManager::startTraversal(){
   submittedParticles[0].bucketStartIdx = 0;
   int start = 0;
   int end = myBuckets.length();
+
+#if 0
+  for(int i = 0; i < myNumParticles; i++){
+    Particle *p = &myParticles[i];
+    Real particleKinetic = 0.5*p->mass*p->velocity.lengthSquared();
+    Real particlePotential = p->mass*p->potential;
+    Real particleEnergy = particleKinetic+particlePotential;
+    CkPrintf("%d before traversal iteration %d energy K %f pos %f %f %f v %f %f %f\n", p->id, iteration, particleKinetic, p->position.x, p->position.y, p->position.z, p->velocity.x, p->velocity.y, p->velocity.z);
+  }
+#endif
+
+  ostringstream oss;
+  oss << "tree." << CkMyPe() << "." << iteration << ".dot";
+  ofstream ofs(oss.str().c_str());
+  ofs << "digraph PE" << CkMyPe() << "{" << endl;
+  if(root != NULL) printTree(root,ofs);
+  ofs << "}" << endl;
+  ofs.close();
 
   if(end > 0){
     for(int i = 0; i < numLocalTreePieces-1; i++){
@@ -941,9 +950,18 @@ void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
   Particle *pstart = myParticles.getVec();
   Particle *pend = myParticles.getVec()+myNumParticles;
 
+  Real particleEnergy;
+  Real particleKinetic;
+  Real particlePotential;
   for(Particle *p = pstart; p != pend; p++){
-    energy += p->mass*p->potential;
-    energy += 0.5*p->mass*p->velocity.lengthSquared();
+    particlePotential = p->mass*p->potential;
+    particleKinetic = 0.5*p->mass*p->velocity.lengthSquared();
+    particleEnergy = particlePotential+particleKinetic;
+    energy += particleEnergy;
+
+#if 0
+    CkPrintf("%d before update iteration %d energy T %f K %f U %f pos %f %f %f a %f %f %f v %f %f %f\n", p->id, iteration, particleEnergy, particleKinetic, particlePotential, p->position.x, p->position.y, p->position.z, p->acceleration.x, p->acceleration.y, p->acceleration.z, p->velocity.x, p->velocity.y, p->velocity.z);
+#endif
 
     // kick
     p->velocity += globalParams.dthf*p->acceleration;
@@ -957,6 +975,12 @@ void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
     p->acceleration = Vector3D<Real>(0.0);
     p->potential = 0.0;
 
+#if 0
+    particlePotential = p->mass*p->potential;
+    particleKinetic = 0.5*p->mass*p->velocity.lengthSquared();
+    particleEnergy = particlePotential+particleKinetic;
+    CkPrintf("%d after update iteration %d energy K %f pos %f %f %f v %f %f %f\n", p->id, iteration, particleKinetic, p->position.x, p->position.y, p->position.z, p->velocity.x, p->velocity.y, p->velocity.z);
+#endif
   }
 }
 
@@ -1041,13 +1065,13 @@ void DataManager::resumeFromLB(){
   contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
 }
 
-#if 0
 extern string NodeTypeColor[];
 void DataManager::printTree(Node<ForceData> *nd, ostream &os){
   os << nd->getKey() 
      << "[label=\""<< nd->getKey() 
      << "," << nd->getNumParticles() 
      << "," << nd->getOwnerStart() << ":" << nd->getOwnerEnd() 
+     << "\\n" << nd->data.moments.cm
      << "\","
      << "style=\"filled\""
      << "color=\"" << NodeTypeColor[nd->getType()] << "\""
@@ -1061,8 +1085,6 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
     }
   }
 }
-
-#endif
 
 #include "Traversal_defs.h"
 
