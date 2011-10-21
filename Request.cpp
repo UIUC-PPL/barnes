@@ -16,6 +16,7 @@ void Request::deliverParticles(int num){
     worker->setContext(req.context);
 
     ExternalParticle *externalParticles = (ExternalParticle *)data;
+    worker->beforeParticleForces(parent->getKey());
     for(int j = 0; j < num; j++){ 
       CkAssert(!isnan((externalParticles+j)->position.length()));
       worker->work(externalParticles+j);

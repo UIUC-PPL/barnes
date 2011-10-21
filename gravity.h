@@ -27,6 +27,7 @@ void grav(Particle *pstart, Particle *pend, Real mass, const Vector3D<Real> &pos
   Real mor3;
 
   for(Particle *p = pstart; p != pend; p++){
+    if(position == p->position) continue;
     dr = position - p->position;
     drsq = dr.lengthSquared();
     drsq += globalParams.epssq;

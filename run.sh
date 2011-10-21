@@ -1,16 +1,2 @@
-./charmrun +p2\
-        ./barnes \
-        -killat=4 \
-        -dtime=0.00001 \
-        -ppc=5 -p=8 \
-        -b=3 \
-        -yield=4 \
-        -in=20.dat \
-        -balancePeriod=4 \
-        +balancer Orb3dLB_notopo \
-        +noAnytimeMigration \
-        +traceroot $PWD/logs \
-        +logsize 2000000 \
-        +LBDebug 2 \
-        +LBPeriod 0.01 +LBCommOff ++debug-no-pause
-
+./charmrun +p8 ./barnes -killat=10 -dtime=0.00001 -ppc=2000 -p=140 -in=100k.dat -balancePeriod=10 +balancer Orb3dLB_notopo +noAnytimeMigration +LBPeriod 0.01 +LBCommOff out.nolb
+./charmrun +p8 ./barnes -killat=10 -dtime=0.00001 -ppc=2000 -p=140 -in=100k.dat -balancePeriod=3 +balancer Orb3dLB_notopo +noAnytimeMigration +LBPeriod 0.01 +LBCommOff out.lb

@@ -93,9 +93,7 @@ void DataManager::loadParticles(CkCallback &cb){
     p.velocity.z = tmp[5];
     p.mass = tmp[6];
 
-    p.acceleration.x = 0.0;
-    p.acceleration.y = 0.0;
-    p.acceleration.z = 0.0;
+    p.acceleration = Vector3D<Real>(0.0);
     p.potential = 0.0;
 
     p.id = myid*avgParticlesPerPE+numParticlesDone;
@@ -588,7 +586,6 @@ void DataManager::startTraversal(){
     Real particleEnergy = particleKinetic+particlePotential;
     CkPrintf("%d before traversal iteration %d energy K %f pos %f %f %f v %f %f %f\n", p->id, iteration, particleKinetic, p->position.x, p->position.y, p->position.z, p->velocity.x, p->velocity.y, p->velocity.z);
   }
-#endif
 
   ostringstream oss;
   oss << "tree." << CkMyPe() << "." << iteration << ".dot";
@@ -597,6 +594,7 @@ void DataManager::startTraversal(){
   if(root != NULL) printTree(root,ofs);
   ofs << "}" << endl;
   ofs.close();
+#endif
 
   if(end > 0){
     for(int i = 0; i < numLocalTreePieces-1; i++){
@@ -1065,6 +1063,7 @@ void DataManager::resumeFromLB(){
   contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
 }
 
+#if 0
 extern string NodeTypeColor[];
 void DataManager::printTree(Node<ForceData> *nd, ostream &os){
   os << nd->getKey() 
@@ -1076,7 +1075,7 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
      << "style=\"filled\""
      << "color=\"" << NodeTypeColor[nd->getType()] << "\""
      << "]" << endl;
-  if(nd->getOwnerStart() == nd->getOwnerEnd()) return;
+  //if(nd->getOwnerStart() == nd->getOwnerEnd()) return;
   for(int i = 0; i < nd->getNumChildren(); i++){
     Node<ForceData> *child = nd->getChildren()+i;
     if(child != NULL){
@@ -1085,6 +1084,7 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
     }
   }
 }
+#endif
 
 #include "Traversal_defs.h"
 

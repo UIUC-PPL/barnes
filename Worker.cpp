@@ -148,10 +148,15 @@ int TraversalWorker::work(Node<ForceData> *node){
     return 1;
   }
 
+  state->beforeForces(currentBucket,node->getKey());
   int computed = nodeBucketForce(node,currentBucket);
   state->nodeComputed(currentBucket,node->getKey());
   state->incrPartNodeInteractions(currentBucket->getKey(),computed);
   return 0;
+}
+
+void TraversalWorker::beforeParticleForces(Key k){
+  state->beforeForces(currentBucket,k);
 }
 
 void TraversalWorker::work(ExternalParticle *particle){

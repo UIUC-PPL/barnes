@@ -19,6 +19,7 @@ class CutoffWorker {
   virtual void *getContext() {return NULL;}
   virtual void setContext(void *context) {}
   virtual void done() {}
+  virtual void beforeParticleForces(Key k) {}
 };
 
 class DataManager;
@@ -112,6 +113,8 @@ class TraversalWorker : public CutoffWorker<ForceData> {
   
   virtual void done() {}
   virtual bool getKeep(NodeType type) = 0;
+
+  void beforeParticleForces(Key k); 
 };
 
 class LocalTraversalWorker : public TraversalWorker {

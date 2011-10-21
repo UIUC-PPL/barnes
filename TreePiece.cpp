@@ -156,6 +156,17 @@ void TreePiece::traversalDone(){
 }
 
 void TreePiece::finishIteration(){
+#if 0
+  Node<ForceData> **bucketptr;
+  for(bucketptr = myBuckets; bucketptr != myBuckets+myNumBuckets; bucketptr++){
+    Particle *p;
+    ostringstream oss;
+    for(p = (*bucketptr)->getParticles(); p != (*bucketptr)->getParticles()+(*bucketptr)->getNumParticles(); p++){
+      oss << p->acceleration.x << " " << p->acceleration.y << " " << p->acceleration.z << " ; ";
+    }
+    CkPrintf("(%d,%d) bucket %d final acc : %s\n", thisIndex, iteration, (*bucketptr)->getKey(), oss.str().c_str());
+  }
+#endif
   CmiUInt8 pn = localTraversalState.numInteractions[0]+remoteTraversalState.numInteractions[0];
   CmiUInt8 pp = localTraversalState.numInteractions[1]+remoteTraversalState.numInteractions[1];
   CmiUInt8 oc = localTraversalState.numInteractions[2]+remoteTraversalState.numInteractions[2];
@@ -217,8 +228,9 @@ void TreePiece::startlb(){
     return;
   }
   else if(haveOrbLB){
-    Vector3D<Real> centroid(0.0);
+    Vector3D<float> centroid(0.0);
     if(myRoot != NULL) centroid = myRoot->data.moments.cm;
+
     /*
     CkPrintf("tree piece %d contributing %f %f %f\n", 
                                         thisIndex,
