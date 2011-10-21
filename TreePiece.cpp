@@ -36,8 +36,6 @@ void TreePiece::findOrbLB(){
 
 void TreePiece::init(){
   myNumParticles = 0;
-  numDecompMsgsRecvd = 0;
-  decompMsgsRecvd.length() = 0;
   largestKey = Key(0);
   smallestKey = ~largestKey;
   totalNumTraversals = 2;
@@ -50,19 +48,14 @@ void TreePiece::init(){
 void TreePiece::receiveParticles(CkReductionMsg *msg) {
 
     CkAssert(msg->getSize() % sizeof(Particle) == 0);
-    int np = msg->getSize() / sizeof(Particle);
-    //CkPrintf("tpc %d received particle redn numParticles=%d\n",thisIndex, np);
-    ParticleMsg *pmsg = new (np,0) ParticleMsg;
-    memcpy(pmsg->part, msg->getData(), sizeof(Particle)*np);
-    pmsg->numParticles = np;
-    delete msg;
+    myNumParticles = msg->getSize() / sizeof(Particle);
+    //CkPrintf("tpc %d received particle redn numParticles=%d\n",thisIndex, myNumParticles);
 
-    myNumParticles += np;
-    decompMsgsRecvd.push_back(pmsg);
-    if(smallestKey > pmsg->part[0].key) smallestKey = pmsg->part[0].key;
-    if(largestKey < pmsg->part[myNumParticles-1].key) largestKey = pmsg->part[myNumParticles-1].key;
+    Particle *particles = (Particle*) msg->getData();
+    if(smallestKey > particles[0].key) smallestKey = particles[0].key;
+    if(largestKey < particles[myNumParticles-1].key) largestKey = particles[myNumParticles-1].key;
     
-    myDM->submitParticles(&decompMsgsRecvd,myNumParticles,this,smallestKey,largestKey);
+    myDM->submitParticles(msg,myNumParticles,this,smallestKey,largestKey);
 }
 
 void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int bucketStart, int bucketEnd){
@@ -168,7 +161,6 @@ void TreePiece::finishIteration(){
   remoteTraversalState.finishedIteration();
   
   init();
-
   iteration++;
 }
 

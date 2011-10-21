@@ -5,11 +5,6 @@
 #include "MultipoleMoments.h"
 #include "Node.h" 
 
-struct ParticleMsg : public CMessage_ParticleMsg {
-  Particle *part;
-  int numParticles;
-};
-
 struct RangeMsg : public CMessage_RangeMsg {
   Key *keys;
   int numTreePieces;

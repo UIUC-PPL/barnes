@@ -89,12 +89,10 @@ struct NodeDescriptor {
 };
 
 class TreePiece;
-struct ParticleMsg;
-struct ForceData;
 template<typename T> class Node;
 
 struct TreePieceDescriptor {
-  CkVec<ParticleMsg*> *vec;
+  CkReductionMsg *msg;
   TreePiece *owner;
   int index;
   int numParticles;
@@ -105,17 +103,17 @@ struct TreePieceDescriptor {
   int bucketEndIdx;
 
   TreePieceDescriptor() : 
-    vec(NULL), owner(NULL), numParticles(0), index(-1), smallestKey(~Key(0)), largestKey(Key(0))
+    msg(NULL), owner(NULL), numParticles(0), index(-1), smallestKey(~Key(0)), largestKey(Key(0))
   {
   }
 
-  TreePieceDescriptor(CkVec<ParticleMsg*> *v, int np, TreePiece *o, int i, Key sk, Key lk) : 
-    vec(v), owner(o), index(i), smallestKey(sk), largestKey(lk), numParticles(np)
+  TreePieceDescriptor(CkReductionMsg *m, int np, TreePiece *o, int i, Key sk, Key lk) : 
+    msg(m), owner(o), index(i), smallestKey(sk), largestKey(lk), numParticles(np)
   {
   }
 
   TreePieceDescriptor(int i) : 
-    vec(NULL), owner(NULL), numParticles(0), index(i), smallestKey(~Key(0)), largestKey(Key(0))
+    msg(NULL), owner(NULL), numParticles(0), index(i), smallestKey(~Key(0)), largestKey(Key(0))
   {
   }
 

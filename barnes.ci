@@ -10,10 +10,6 @@ mainmodule barnes {
   class Parameters;
   class MultipoleMoments;
 
-  message ParticleMsg {
-    Particle part[];
-  };
-
   message RangeMsg {
     Key keys[];
   };

@@ -18,8 +18,6 @@
 extern CProxy_DataManager dataManagerProxy;
 
 class TreePiece : public CBase_TreePiece {
-  int numDecompMsgsRecvd;
-  CkVec<ParticleMsg *> decompMsgsRecvd;
   int myNumParticles;
 
   int iteration;

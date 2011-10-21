@@ -310,9 +310,6 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
   //CkPrintf("tpc %d recvd from mgr %d numparticles %d\n", tp, CkMyPe(), np);
 
   if(np > 0){
-    ParticleMsg *msg = new (np,0) ParticleMsg;
-    memcpy(msg->part, nd->getParticles(), sizeof(Particle)*np);
-    msg->numParticles = np;
     contribute(np*sizeof(Particle), nd->getParticles(), CkReduction::concat, cb);
   }
   else{
@@ -359,8 +356,8 @@ void DataManager::senseTreePieces(){
   if(submittedParticles.length() == numLocalTreePieces) processSubmittedParticles();
 }
 
-void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp, Key smallestKey, Key largestKey){ 
-  submittedParticles.push_back(TreePieceDescriptor(vec,numParticles,tp,tp->getIndex(),smallestKey,largestKey));
+void DataManager::submitParticles(CkReductionMsg *msg, int numParticles, TreePiece * tp, Key smallestKey, Key largestKey){ 
+  submittedParticles.push_back(TreePieceDescriptor(msg,numParticles,tp,tp->getIndex(),smallestKey,largestKey));
   myNumParticles += numParticles;
   if(submittedParticles.length() == numLocalTreePieces && haveRanges){
     processSubmittedParticles();
@@ -376,13 +373,10 @@ void DataManager::processSubmittedParticles(){
 
   for(int i = 0; i < submittedParticles.length(); i++){
     TreePieceDescriptor &descr = submittedParticles[i];
-    CkVec<ParticleMsg*> *vec = descr.vec;
-    for(int j = 0; j < vec->length(); j++){
-      ParticleMsg *msg = (*vec)[j];
-      memcpy(myParticles.getVec()+offset,msg->part,sizeof(Particle)*msg->numParticles);
-      offset += msg->numParticles;
-      delete msg;
-    }
+    CkReductionMsg *msg = descr.msg;
+    memcpy(myParticles.getVec()+offset,msg->getData(),msg->getSize());
+    offset += msg->getSize() / sizeof(Particle);
+    delete msg;
   }
 
   myParticles.quickSort();
