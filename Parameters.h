@@ -14,7 +14,8 @@
 using namespace std;
 
 struct Parameters {
-  string filename;
+  char *filename;
+  int nchars;
 
   Real theta;
   Real dtime;
@@ -36,7 +37,12 @@ struct Parameters {
   //int branchFactor;
 
   void pup(PUP::er &p){
-    p | filename;
+    p | nchars;
+    if(p.isUnpacking()){
+      filename = new char[nchars+1];
+    }
+    PUParray(p,filename,nchars+1);
+
     p | numTreePieces;
     p | numParticles;
     p | dtime;

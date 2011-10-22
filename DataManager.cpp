@@ -42,7 +42,7 @@ DataManager::DataManager() :
 void DataManager::loadParticles(CkCallback &cb){
   numRankBits = LOG_BRANCH_FACTOR;
 
-  const char *fname = globalParams.filename.c_str();
+  const char *fname = globalParams.filename;
   int npart = globalParams.numParticles;
 
   std::ifstream partFile;

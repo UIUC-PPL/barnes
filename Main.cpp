@@ -55,7 +55,11 @@ void Main::setParameters(CkArgMsg *m){
     CkAbort("bad command line arguments\n");
   }
 
-  globalParams.filename = params.getsparam("in", table);
+  string filename = params.getsparam("in", table);
+  globalParams.nchars = filename.length();
+  globalParams.filename = new char[globalParams.nchars+1];
+  filename.copy(globalParams.filename,globalParams.nchars);
+  globalParams.filename[globalParams.nchars] = '\0';
 
   globalParams.theta = params.getrparam("theta", DEFAULT_THETA, table);
   CkPrintf("theta: %f\n", globalParams.theta);
@@ -109,8 +113,8 @@ void Main::setParameters(CkArgMsg *m){
 
 void Main::getNumParticles(){
   ifstream partFile;
-  CkPrintf("[Main] file %s\n", globalParams.filename.c_str());
-  partFile.open(globalParams.filename.c_str(), ios::in | ios::binary);
+  CkPrintf("[Main] file %s\n", globalParams.filename);
+  partFile.open(globalParams.filename, ios::in | ios::binary);
   CkAssert(partFile.is_open());
 
   partFile.read((char *)(&globalParams.numParticles),sizeof(int)); 
