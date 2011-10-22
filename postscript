@@ -1,0 +1,23 @@
+LIST="
+261541.output
+"
+for k in $LIST
+do
+grep prev $k | awk '{print $4}' >numbers1.txt
+sed 1d numbers1.txt > numbers.txt
+I=0
+C=0
+B=1
+for N in `cat numbers.txt`
+do
+   I=`echo "$I+$N"|bc`
+   C=`echo "$C+$B"|bc`
+done
+A=0
+A=`echo "scale=3;$I/$C"|bc`
+echo $k >>res.txt
+grep "Running on" $k >>res.txt 
+echo $I >>res.txt
+echo $C >>res.txt
+echo $A >>res.txt
+done
