@@ -153,6 +153,7 @@ class Node {
   int getNumChildrenMomentsReady() const { return numChildrenMomentsReady; }
   bool allChildrenMomentsReady() const { return numChildrenMomentsReady == core.numChildren; }
 
+#if 0
   void getOwnershipFromChildren(){
     // set node type from children types
     int numChildren = core.numChildren;
@@ -181,6 +182,7 @@ class Node {
     core.ownerEnd = children[numChildren-1].getOwnerEnd();
 
   }
+#endif
 
   void refine(){
     CkAssert(core.numChildren == 0);
