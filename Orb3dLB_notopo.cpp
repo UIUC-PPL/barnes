@@ -5,7 +5,7 @@
 
 extern CProxy_TreePiece treePieceProxy;
 
-#define ORB3DLB_NOTOPO_DEBUG 
+#define ORB3DLB_NOTOPO_DEBUG /* empty */ 
 
 using namespace std;
 
@@ -24,14 +24,8 @@ void Orb3dLB_notopo::receiveCentroids(CkReductionMsg *msg){
   if(haveTPCentroids){
     delete tpmsg;
   }
-  tpCentroids = (CkReduction::setElement *)msg->getData();
-  CkReduction::setElement *cur = tpCentroids;
-  nrecvd = 0;
-  while(cur != NULL){
-    CkAssert(cur->dataSize == sizeof(TaggedVector3D));
-    nrecvd++;
-    cur = cur->next();
-  }
+  tpCentroids = (TaggedVector3D *)msg->getData();
+  nrecvd = msg->getSize()/sizeof(TaggedVector3D);
   tpmsg = msg;
   haveTPCentroids = true;
   treePieceProxy.doAtSync();
@@ -56,13 +50,12 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
   }
   tps.resize(numobjs);
 
-  CkReduction::setElement *cur = tpCentroids;
   OrientedBox<float> box;
 
   int numProcessed = 0;
 
-  while(cur != NULL){
-    TaggedVector3D *data = (TaggedVector3D *) cur->data;
+  for(int i = 0; i < numobjs; i++){
+    TaggedVector3D *data = tpCentroids+i;
     LDObjHandle &handle = data->handle;
     int tag = stats->getHash(handle.id,handle.omhandle.id);
 
@@ -95,7 +88,6 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
     }
     */
 
-    cur = cur->next();
     numProcessed++;
   }
 
@@ -411,7 +403,7 @@ int Orb3dLB_notopo::partitionRatioLoad(CkVec<Event> &events, float ratio){
     }
   }
 
-  ORB3DLB_NOTOPO_DEBUG("partitionEvenLoad mid %d lload %f rload %f\n", consider, lload, rload);
+  ORB3DLB_NOTOPO_DEBUG("partitionEvenLoad mid %d lload %f rload %f ratio %f\n", consider, lload, rload, lload/rload);
   return consider;
 }
 

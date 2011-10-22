@@ -150,7 +150,7 @@ void TreePiece::finishIteration(){
     for(p = (*bucketptr)->getParticles(); p != (*bucketptr)->getParticles()+(*bucketptr)->getNumParticles(); p++){
       oss << p->acceleration.x << " " << p->acceleration.y << " " << p->acceleration.z << " ; ";
     }
-    CkPrintf("(%d,%d) bucket %d final acc : %s\n", thisIndex, iteration, (*bucketptr)->getKey(), oss.str().c_str());
+    CkPrintf("(%d,%d) bucket %d xfinal acc : %s\n", thisIndex, iteration, (*bucketptr)->getKey(), oss.str().c_str());
   }
 #endif
   CmiUInt8 pn = localTraversalState.numInteractions[0]+remoteTraversalState.numInteractions[0];
@@ -216,18 +216,19 @@ void TreePiece::startlb(){
     Vector3D<float> centroid(0.0);
     if(myRoot != NULL) centroid = myRoot->data.moments.cm;
 
-    /*
-    CkPrintf("tree piece %d contributing %f %f %f\n", 
+#if 0
+    CkPrintf("tree piece %d pe %d contributing %f %f %f\n", 
                                         thisIndex,
+                                        CkMyPe(),
                                         centroid.x,
                                         centroid.y,
                                         centroid.z
                                         );
-    */
+#endif
     TaggedVector3D tv(centroid,handle,myNumParticles,myNumParticles,0,0);
     tv.tag = thisIndex;
     CkCallback lbcb(CkIndex_Orb3dLB_notopo::receiveCentroids(NULL),0,orbLBProxy);
-    contribute(sizeof(TaggedVector3D), (char *)&tv, CkReduction::set, lbcb);
+    contribute(sizeof(TaggedVector3D), (char *)&tv, CkReduction::concat, lbcb);
   }
   else{
     AtSync();

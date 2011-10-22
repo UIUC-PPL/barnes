@@ -140,6 +140,7 @@ class DataManager : public CBase_DataManager {
 
   void markNaNBuckets();
   void printTree(Node<ForceData>*, ostream &);
+  void doPrintTree();
 
   void init();
 

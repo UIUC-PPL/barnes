@@ -43,7 +43,7 @@ DataManager::DataManager() :
 void DataManager::loadParticles(CkCallback &cb){
   numRankBits = LOG_BRANCH_FACTOR;
 
-  const char *fname = globalParams.filename.c_str();
+  const char *fname = globalParams.filename;
   int npart = globalParams.numParticles;
 
   std::ifstream partFile;
@@ -524,7 +524,7 @@ void DataManager::passMomentsUpward(Node<ForceData> *node){
     TB_DEBUG("[%d] parent %lu children ready %d\n", CkMyPe(), parent->getKey(), parent->getNumChildrenMomentsReady());
     if(parent->allChildrenMomentsReady()){
       parent->getMomentsFromChildren();
-      parent->getOwnershipFromChildren();
+      //parent->getOwnershipFromChildren();
       passMomentsUpward(parent);
     }
   }
@@ -556,6 +556,7 @@ bool CompareNodePtrToKey(void *a, Key k){
 }
 
 void DataManager::startTraversal(){
+  LBTurnInstrumentOn();
   Node<ForceData> **bucketPtrs = myBuckets.getVec();
   submittedParticles[0].bucketStartIdx = 0;
   int start = 0;
@@ -570,13 +571,6 @@ void DataManager::startTraversal(){
     CkPrintf("%d before traversal iteration %d energy K %f pos %f %f %f v %f %f %f\n", p->id, iteration, particleKinetic, p->position.x, p->position.y, p->position.z, p->velocity.x, p->velocity.y, p->velocity.z);
   }
 
-  ostringstream oss;
-  oss << "tree." << CkMyPe() << "." << iteration << ".dot";
-  ofstream ofs(oss.str().c_str());
-  ofs << "digraph PE" << CkMyPe() << "{" << endl;
-  if(root != NULL) printTree(root,ofs);
-  ofs << "}" << endl;
-  ofs.close();
 #endif
 
   if(end > 0){
@@ -862,6 +856,7 @@ void DataManager::recvUnivBoundingBox(CkReductionMsg *msg){
 void DataManager::freeCachedData(){
   map<Key,Request>::iterator it;
 
+
   for(it = particleRequestTable.begin(); it != particleRequestTable.end(); it++){
     Request &request = it->second;
     CkAssert(request.sent);
@@ -999,6 +994,7 @@ void DataManager::markNaNBuckets(){
 }
 
 void DataManager::init(){
+  LBTurnInstrumentOff();
   CkAssert(pendingMoments.empty());
   // safe to reset here, since all tree pieces 
   // must have finished iteration
@@ -1046,7 +1042,6 @@ void DataManager::resumeFromLB(){
   contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
 }
 
-#if 0
 extern string NodeTypeColor[];
 void DataManager::printTree(Node<ForceData> *nd, ostream &os){
   os << nd->getKey() 
@@ -1067,7 +1062,18 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
     }
   }
 }
+#if 0
 #endif
+
+void DataManager::doPrintTree(){
+  ostringstream oss;
+  oss << "tree." << CkMyPe() << "." << iteration << ".dot";
+  ofstream ofs(oss.str().c_str());
+  ofs << "digraph PE" << CkMyPe() << "{" << endl;
+  if(root != NULL) printTree(root,ofs);
+  ofs << "}" << endl;
+  ofs.close();
+}
 
 #include "Traversal_defs.h"
 

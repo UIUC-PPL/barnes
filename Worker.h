@@ -113,6 +113,7 @@ class TraversalWorker : public CutoffWorker<ForceData> {
   
   virtual void done() {}
   virtual bool getKeep(NodeType type) = 0;
+  virtual bool repeat(NodeType type) {return false;}
 
   void beforeParticleForces(Key k); 
 };
@@ -130,6 +131,7 @@ class RemoteTraversalWorker : public TraversalWorker {
   RemoteTraversalWorker() : TraversalWorker() {}
   void done();
   bool getKeep(NodeType type);
+  bool repeat(NodeType type);
 };
 
 class TreeSizeWorker : public CutoffWorker<ForceData> {
