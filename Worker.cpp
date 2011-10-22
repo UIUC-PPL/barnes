@@ -148,11 +148,28 @@ int TraversalWorker::work(Node<ForceData> *node){
     return 1;
   }
 
+  if(repeat(node->getType())) return 0;
+
   state->beforeForces(currentBucket,node->getKey());
   int computed = nodeBucketForce(node,currentBucket);
   state->nodeComputed(currentBucket,node->getKey());
   state->incrPartNodeInteractions(currentBucket->getKey(),computed);
   return 0;
+}
+
+/* Both remote and local workers process Boundary nodes 
+ * However, if a Boundary node is far enough from a bucket
+ * (if so, the repeat() method is called)
+ * only a local worker should compute with it, 
+ * not a remote worker. this avoids duplicate computation.
+ * Also, the remote worker shouldn't skip any other
+ * type of node that it processes, since the local
+ * worker will not access it.
+ * *
+ * */
+bool RemoteTraversalWorker::repeat(NodeType type){
+  if(type == Boundary) return true;
+  return false;
 }
 
 void TraversalWorker::beforeParticleForces(Key k){

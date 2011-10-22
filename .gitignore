@@ -11,3 +11,5 @@ charmrun*
 barnes*
 gen
 plummer
+*.dot
+*.ps

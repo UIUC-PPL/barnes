@@ -24,10 +24,8 @@ Main::Main(CkArgMsg *msg){
   dataManagerProxy = CProxy_DataManager::ckNew();
 
   CkArrayOptions opts(globalParams.numTreePieces);
-  /*
   CProxy_RRMap myMap = CProxy_RRMap::ckNew();
   opts.setMap(myMap);
-  */
   treePieceProxy = CProxy_TreePiece::ckNew(opts);
 
 #ifdef TRACE_REMOTE_DATA_REQUESTS

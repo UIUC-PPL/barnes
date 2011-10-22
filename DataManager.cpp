@@ -587,13 +587,6 @@ void DataManager::startTraversal(){
     CkPrintf("%d before traversal iteration %d energy K %f pos %f %f %f v %f %f %f\n", p->id, iteration, particleKinetic, p->position.x, p->position.y, p->position.z, p->velocity.x, p->velocity.y, p->velocity.z);
   }
 
-  ostringstream oss;
-  oss << "tree." << CkMyPe() << "." << iteration << ".dot";
-  ofstream ofs(oss.str().c_str());
-  ofs << "digraph PE" << CkMyPe() << "{" << endl;
-  if(root != NULL) printTree(root,ofs);
-  ofs << "}" << endl;
-  ofs.close();
 #endif
 
   if(end > 0){
@@ -879,6 +872,17 @@ void DataManager::recvUnivBoundingBox(CkReductionMsg *msg){
 void DataManager::freeCachedData(){
   map<Key,Request>::iterator it;
 
+/*
+  ostringstream oss;
+  oss << "tree." << CkMyPe() << "." << iteration << ".dot";
+  ofstream ofs(oss.str().c_str());
+  ofs << "digraph PE" << CkMyPe() << "{" << endl;
+  if(root != NULL) printTree(root,ofs);
+  ofs << "}" << endl;
+  ofs.close();
+  */
+
+
   for(it = particleRequestTable.begin(); it != particleRequestTable.end(); it++){
     Request &request = it->second;
     CkAssert(request.sent);
@@ -1063,7 +1067,6 @@ void DataManager::resumeFromLB(){
   contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
 }
 
-#if 0
 extern string NodeTypeColor[];
 void DataManager::printTree(Node<ForceData> *nd, ostream &os){
   os << nd->getKey() 
@@ -1084,6 +1087,7 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
     }
   }
 }
+#if 0
 #endif
 
 #include "Traversal_defs.h"

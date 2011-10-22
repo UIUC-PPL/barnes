@@ -94,7 +94,7 @@ struct State {
 
   virtual string getDescription() = 0;
 
-#if 0
+#ifdef VERBOSE_TRAVERSAL_INTERACTION
   CkVec<Vector3D<Real> > savedAccelerations;
 #endif
   void beforeForces(Node<ForceData> *bucket, Key k);
