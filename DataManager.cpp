@@ -1054,6 +1054,7 @@ void DataManager::finishIteration(){
 void DataManager::advance(CkReductionMsg *msg){
 
   DtReductionStruct *dtred = (DtReductionStruct *)(msg->getData());
+#if 0
   if(dtred->haveNaN){
     CkPrintf("(%d) iteration %d NaN accel detected! Exit...\n", CkMyPe(), iteration);
     markNaNBuckets();
@@ -1061,6 +1062,7 @@ void DataManager::advance(CkReductionMsg *msg){
     contribute(0,0,CkReduction::sum_int,exitCb);
     return;
   }
+#endif
 
   myBox.reset();
   kickDriftKick(myBox.box,myBox.energy);
@@ -1209,6 +1211,7 @@ void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
 }
 
 void DataManager::findMinVByA(DtReductionStruct &dtred){
+#if 0
   if(myNumParticles == 0) {
     dtred.haveNaN = false;
     return;
@@ -1222,6 +1225,7 @@ void DataManager::findMinVByA(DtReductionStruct &dtred){
     CkAssert(!isnan(v));
     if(isnan(a)) dtred.haveNaN = true;
   }
+#endif
 
 }
 
