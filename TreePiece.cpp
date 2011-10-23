@@ -48,9 +48,9 @@ void TreePiece::init(){
 void TreePiece::receiveParticles(Particle *particles, int numParticles) {
 
     myNumParticles = numParticles;
-    //CkPrintf("tpc %d received particle redn numParticles=%d\n",thisIndex, myNumParticles);
-
-    smallestKey = largestKey = particles[0].key;
+    if(myNumParticles > 0){
+      smallestKey = largestKey = particles[0].key;
+    }
     for (int i=0; i < myNumParticles; i++) {
       if(smallestKey > particles[i].key) smallestKey = particles[i].key;
       if(largestKey  < particles[i].key) largestKey  = particles[i].key;
