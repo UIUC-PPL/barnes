@@ -412,6 +412,8 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
     // PE 0 sets ranges in sendParticlesToTreePiece, which is
     // called by ParticleFlushWorker in flushParticles()
     haveRanges = true;
+
+    // Find out how many tree pieces are hosted on this PE
     senseTreePieces();
 
     int numKeys = numTreePieces*2;
@@ -464,17 +466,28 @@ void DataManager::flushParticles(){
 
 }
 
+/*
+  The master communicates the active leaves to split
+  to the workers through this method. The activeBins
+  data structure processes the list of leaves to refine,
+  creates new children for them and obtains counts
+  of the number of particles under each child. These
+  children are then made the active leaves for the new
+  iteration and the counts are contributed to a reduction
+  in sendHistogram.
+*/
 void DataManager::receiveSplitters(CkVec<int> splitBins) {
 
-  // process bins to refine
+  // Process bins to refine
   activeBins.processRefine(splitBins.getVec(), splitBins.size());
 
-  // We traverse the final tree to flush particles to 
-  // appropriate tree pieces
-
+  // Send children particle counts to master
   sendHistogram();
 }
 
+/*
+  Send the particles that you are holding for tree piece 'tp' to it.
+*/
 void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
   CkAssert(nd->getNumChildren() == 0);
   int np = nd->getNumParticles();
@@ -489,8 +502,12 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
     treePieceProxy[tp].receiveParticles();
   }
 
-  // only PE 0 has the correct ranges
+  /* 
+    Only PE 0 (the master) has the correct ranges, 
+    since it receives reduced data from all workers
+  */
   if(CkMyPe() == 0){
+    // Sanity checks
     if(nd->data.numParticles > 0){
       CkAssert(nd->data.smallestKey <= nd->data.largestKey);
     } else {
@@ -503,32 +520,66 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
   }
 }
 
+/*
+  This method is invoked on workers by the master, telling
+  them that it is now OK to send the particles they are
+  holding to the tree pieces that they are meant for.
+
+  It also communicates the ranges of particles held  by each
+  tree piece to every PE. 
+*/
 void DataManager::sendParticles(RangeMsg *msg){
   if(CkMyPe() != 0){
+    // Save tree piece particle ranges
     numTreePieces = msg->numTreePieces;
     keyRanges = msg->keys;
     haveRanges = true;
     rangeMsg = msg;
+    // Flush particles to their owner tree pieces
     flushParticles();
 
+    // Obtain the number of tree pieces that are hosted on this PE
     senseTreePieces();
   }
   else{
+    /* 
+      If this is worker 0, it is also the master, so it must
+      have done the above at the end of receiveHistogram.
+    */
     CkAssert(numTreePieces == msg->numTreePieces);
     CkAssert(haveRanges);
     delete msg;
   }
 }
 
+/*
+  How many tree pieces are hosted on this PE? 
+  This tells the PE how many tree pieces it should
+  expect particle contributions from before starting
+  to build the local tree.
+*/
 void DataManager::senseTreePieces(){
   localTreePieces.reset();
   CkLocMgr *mgr = treePieceProxy.ckLocMgr();
   mgr->iterate(localTreePieces);
   numLocalTreePieces = localTreePieces.count;
-
+  
+  /* 
+    It could be that all tree pieces on this PE received their
+    particles and submitted them to the DM before it received the 
+    "sendParticles" message. If this is the case, proceed to tree building.
+  */
   if(submittedParticles.length() == numLocalTreePieces) processSubmittedParticles();
 }
 
+/*
+  This is a normal C++ function called by tree pieces hosted
+  on this PE. Once a tree piece has received all the particles meant
+  for it, it submits them to the DM. The DM, in turn, collects particles
+  from all the tree pieces on its PE and constructs a local tree
+  from them. All nodes and particles within this PE-level tree are
+  then visible to all the tree pieces on the PE.
+*/
 void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp, Key smallestKey, Key largestKey){ 
   submittedParticles.push_back(TreePieceDescriptor(vec,numParticles,tp,tp->getIndex(),smallestKey,largestKey));
   myNumParticles += numParticles;
@@ -537,6 +588,25 @@ void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, Tr
   }
 }
 
+/*
+  Once the DM has collected particles from all the tree pieces hosted
+  on this PE, it copies these particles into a contiguous buffer,
+  sorts them and partitions them in-place in much the same way as 
+  was done during domain decomposition. The result of this partitioning
+  is a local tree whose leaves are buckets containing particles on
+  the PE. The nodes of this tree are of six types:
+
+  1. Bucket: leaf containing local particles
+  2. EmptyBucket: an empty bucket
+  3. Internal: a node whose every child is either Internal or Bucket or EmptyBucket
+
+  4. RemoteBucket: leaf that is local to some other PE
+  5. EmptyRemoteBucket: empty RemoteBucket
+  6. Remote: a node whose entire subtree is non-local to this PE
+
+  7. Boundary: a node that is none of the above, i.e. is "shared" between several
+     PEs.
+*/
 void DataManager::processSubmittedParticles(){
   int offset = 0;
 
