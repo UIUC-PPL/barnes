@@ -18,9 +18,6 @@ struct Particle : public ExternalParticle {
   Vector3D<Real> acceleration;
   Real potential;
 
-  // for debugging energy
-  int id;
-
   Particle() : potential(0.0), acceleration(0.0) { }
 
   bool operator>=(const Particle &other) const { return key >= other.key; }

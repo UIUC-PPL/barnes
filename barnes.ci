@@ -1,5 +1,8 @@
 mainmodule barnes {
   
+  /*
+    Proxies for tree pieces, data managers and main chare.
+  */
   readonly CProxy_TreePiece treePieceProxy;
   readonly CProxy_DataManager dataManagerProxy;
   readonly CProxy_Main mainProxy;
@@ -10,22 +13,29 @@ mainmodule barnes {
   class Parameters;
   class MultipoleMoments;
 
+  /*
+    To communicate range of particles owned by each TreePiece
+  */
   message RangeMsg {
     Key keys[];
   };
 
+  // To respond to remote request for particles 
   message ParticleReplyMsg {
     ExternalParticle data[];
   };
 
+  // To respond to remote request for subtree under node
   message NodeReplyMsg {
     Node<ForceData> data[];
   };
 
+  // To continuously reschedule local and remote work
   message RescheduleMsg;
 
   include "Descriptor.h";
 
+  // Main chare initiates computation and ends it
   mainchare Main {
     entry Main(CkArgMsg *m);
     entry [threaded] void commence();
@@ -35,6 +45,13 @@ mainmodule barnes {
   };
 
   include "Particle.h";
+
+  /* 
+    Particles are decomposed onto TreePieces. Each
+    TreePiece traverses the global tree (possibly creating
+    communication requests) to compute the forces on its
+    particles.
+  */
 
   array[1D] TreePiece {
     entry TreePiece();
@@ -55,6 +72,15 @@ mainmodule barnes {
 
   include "Node.h";
 
+  /*
+    There is one DataManager per PE. It has several functions: 
+    1. load a subset of the particles from an input file
+    2. Oct-decompose particles onto TreePieces using a histogram-sort like algorithm
+    3. Construct a PE-level tree from all the particles on the PE after decomposition
+    4. Initiate traversals for all TreePieces on the PE after tree building
+    5. Maintain a per-PE cache of data fetched from remote sources for TreePieces on the PE
+    6. Update particle positions and velocities once traversals have completed.
+  */
   group DataManager {
     entry DataManager();
     entry void loadParticles(CkCallback &cb);
