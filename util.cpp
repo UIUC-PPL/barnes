@@ -78,5 +78,6 @@ void findSplitters(Particle *particles, int start, int end, int *splitters, Key 
 ExternalParticle &ExternalParticle::operator=(const Particle &p){
   this->position = p.position;
   this->mass = p.mass;
+  return *this;
 }
 

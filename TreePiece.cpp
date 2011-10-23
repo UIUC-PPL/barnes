@@ -255,6 +255,7 @@ void TreePiece::doAtSync(){
 }
 
 void TreePiece::ResumeFromSync() {
+  //if(thisIndex == 0) CkPrintf("tree piece %d ResumeFromSync\n", thisIndex);
   CkCallback cb(CkIndex_DataManager::resumeFromLB(),dataManagerProxy);
   contribute(0,0,CkReduction::sum_int,cb);
 }
