@@ -1,14 +1,26 @@
 #ifndef __GRAVITY_H__
 #define __GRAVITY_H__
 
+/*
+ * CharmBH: gravity.h
+ * Contains functions for
+ * 1. opening criterion calculation
+ * 2. interaction between target bucket of particles and source tree node
+ * 3. interaction between a target bucket of particles and source bucket
+ */
+
 #include "Node.h"
 #include "Vector3D.h"
-#include "Space.h"
 #include "defines.h"
 #include "Parameters.h"
 
 extern Parameters globalParams;
 
+/*
+ * openCriterionBucket:
+ * Is 'node' close enough to the bucket of particles (bucketNode)
+ * that its children must be examined separately?
+ */
 inline bool
 openCriterionBucket(Node<ForceData> *node,
                    Node<ForceData> *bucketNode) {
@@ -18,6 +30,12 @@ openCriterionBucket(Node<ForceData> *node,
   return (globalParams.tolsq*drsq < node->data.moments.rsq);
 }
 
+/*
+ * grav:
+ * Calculate the forces on particles pstart to (not including) pend
+ * due to a source point 'mass' (possibly another particle or an entire node)
+ * located at 'position'.
+ */
 inline 
 void grav(Particle *pstart, Particle *pend, Real mass, const Vector3D<Real> &position){
   Vector3D<Real> dr;
@@ -39,6 +57,10 @@ void grav(Particle *pstart, Particle *pend, Real mass, const Vector3D<Real> &pos
   }
 }
 
+/*
+ * nodeBucketForce:
+ * Calculate force on bucket 'req' due to source tree 'node'
+ */
 inline
 int nodeBucketForce(Node<ForceData> *node, 
 		    Node<ForceData> *req){
@@ -49,6 +71,10 @@ int nodeBucketForce(Node<ForceData> *node,
   return req->getNumParticles();
 }
 
+/*
+ * partBucketForce:
+ * Calculate force on bucket 'req' due to source particle 'part'
+ */
 inline int partBucketForce(ExternalParticle *part, 
 			   Node<ForceData> *req){ 
 
