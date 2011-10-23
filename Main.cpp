@@ -38,7 +38,7 @@ Main::Main(CkArgMsg *msg){
   /* Create the DataManager group; there is one representative/member
      of the group on each PE.
   */
-  dataManagerProxy = CProxy_DataManager::ckNew();
+  dataManagerProxy = CProxy_DataManager::ckNew(CkNumPes());
 
   CkArrayOptions opts(globalParams.numTreePieces);
   /* 

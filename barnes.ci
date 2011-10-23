@@ -81,7 +81,7 @@ mainmodule barnes {
     5. Maintain a per-PE cache of data fetched from remote sources for TreePieces on the PE
     6. Update particle positions and velocities once traversals have completed.
   */
-  group DataManager {
+  array[1D] DataManager {
     entry DataManager();
     entry void loadParticles(CkCallback &cb);
     entry void decompose(BoundingBox &universe);

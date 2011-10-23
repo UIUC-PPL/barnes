@@ -39,7 +39,8 @@ void TreePiece::init(){
   largestKey = Key(0);
   smallestKey = ~largestKey;
   totalNumTraversals = 2;
-  myDM = dataManagerProxy.ckLocalBranch();
+  myDM = dataManagerProxy[CkMyPe()].ckLocal();
+  CkAssert(myDM != NULL);
   root = NULL;
   myBuckets = NULL;
   myNumBuckets = 0;

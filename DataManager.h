@@ -146,6 +146,7 @@ class DataManager : public CBase_DataManager {
 
   public:
   DataManager();
+  DataManager(CkMigrateMessage *m) {}
 
   void loadParticles(CkCallback &cb);
 

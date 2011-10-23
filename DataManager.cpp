@@ -341,7 +341,7 @@ void DataManager::initHistogramParticles(){
   of active leaves that are being partitioned) 
 */
 void DataManager::sendHistogram(){
-  CkCallback cb(CkIndex_DataManager::receiveHistogram(NULL),0,this->thisgroup);
+  CkCallback cb(CkIndex_DataManager::receiveHistogram(NULL),CkArrayIndex1D(0),this->ckGetArrayID());
   contribute(sizeof(NodeDescriptor)*activeBins.getNumCounts(),activeBins.getCounts(),NodeDescriptorReductionType,cb);
   activeBins.reset();
 }
