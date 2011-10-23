@@ -32,7 +32,7 @@ Particle *testdata(int nbody)
    Particle *cp;
    Real tmp;
 
-   Particle *bodytab = new Particle[nbody * sizeof(Particle)];
+   Particle *bodytab = new Particle[nbody];
    assert(bodytab != NULL);
 
    rsc = 9 * PI / 16;
@@ -156,9 +156,11 @@ int main(int argc, char **argv){
     tmp[6] = p->mass;
     tmp[7] = soft;
 
+    /*
     cout << p->position.x << " "
          << p->position.y << " "
          << p->position.z << endl;
+         */
 
     out.write((char*)tmp, REALS_PER_PARTICLE*sizeof(Real));
 
