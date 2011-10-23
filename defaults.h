@@ -1,6 +1,11 @@
 #ifndef __DEFAULTS_H__
 #define __DEFAULTS_H__
 
+/*
+ * CharmBH: defaults.h
+ * Default values for all the simulation parameters
+ */
+
 #define DEFAULT_THETA 0.5 
 #define DEFAULT_DT 0
 #define DEFAULT_DTIME 0.025
@@ -16,5 +21,4 @@
 #define DEFAULT_TREE_PIECES_PER_PROC 8
 #define DEFAULT_BALANCE_PERIOD 3
 
-#define ENERGY_DRIFT_FRAC_TOLERANCE 0.01 /* 1 per cent */
 #endif
