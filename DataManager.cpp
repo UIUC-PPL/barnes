@@ -79,6 +79,12 @@ void DataManager::loadParticles(CkCallback &cb){
   partFile.open(fname, ios::in | ios::binary);
   CkAssert(partFile.is_open());
 
+  /*
+    Calculate your share of input particles,
+    and the offset into the input file from
+    where you are to begin reading.
+  */
+
   int offset = 0; 
   int myid = CkMyPe();
   int npes = CkNumPes();
@@ -126,6 +132,9 @@ void DataManager::loadParticles(CkCallback &cb){
   */
   Real tmp[REALS_PER_PARTICLE];
   myBox.energy = 0.0;
+  /*
+    Read particles.
+  */
   while(numParticlesDone < myNumParticles && !partFile.eof()){
     partFile.read((char *)tmp, SIZE_PER_PARTICLE);
     Particle &p = myParticles[numParticlesDone];
@@ -265,10 +274,10 @@ void DataManager::decompose(BoundingBox &universe){
       // The energy should grow in magnitude
       // by less than a tenth of one per cent.
       CkAssert(deltaE/compareEnergy < 0.001);
-      CkPrintf("(%d) iteration %d delta %f\n", CkMyPe(), iteration, deltaE/compareEnergy);
+      CkPrintf("(%d) iteration %d deltaE/E %f\n", CkMyPe(), iteration, deltaE/compareEnergy);
     }
 
-    // Print statistics 
+    // Print statistics
     float memMB = (1.0*CmiMemoryUsage())/(1<<20);
     ostringstream oss; 
     CkPrintf("(%d) prev time %g s\n", CkMyPe(), CmiWallTimer()-prevIterationStart);
@@ -355,7 +364,6 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   binsToRefine.length() = 0;
 
   int particlesHistogrammed = 0;
-
   /*
     The newly created children of the active leaves
     are now the active leaves themselves. 
@@ -412,7 +420,6 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
     // PE 0 sets ranges in sendParticlesToTreePiece, which is
     // called by ParticleFlushWorker in flushParticles()
     haveRanges = true;
-
     // Find out how many tree pieces are hosted on this PE
     senseTreePieces();
 
@@ -481,7 +488,7 @@ void DataManager::receiveSplitters(CkVec<int> splitBins) {
   // Process bins to refine
   activeBins.processRefine(splitBins.getVec(), splitBins.size());
 
-  // Send children particle counts to master
+  // Send counts of particles in active leaves to master PE
   sendHistogram();
 }
 
@@ -532,6 +539,7 @@ void DataManager::sendParticles(RangeMsg *msg){
   if(CkMyPe() != 0){
     // Save tree piece particle ranges
     numTreePieces = msg->numTreePieces;
+    // Save tree piece particle ranges
     keyRanges = msg->keys;
     haveRanges = true;
     rangeMsg = msg;
@@ -563,7 +571,6 @@ void DataManager::senseTreePieces(){
   CkLocMgr *mgr = treePieceProxy.ckLocMgr();
   mgr->iterate(localTreePieces);
   numLocalTreePieces = localTreePieces.count;
-  
   /* 
     It could be that all tree pieces on this PE received their
     particles and submitted them to the DM before it received the 

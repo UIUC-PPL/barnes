@@ -17,19 +17,10 @@ struct Particle : public ExternalParticle {
   Vector3D<Real> acceleration;
   Real potential;
 
-  Particle() : 
-    potential(0.0),
-    acceleration(0.0)
-  {
-  }
+  Particle() : potential(0.0), acceleration(0.0) { }
 
-  bool operator>=(const Particle &other){
-    return key >= other.key;
-  }
-
-  bool operator<=(const Particle &other){
-    return key <= other.key;
-  }
+  bool operator<=(const Particle &other){ return key <= other.key; }
+  bool operator>=(const Particle &other){ return key >= other.key; }
 };
 
 

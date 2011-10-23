@@ -21,7 +21,7 @@
 #include <fstream>
 using namespace std;
 
-/* Proxies for tree piece array and data manager group */ 
+/* Proxies for tree piece array and data manager group */
 CProxy_TreePiece treePieceProxy;
 CProxy_DataManager dataManagerProxy;
 CProxy_Main mainProxy;
@@ -50,6 +50,11 @@ Main::Main(CkArgMsg *msg){
     Create the tree piece chare array.
   */
   treePieceProxy = CProxy_TreePiece::ckNew(opts);
+
+#ifdef TRACE_REMOTE_DATA_REQUESTS
+  traceRegisterUserEvent("Node",REMOTE_NODE_REQUEST);
+  traceRegisterUserEvent("Particles",REMOTE_PARTICLE_REQUEST);
+#endif
 
   /*
     Set mainProxy readonly so that it is available
@@ -142,6 +147,9 @@ void Main::setParameters(CkArgMsg *m){
   */
   getNumParticles();
 
+  /* 
+    Find the appropriate number of tree pieces to generate.
+  */
   it = table.find("p");
   /* 
     Find the appropriate number of tree pieces to generate.
@@ -194,13 +202,11 @@ void Main::commence(){
   */
   BoundingBox &universe = *((BoundingBox *)redMsg->getData());
   Real pad = 0.00001;
-
   /*
     Provide a little padding so that the particles closest to
     the extremities of the universe get correct keys.
   */
   universe.expand(pad);
-
   /*
     Tell all PEs to begin Oct decomposition of read particles.
   */
