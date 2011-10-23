@@ -1050,13 +1050,22 @@ void DataManager::init(){
 }
 
 void DataManager::resumeFromLB(){
+  // Start reduction before doing sequential work
+#if 0
+  ckerr << CkMyPe() << " resumeFromLB" << endl;
+  // FIXME - remove this
+  CkCallback excb(CkIndex_Main::niceExit(),mainProxy);
+  contribute(0,0,CkReduction::sum_int,excb);
+  return;
+#endif
+
+  CkCallback cb(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
+  contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
   /* we delay the freeing of data structures to this point
    * because we want the tree pieces to be able to use the
    * tree, and in particular their roots for load balancing
    * */
   init();
-  CkCallback cb(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
-  contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
 }
 
 extern string NodeTypeColor[];

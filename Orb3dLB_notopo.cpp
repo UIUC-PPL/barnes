@@ -5,7 +5,7 @@
 
 extern CProxy_TreePiece treePieceProxy;
 
-#define ORB3DLB_NOTOPO_DEBUG /* empty */ 
+#define ORB3DLB_NOTOPO_DEBUG 
 
 using namespace std;
 
@@ -68,6 +68,7 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
     tps[tag] = OrbObject(tag);
     tps[tag].centroid = data->vec;
     
+    /*
     CkPrintf("[Orb3dLB_notopo] tree piece %d load %f centroid %f %f %f\n", 
                                       data->tag,
                                       load,
@@ -75,6 +76,7 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
                                       data->vec.y,
                                       data->vec.z
                                       );
+    */
     /*
     if(step() == 1){
       CkPrintf("[tpinfo] %f %f %f %f %d %d\n",
@@ -104,6 +106,7 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
     tpEvents[i].quickSort();
   }
 
+  CkPrintf("[Orb3dLB_notopo] sorting\n");
   box.lesser_corner.x = tpEvents[XDIM][0].position;
   box.lesser_corner.y = tpEvents[YDIM][0].position;
   box.lesser_corner.z = tpEvents[ZDIM][0].position;
@@ -123,7 +126,11 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
   orbPartition(tpEvents,box,stats->count);
 
 
+  float minload, maxload, avgload;
+  minload = maxload = procload[0];
+  avgload = 0.0;
   for(int i = 0; i < stats->count; i++){
+    /*
     CkPrintf("pe %d load %f box %f %f %f %f %f %f\n", i, procload[i], 
                                 procbox[i].lesser_corner.x,
                                 procbox[i].lesser_corner.y,
@@ -132,7 +139,15 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
                                 procbox[i].greater_corner.y,
                                 procbox[i].greater_corner.z
                                 );
+    */
+    avgload += procload[i];
+    if(minload > procload[i]) minload = procload[i];
+    if(maxload < procload[i]) maxload = procload[i];
   }
+
+  avgload /= stats->count;
+
+  CkPrintf("Orb3dLB_notopo stats: min %f max %f avg %f max/avg %f\n", minload, maxload, avgload, maxload/avgload);
 
   /*
   int migr = 0;
@@ -165,7 +180,7 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
 
 }
 
-#define ZERO_THRESHOLD 0.0001
+#define ZERO_THRESHOLD 0.001
 
 void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<float> &box, int nprocs){
 
@@ -179,17 +194,20 @@ void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<float> &box,
   CkAssert(numEvents == events[YDIM].length());
   CkAssert(numEvents == events[ZDIM].length());
 
-  if(nprocs <= 1){
+  if(nprocs == 1){
     ORB3DLB_NOTOPO_DEBUG("base: assign %d tps to proc %d\n", numEvents, nextProc);
     // direct assignment of tree pieces to processors
-    if(numEvents > 0) CkAssert(nprocs != 0);
+    //if(numEvents > 0) CkAssert(nprocs != 0);
     float totalLoad = 0.0;
     for(int i = 0; i < events[XDIM].length(); i++){
       Event &ev = events[XDIM][i];
-      OrbObject &orb = tps[ev.owner];
-      (*mapping)[orb.lbindex] = nextProc;
-      totalLoad += ev.load;
-      if(ev.load > ZERO_THRESHOLD) procbox[nextProc].grow(orb.centroid);
+      if(ev.load > ZERO_THRESHOLD){
+        OrbObject &orb = tps[ev.owner];
+        (*mapping)[orb.lbindex] = nextProc;
+        totalLoad += ev.load;
+        procbox[nextProc].grow(orb.centroid);
+      }
+      // in order to control the number of objects moved
     }
     procload[nextProc] += totalLoad;
 
