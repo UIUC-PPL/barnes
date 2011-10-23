@@ -1,6 +1,15 @@
 #ifndef MULTIPOLEMOMENTS_H
 #define MULTIPOLEMOMENTS_H
 
+/*
+ * CharmBH: MultipoleMoments.h
+ * Defines structure for basic (first-order)
+ * multipole expansion of a node representing a subvolume
+ * of space. It includes the node's total mass, center of mass
+ * and distance between the center of mass and the farthest
+ * enclosed particle.
+ */
+
 #include "pup.h"
 #include "Vector3D.h"
 #include "defines.h"
