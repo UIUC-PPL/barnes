@@ -51,16 +51,19 @@ void TreePiece::receiveParticles(ParticleMsg *msg){
   int msgNumParticles = msg->numParticles;
   decompMsgsRecvd.push_back(msg);
   myNumParticles += msgNumParticles;
-  numDecompMsgsRecvd++;
+  //numDecompMsgsRecvd++;
   if(smallestKey > msg->part[0].key) smallestKey = msg->part[0].key;
   if(largestKey < msg->part[msgNumParticles-1].key) largestKey = msg->part[msgNumParticles-1].key;
   
+  /*
   if(numDecompMsgsRecvd == CkNumPes()){
     submitParticles();
     numDecompMsgsRecvd = 0;
   }
+  */
 }
 
+  /*
 void TreePiece::receiveParticles(){
   numDecompMsgsRecvd++;
   if(numDecompMsgsRecvd == CkNumPes()){
@@ -68,8 +71,13 @@ void TreePiece::receiveParticles(){
     numDecompMsgsRecvd = 0;
   }
 }
+  */
 
 void TreePiece::submitParticles(){
+  if(thisIndex == 0){
+    CkCallback cb(CkIndex_TreePiece::submitParticles(),thisProxy);
+    CkStartQD(cb);
+  }
   myDM->submitParticles(&decompMsgsRecvd,myNumParticles,this,smallestKey,largestKey);
 }
 

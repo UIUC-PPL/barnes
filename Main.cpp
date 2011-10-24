@@ -212,6 +212,9 @@ void Main::commence(){
   */
   dataManagerProxy.decompose(universe);
 
+
+  CkCallback cb(CkIndex_TreePiece::submitParticles(),treePieceProxy);
+  CkStartQD(cb);
 }
 
 void Main::niceExit(){

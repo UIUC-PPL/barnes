@@ -460,9 +460,11 @@ void DataManager::flushParticles(){
   scaffoldTrav.preorderTraversal(sortingRoot,&pfw);
 
   int numUsefulTreePieces = pfw.getNumLeaves(); 
+  /*
   for(int i = numUsefulTreePieces; i < globalParams.numTreePieces; i++){
     treePieceProxy[i].receiveParticles();
   }
+  */
 
   // done with sorting tree; delete
   FreeTreeWorker<NodeDescriptor> freeWorker;
@@ -505,9 +507,11 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
     msg->numParticles = np;
     treePieceProxy[tp].receiveParticles(msg);
   }
+  /*
   else{
     treePieceProxy[tp].receiveParticles();
   }
+  */
 
   /* 
     Only PE 0 (the master) has the correct ranges, 

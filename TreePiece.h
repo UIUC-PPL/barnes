@@ -47,7 +47,6 @@ class TreePiece : public CBase_TreePiece {
 
   int totalNumTraversals;
 
-  void submitParticles();
   void finishIteration();
   void init();
   void findOrbLB();
@@ -59,7 +58,8 @@ class TreePiece : public CBase_TreePiece {
   int getIndex() {return thisIndex;}
 
   void receiveParticles(ParticleMsg *msg);
-  void receiveParticles();
+  //void receiveParticles();
+  void submitParticles();
 
   void prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int bucketStart, int bucketEnd);
   void startTraversal();
