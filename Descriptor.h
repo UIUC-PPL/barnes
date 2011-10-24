@@ -140,13 +140,11 @@ struct DtReductionStruct {
   CmiUInt8 pnInteractions;
   CmiUInt8 ppInteractions;
   CmiUInt8 openCrit;
-  bool haveNaN;
 
   DtReductionStruct &operator+=(const DtReductionStruct &other){
     pnInteractions += other.pnInteractions;
     ppInteractions += other.ppInteractions;
     openCrit += other.openCrit;
-    if(other.haveNaN) haveNaN = true;
     return *this;
   }
 };
