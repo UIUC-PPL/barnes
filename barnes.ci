@@ -39,7 +39,7 @@ mainmodule barnes {
   // Main chare initiates computation and ends it
   mainchare Main {
     entry Main(CkArgMsg *m);
-    entry [threaded] void commence();
+    entry [threaded] void commence(CkReductionMsg *msg);
     entry void niceExit();
     entry void quiescence();
     entry void quiescenceExit();

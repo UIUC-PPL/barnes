@@ -17,7 +17,7 @@ class Main : public CBase_Main {
 
   public:
   Main(CkArgMsg *msg);
-  void commence();
+  void commence(CkReductionMsg *triggerMsg);
   void niceExit();
 
   void quiescence();

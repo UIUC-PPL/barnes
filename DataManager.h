@@ -99,7 +99,10 @@ class DataManager : public CBase_DataManager {
 
   map<Key,Request> nodeRequestTable;
   map<Key,Request> particleRequestTable;
+  // Cookies received from each treepiece used for identifying gathers going to that treepiece
   std::vector<CkSectionInfo> rednCookies;
+  // The number of received cookies
+  int numReceivedCookies;
 
   int numTreePiecesDoneTraversals;
   CacheStats nodeReqs;

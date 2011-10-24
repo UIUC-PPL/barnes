@@ -66,11 +66,6 @@ Main::Main(CkArgMsg *msg){
   */
   mainProxy = thisProxy;
 
-  /*
-    Begin actual computation
-  */
-  thisProxy.commence();
-
   CkCallback cb(CkIndex_Main::quiescence(),thisProxy);
   CkStartQD(cb);
 
@@ -191,7 +186,8 @@ void Main::getNumParticles(){
   partFile.close();
 }
 
-void Main::commence(){
+void Main::commence(CkReductionMsg *triggerMsg){
+  delete triggerMsg;
   CkPrintf("[Main] load particles\n");
   CkReductionMsg *redMsg;
   /* 

@@ -60,6 +60,7 @@ void copyMomentsToNode(Node<ForceData> *node, const MomentsExchangeStruct &mes){
 DataManager::DataManager() : 
   iteration(0),
   prevIterationStart(0.0),
+  numReceivedCookies(0),
   root(NULL),
   keyRanges(NULL), 
   rangeMsg(NULL)
@@ -1334,6 +1335,8 @@ void DataManager::doPrintTree(){
 
 void DataManager::storeRednCookie(rednSetupMsg *msg) {
   CkGetSectionInfo(rednCookies[msg->senderTreePiece], msg);
+  if (++numReceivedCookies == globalParams.numTreePieces)
+      contribute( CkCallback(CkIndex_Main::commence(NULL), mainProxy) );
   delete msg;
 }
 #include "Traversal_defs.h"
