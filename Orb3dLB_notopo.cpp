@@ -99,6 +99,7 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
   CkAssert(tpEvents[ZDIM].length() == numobjs);
 
   mapping = &stats->to_proc;
+  from = &stats->from_proc;
   int dim = 0;
 
   CkPrintf("[Orb3dLB_notopo] sorting\n");
@@ -201,11 +202,15 @@ void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<float> &box,
     float totalLoad = 0.0;
     for(int i = 0; i < events[XDIM].length(); i++){
       Event &ev = events[XDIM][i];
+      OrbObject &orb = tps[ev.owner];
       if(ev.load > ZERO_THRESHOLD){
-        OrbObject &orb = tps[ev.owner];
         (*mapping)[orb.lbindex] = nextProc;
         totalLoad += ev.load;
         procbox[nextProc].grow(orb.centroid);
+      }
+      else{
+        int fromPE = (*from)[orb.lbindex];
+        procload[fromPE] += ev.load;
       }
       // in order to control the number of objects moved
     }

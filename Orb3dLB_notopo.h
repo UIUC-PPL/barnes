@@ -59,6 +59,7 @@ struct Event {
 class Orb3dLB_notopo : public CentralLB {
 private:
   CkVec<int> *mapping;
+  CkVec<int> *from;
 
   CkVec<OrbObject> tps;
   CkVec<float> procload;
