@@ -6,6 +6,7 @@
 #include "TaggedVector3D.h"
 #include "Orb3dLB_notopo.h"
 
+#include "ckmulticast.h"
 #include <fstream>
 
 extern CProxy_Main mainProxy;
@@ -18,6 +19,13 @@ TreePiece::TreePiece() {
   myRoot = NULL;
   findOrbLB();
   init();
+  // Create a section that includes all data managers
+  CProxySection_DataManager dmSection = CProxySection_DataManager::ckNew(dataManagerProxy.ckGetArrayID(), 0, CkNumPes()-1, 1);
+  // Delegate section to ckmulticast
+  CkMulticastMgr *mcastMgr = CProxy_CkMulticastMgr(globalParams.mcastMgrGID).ckLocalBranch();
+  dmSection.ckSectionDelegate(mcastMgr);
+  // send hello world mcast to datamanagers
+  dmSection.storeRednCookie(new rednSetupMsg(thisIndex));
 }
 
 void TreePiece::findOrbLB(){

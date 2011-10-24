@@ -8,7 +8,7 @@ APP_FLAGS = #
 OPTS = -O3 -g $(APP_FLAGS)
 CPPFLAGS += -I$(INCPATH) -I$(STRUCTURES_PATH)
 CXXFLAGS += $(OPTS) $(CPPFLAGS)
-LDFLAGS += $(OPTS) -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -module Orb3dLB_notopo -memory os #-tracemode projections
+LDFLAGS += $(OPTS) -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -module Orb3dLB_notopo -module CkMulticast #-memory os #-tracemode projections
 
 CHARMC = $(CHARM_PATH)/bin/charmc
 

@@ -65,6 +65,7 @@ DataManager::DataManager() :
   rangeMsg(NULL)
 {
   init();
+  rednCookies.resize(globalParams.numTreePieces);
 }
 
 /*
@@ -1327,5 +1328,9 @@ void DataManager::doPrintTree(){
   ofs.close();
 }
 
+void DataManager::storeRednCookie(rednSetupMsg *msg) {
+  CkGetSectionInfo(rednCookies[msg->senderTreePiece], msg);
+  delete msg;
+}
 #include "Traversal_defs.h"
 

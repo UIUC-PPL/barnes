@@ -35,6 +35,7 @@ struct Parameters {
   int balancePeriod;
 
   //int branchFactor;
+  CkGroupID mcastMgrGID;
 
   void pup(PUP::er &p){
     p | nchars;
@@ -57,6 +58,7 @@ struct Parameters {
     p | cacheLineSize;
     p | iterations;
     p | balancePeriod;
+    p | mcastMgrGID;
   }
 
   void extractParameters(int argc, char **argv, map<string,string> &tab){

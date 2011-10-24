@@ -17,6 +17,7 @@
 
 #include "defaults.h"
 
+#include "ckmulticast.h"
 #include <iostream>
 #include <fstream>
 using namespace std;
@@ -39,6 +40,8 @@ Main::Main(CkArgMsg *msg){
      of the group on each PE.
   */
   dataManagerProxy = CProxy_DataManager::ckNew(CkNumPes());
+
+  globalParams.mcastMgrGID = CProxy_CkMulticastMgr::ckNew();
 
   CkArrayOptions opts(globalParams.numTreePieces);
   /* 

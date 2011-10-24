@@ -49,4 +49,12 @@ struct NodeReplyMsg : public CMessage_NodeReplyMsg {
  */
 struct RescheduleMsg : public CMessage_RescheduleMsg {
 };
+
+/// Setup msg so that the cookie from the sending treepiece is received by all data managers
+class rednSetupMsg : public CkMcastBaseMsg, public CMessage_rednSetupMsg {
+  public:
+    CkIndex1D senderTreePiece;
+    rednSetupMsg(CkIndex1D idx=-1): senderTreePiece(idx) {}
+};
+
 #endif

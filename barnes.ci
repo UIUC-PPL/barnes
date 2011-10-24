@@ -32,6 +32,7 @@ mainmodule barnes {
 
   // To continuously reschedule local and remote work
   message RescheduleMsg;
+  message rednSetupMsg;
 
   include "Descriptor.h";
 
@@ -99,5 +100,6 @@ mainmodule barnes {
 
     entry void quiescence();
     entry void resumeFromLB();
+    entry void storeRednCookie(rednSetupMsg *msg);
   };
 };

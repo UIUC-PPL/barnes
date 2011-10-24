@@ -11,6 +11,7 @@
 
 #include "Traversal_decls.h"
 #include "Request.h"
+#include "ckmulticast.h"
 
 #include <vector>
 
@@ -98,6 +99,7 @@ class DataManager : public CBase_DataManager {
 
   map<Key,Request> nodeRequestTable;
   map<Key,Request> particleRequestTable;
+  std::vector<CkSectionInfo> rednCookies;
 
   int numTreePiecesDoneTraversals;
   CacheStats nodeReqs;
@@ -183,6 +185,7 @@ class DataManager : public CBase_DataManager {
   void addBucketPartInteractions(Key k, CmiUInt8 pp);
 
   void resumeFromLB();
+  void storeRednCookie(rednSetupMsg *msg);
 };
 
 #endif
