@@ -1,6 +1,13 @@
 #ifndef __STATE_H__
 #define __STATE_H__
 
+/*
+ * CharmBH: State.h
+ * Track the state of a traversal. This structure records the
+ * number of outstanding requests, and whether all buckets 
+ * have been processed for a particular type of traversal.
+ */
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
