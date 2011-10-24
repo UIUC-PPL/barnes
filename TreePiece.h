@@ -37,8 +37,6 @@ class TreePiece : public CBase_TreePiece {
 
   Traversal<ForceData> trav;
 
-  Key smallestKey;
-  Key largestKey;
   DataManager *myDM;
 
   CkGroupID orbLBProxy;

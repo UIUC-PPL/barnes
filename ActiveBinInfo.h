@@ -105,9 +105,10 @@ struct ActiveBinInfo{
       kfirst = particles[0].key;
       klast = particles[np-1].key;
     }else{
-      kfirst = klast = Node<T>::getParticleLevelKey(node);
+      kfirst = Node<T>::getParticleLevelKey(node);
+      klast = Node<T>::getLastParticleLevelKey(node);
     }
-    counts.push_back(NodeDescriptor(np,node->getKey(),kfirst,klast));
+    counts.push_back(NodeDescriptor(np,kfirst,klast));
   }
 
   /*
@@ -154,9 +155,10 @@ struct ActiveBinInfo{
           kfirst = particles[0].key;
           klast = particles[np-1].key;
         }else{
-          kfirst = klast = Node<T>::getParticleLevelKey(child);
+          kfirst = Node<T>::getParticleLevelKey(child);
+          klast = Node<T>::getLastParticleLevelKey(child);
         }
-        counts.push_back(NodeDescriptor(np,child->getKey(),kfirst,klast));
+        counts.push_back(NodeDescriptor(np,kfirst,klast));
       }
     }
 

@@ -77,7 +77,7 @@ struct BoundingBox {
  */
 struct NodeDescriptor {
   int numParticles;
-  Key nodeKey;
+  //Key nodeKey;
 
   Key smallestKey;
   Key largestKey;
@@ -86,12 +86,13 @@ struct NodeDescriptor {
     numParticles = 0;
     largestKey = Key(0);
     smallestKey = ~largestKey;
-    nodeKey = smallestKey;
+    //nodeKey = smallestKey;
   }
 
-  NodeDescriptor(int np, Key nk, Key sk, Key lk) : 
+  NodeDescriptor(int np, Key sk, Key lk) : 
     numParticles(np), 
-    nodeKey(nk), smallestKey(sk), largestKey(lk) 
+    //nodeKey(nk), 
+    smallestKey(sk), largestKey(lk) 
   {
   }
 
@@ -137,32 +138,30 @@ struct TreePieceDescriptor {
   TreePiece *owner;
   int index;
   int numParticles;
-  Key smallestKey;
-  Key largestKey;
 
   int bucketStartIdx;
   int bucketEndIdx;
 
   TreePieceDescriptor() : 
-    vec(NULL), owner(NULL), numParticles(0), index(-1), smallestKey(~Key(0)), largestKey(Key(0))
+    vec(NULL), owner(NULL), numParticles(0), index(-1)
   {
   }
 
-  TreePieceDescriptor(CkVec<ParticleMsg*> *v, int np, TreePiece *o, int i, Key sk, Key lk) : 
-    vec(v), owner(o), index(i), smallestKey(sk), largestKey(lk), numParticles(np)
+  TreePieceDescriptor(CkVec<ParticleMsg*> *v, int np, TreePiece *o, int i) :
+    vec(v), owner(o), index(i), numParticles(np)
   {
   }
 
   TreePieceDescriptor(int i) : 
-    vec(NULL), owner(NULL), numParticles(0), index(i), smallestKey(~Key(0)), largestKey(Key(0))
+    vec(NULL), owner(NULL), numParticles(0), index(i)
   {
   }
 
   bool operator<=(const TreePieceDescriptor &t){
-    return smallestKey <= t.smallestKey;
+    return index <= t.index;
   }
   bool operator>=(const TreePieceDescriptor &t){
-    return smallestKey >= t.smallestKey;
+    return index >= t.index;
   }
 };
 
@@ -175,9 +174,7 @@ struct ForceData {
   OrientedBox<Real> box;
   MultipoleMoments moments;
 
-  ForceData() 
-  {
-  }
+  ForceData() {} 
 };
 
 /*

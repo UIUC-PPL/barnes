@@ -373,7 +373,7 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
 
   // Check which new active leaves need to be partitioned
   for(int i = 0; i < numRecvdBins; i++){
-    if(descriptors[i].numParticles > (Real)(DECOMP_TOLERANCE*globalParams.ppc)){
+    if(descriptors[i].numParticles > globalParams.ppc){
       // Need to refine this leaf (partition)
       binsToRefine.push_back(i);
       // By refining this node, we will remove one tree piece
@@ -514,12 +514,8 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
     since it receives reduced data from all workers
   */
   if(CkMyPe() == 0){
-    // Sanity checks
-    if(nd->data.numParticles > 0){
-      CkAssert(nd->data.smallestKey <= nd->data.largestKey);
-    } else {
-      CkAssert(nd->data.smallestKey == nd->data.largestKey);
-    }
+    // Sanity check
+    CkAssert(nd->data.smallestKey <= nd->data.largestKey);
 
     keyRanges[(tp<<1)] = nd->data.smallestKey;
     keyRanges[(tp<<1)+1] = nd->data.largestKey;
@@ -587,8 +583,8 @@ void DataManager::senseTreePieces(){
   from them. All nodes and particles within this PE-level tree are
   then visible to all the tree pieces on the PE.
 */
-void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp, Key smallestKey, Key largestKey){ 
-  submittedParticles.push_back(TreePieceDescriptor(vec,numParticles,tp,tp->getIndex(),smallestKey,largestKey));
+void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp){
+  submittedParticles.push_back(TreePieceDescriptor(vec,numParticles,tp,tp->getIndex()));
   myNumParticles += numParticles;
   if(submittedParticles.length() == numLocalTreePieces && haveRanges){
     processSubmittedParticles();
@@ -617,8 +613,8 @@ void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, Tr
 void DataManager::processSubmittedParticles(){
   int offset = 0;
 
+  // Sort local tree pieces by index
   submittedParticles.quickSort();
-  
   myParticles.resize(myNumParticles);
 
   for(int i = 0; i < submittedParticles.length(); i++){
@@ -668,8 +664,6 @@ void DataManager::buildTree(){
   abi.addNewNode(root);
   int numFatNodes = 1;
 
-  int limit = ((Real)globalParams.ppb*BUCKET_TOLERANCE);
-
   CkVec<int> refines;
 
   while(numFatNodes > 0){
@@ -681,7 +675,8 @@ void DataManager::buildTree(){
     for(int i = 0; i < active->length(); i++){
       Node<ForceData> *node = (*active)[i].first;
       if(node->getNumParticles() > 0 && ((node->getOwnerEnd() > node->getOwnerStart()) || 
-         (node->getNumParticles() > limit))){
+         (node->getNumParticles() > globalParams.ppb))){
+      //if(node->getNumParticles() > globalParams.ppb){
         refines.push_back(i);
       }
     }
@@ -844,9 +839,10 @@ void DataManager::startTraversal(){
   if(end > 0){
     for(int i = 0; i < numLocalTreePieces-1; i++){
       TreePieceDescriptor &descr = submittedParticles[i];
-      int bucketIdx = binary_search_ge<Node<ForceData>*>(descr.largestKey,bucketPtrs,start,end,CompareNodePtrToKey);
-      descr.bucketEndIdx = bucketIdx;
       int tpIndex = descr.owner->getIndex();
+      Key largestKey = keyRanges[(tpIndex<<1)+1];
+      int bucketIdx = binary_search_ge<Node<ForceData>*>(largestKey,bucketPtrs,start,end,CompareNodePtrToKey);
+      descr.bucketEndIdx = bucketIdx;
       descr.owner->prepare(root,localTPRoots[tpIndex],myBuckets.getVec(),descr.bucketStartIdx,descr.bucketEndIdx);
       treePieceProxy[tpIndex].startTraversal();
       submittedParticles[i+1].bucketStartIdx = bucketIdx;

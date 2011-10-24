@@ -38,8 +38,6 @@ void TreePiece::init(){
   myNumParticles = 0;
   numDecompMsgsRecvd = 0;
   decompMsgsRecvd.length() = 0;
-  largestKey = Key(0);
-  smallestKey = ~largestKey;
   totalNumTraversals = 2;
   myDM = dataManagerProxy.ckLocalBranch();
   root = NULL;
@@ -52,8 +50,6 @@ void TreePiece::receiveParticles(ParticleMsg *msg){
   decompMsgsRecvd.push_back(msg);
   myNumParticles += msgNumParticles;
   numDecompMsgsRecvd++;
-  if(smallestKey > msg->part[0].key) smallestKey = msg->part[0].key;
-  if(largestKey < msg->part[msgNumParticles-1].key) largestKey = msg->part[msgNumParticles-1].key;
   
   if(numDecompMsgsRecvd == CkNumPes()){
     submitParticles();
@@ -70,7 +66,7 @@ void TreePiece::receiveParticles(){
 }
 
 void TreePiece::submitParticles(){
-  myDM->submitParticles(&decompMsgsRecvd,myNumParticles,this,smallestKey,largestKey);
+  myDM->submitParticles(&decompMsgsRecvd,myNumParticles,this);
 }
 
 void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int bucketStart, int bucketEnd){

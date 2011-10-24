@@ -113,6 +113,7 @@ void Main::setParameters(CkArgMsg *m){
   CkPrintf("ppc: %d\n", globalParams.ppc);
 
   globalParams.ppb = params.getiparam("b", DEFAULT_PPB, table);
+  if(globalParams.ppb > globalParams.ppc) globalParams.ppb = globalParams.ppc;
   CkPrintf("bucketSize: %d\n", globalParams.ppb);
 
   /* Number of steps to run the simulation for */

@@ -28,14 +28,6 @@
 #define NDIMS 3
 
 /*
- * When doing decomposition or tree building, we allow leaves to have up to
- * *_TOLERANCE times the number of particles specfied by user (through -ppc for 
- * decomposition and -b for tree building)
- */
-#define DECOMP_TOLERANCE 1.2
-#define BUCKET_TOLERANCE 1.2
-
-/*
  * Quick way to find out whether an integer is even. Avoids the '%' operation.
  */
 #define DIV2(x) ((x)>>1)
