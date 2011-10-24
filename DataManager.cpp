@@ -459,7 +459,10 @@ void DataManager::flushParticles(){
   int numUsefulTreePieces = pfw.getNumLeaves();
   for(int i = numUsefulTreePieces; i < globalParams.numTreePieces; i++){
     //CkPrintf("tpc %d recvd from mgr %d numparticles 0\n", i, CkMyPe());
-    contribute( CkCallback(CkReductionTarget(TreePiece, receiveParticles), CkArrayIndex1D(i), treePieceProxy) );
+    CkCallback cb(CkReductionTarget(TreePiece, receiveParticles), CkArrayIndex1D(i), treePieceProxy);
+    CProxy_CkMulticastMgr(globalParams.mcastMgrGID).ckLocalBranch()->
+    contribute(0, (void*)NULL, CkReduction::concat, rednCookies[i], cb);
+    //contribute(cb, rednCookies[i] );
   }
 
   // done with sorting tree; delete
@@ -499,7 +502,8 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
   //CkPrintf("tpc %d recvd from mgr %d numparticles %d\n", tp, CkMyPe(), np);
 
   CkCallback cb(CkReductionTarget(TreePiece, receiveParticles), CkArrayIndex1D(tp), treePieceProxy);
-  contribute(np*sizeof(Particle), nd->getParticles(), CkReduction::concat, cb);
+  CProxy_CkMulticastMgr(globalParams.mcastMgrGID).ckLocalBranch()->
+  contribute(np*sizeof(Particle), nd->getParticles(), CkReduction::concat, rednCookies[tp], cb);
 
   /* 
     Only PE 0 (the master) has the correct ranges, 
