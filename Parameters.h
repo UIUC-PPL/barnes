@@ -1,6 +1,13 @@
 #ifndef __PARAMETERS_H__
 #define __PARAMETERS_H__
 
+/*
+ * CharmBH: Parameters.h
+ * File containing structure to hold simulation parameters,
+ * and the means to extract these parameters from command
+ * line arguments.
+ */
+
 #include "defines.h"
 #include "charm++.h"
 
@@ -14,15 +21,18 @@
 using namespace std;
 
 struct Parameters {
+  // Input file name
   char *filename;
   int nchars;
 
+  // Gravitational force calculation parameters
   Real theta;
   Real dtime;
   Real dthf;
   Real epssq;
   Real tolsq;
 
+  // Parallel simulation parameters (see Main.cpp for explanations)
   int numTreePieces;
   int numParticles;
   int ppc;
@@ -36,6 +46,11 @@ struct Parameters {
 
   //int branchFactor;
 
+  /*
+   * Define a pup() method so that this structure can be 
+   * declared a read-only, and transferred to all PEs from
+   * the PE of the mainchare after initialization.
+   */
   void pup(PUP::er &p){
     p | nchars;
     if(p.isUnpacking()){
@@ -59,6 +74,11 @@ struct Parameters {
     p | balancePeriod;
   }
 
+  /*
+   * Methods to extract parameters from command line arguments. There is 
+   * one method for each primitive type of argument (int, bool, Real, etc.)
+   * These have been adapted from the SPLASH "barnes" benchmark.
+   */
   void extractParameters(int argc, char **argv, map<string,string> &tab){
     for(int i = 0; i < argc; i++){
       string arg = string(argv[i]);
