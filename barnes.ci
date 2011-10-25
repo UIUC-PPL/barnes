@@ -56,18 +56,20 @@ mainmodule barnes {
   */
   array[1D] TreePiece {
     entry TreePiece();
+    // ---------------- Decomposition -----------------
     entry void receiveParticles(ParticleMsg *msg);
     entry void receiveParticles();
+    // --------------- Tree Building -----------------
+    entry void submitParticles();
     entry void requestMoments(Key k, int replyTo);
-
+    // ---------------- Traversal  --------------------
     entry [expedited] void startTraversal();
-    //entry void doLocalGravity();
-    //entry void doRemoteGravity();
     entry void doLocalGravity(RescheduleMsg *);
     entry void doRemoteGravity(RescheduleMsg *);
-
     entry [expedited] void requestParticles(std::pair<Key, int> request);
     entry [expedited] void requestNode(std::pair<Key, int> request);
+    // ----- Load Balancing -----
+    entry void doAtSync();
   };
 
   include "Node.h";
@@ -83,18 +85,20 @@ mainmodule barnes {
   */
   group DataManager {
     entry DataManager();
+    // ---------------- Decomposition -----------------------
     entry void loadParticles(CkCallback &cb);
     entry void decompose(BoundingBox &universe);
     entry void receiveHistogram(CkReductionMsg *msg);
     entry void receiveSplitters(CkVec<int> splitBins);
     entry void sendParticles(RangeMsg *msg);
+    // ---------------- Tree building -----------------------------
     entry [expedited] void receiveMoments(MomentsExchangeStruct moments);
-
+    // -------------- Responding to Remote Data Requests ---------------
     entry void recvParticles(ParticleReplyMsg *msg);
     entry void recvNode(NodeReplyMsg *msg);
+    // -------------- Misc -----------------
     entry void advance(CkReductionMsg *msg);
     entry void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit);
-
     entry void recvUnivBoundingBox(CkReductionMsg *msg);
     entry void resumeFromLB();
   };
