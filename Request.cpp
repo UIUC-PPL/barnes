@@ -48,12 +48,6 @@ void Request::deliverNode(){
       traversal->topDownTraversal(firstChild+j,worker,state);
     }
 
-    /*
-    CkPrintf("(%d,%d) deliverNode bucket %lu done\n", state->ownerTreePiece->getIndex(), 
-                                                      state->ownerTreePiece->getIteration(),
-                                                      ((Node<ForceData> *)req.context)->getKey());
-    */
-
     worker->setContext(saveContext);
     if(state->decrPending()){
       worker->done();

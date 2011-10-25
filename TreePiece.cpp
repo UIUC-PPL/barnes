@@ -25,7 +25,6 @@ TreePiece::TreePiece() :
   numTraversalsDone(0)
 {
   myDM = dataManagerProxy.ckLocalBranch();
-  //usesAtSync = true;
 }
 
 void TreePiece::receiveParticles(ParticleMsg *msg){
@@ -127,12 +126,10 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
 }
 
 void TreePiece::localGravityDone(){
-  //CkPrintf("[%d] iter %d done local gravity state bucket %d/%d\n",thisIndex,getIteration(),localTraversalState.current,myNumBuckets);
   traversalDone();
 }
 
 void TreePiece::remoteGravityDone(){ 
-  //CkPrintf("[%d] iter %d done local gravity state bucket %d/%d\n",thisIndex,getIteration(),remoteTraversalState.current,myNumBuckets);
   traversalDone();
 }
 
@@ -144,34 +141,6 @@ void TreePiece::traversalDone(){
     CmiUInt8 pn = localTraversalState.numInteractions[0]+remoteTraversalState.numInteractions[0];
     CmiUInt8 pp = localTraversalState.numInteractions[1]+remoteTraversalState.numInteractions[1];
     CmiUInt8 oc = localTraversalState.numInteractions[2]+remoteTraversalState.numInteractions[2];
-#ifdef CHECK_NUM_INTERACTIONS
-    map<Key,CmiUInt8>::iterator it;
-    for(it = localTraversalState.bucketNodeInteractions.begin(); 
-        it != localTraversalState.bucketNodeInteractions.end();
-        it++){
-      myDM->addBucketNodeInteractions(it->first,it->second);
-      //oss << "L " << it->first << " N inter " << it->second << endl;
-    }
-    for(it = localTraversalState.bucketPartInteractions.begin(); 
-        it != localTraversalState.bucketPartInteractions.end();
-        it++){
-      myDM->addBucketPartInteractions(it->first,it->second);
-      //oss << "L " << it->first << " P inter " << it->second << endl;
-    }
-    for(it = remoteTraversalState.bucketNodeInteractions.begin(); 
-        it != remoteTraversalState.bucketNodeInteractions.end();
-        it++){
-      myDM->addBucketNodeInteractions(it->first,it->second);
-      //oss << "R " << it->first << " N inter " << it->second << endl;
-    }
-    for(it = remoteTraversalState.bucketPartInteractions.begin(); 
-        it != remoteTraversalState.bucketPartInteractions.end();
-        it++){
-      myDM->addBucketPartInteractions(it->first,it->second);
-      //oss << "R " << it->first << " P inter " << it->second << endl;
-    }
-    CkPrintf("[%d] iter %d local %lu remote %lu\n", thisIndex, iteration, pn, pp);
-#endif
     dataManagerProxy[CkMyPe()].traversalsDone(pn,pp,oc);
 #else
     dataManagerProxy[CkMyPe()].traversalsDone();
@@ -197,40 +166,6 @@ void TreePiece::finishIteration(){
 }
 
 void TreePiece::checkTraversals(){
-#ifdef DEBUG_TRAVERSALS
-  map<Key,set<Key> >::iterator it;
-  for(it = localTraversalState.bucketKeys.begin(); it != localTraversalState.bucketKeys.end(); it++){
-    set<Key>::iterator iit;
-    set<Key> &remlist = it->second;
-    if(remlist.size() != 1){
-      ostringstream oss;
-      for(iit = remlist.begin(); iit != remlist.end(); iit++){
-        oss << *iit << ",";
-      }
-
-      CkPrintf("[%d] local rem bucket %lu size %d: %s\n",
-          thisIndex, it->first, remlist.size(), oss.str().c_str());
-    }
-    iit = remlist.find(Key(0));
-    CkAssert(iit != remlist.end());
-  }
-
-  for(it = remoteTraversalState.bucketKeys.begin(); it != remoteTraversalState.bucketKeys.end(); it++){
-    set<Key>::iterator iit;
-    set<Key> &remlist = it->second;
-    if(remlist.size() != 1){
-      ostringstream oss;
-      for(iit = remlist.begin(); iit != remlist.end(); iit++){
-        oss << *iit << ",";
-      }
-
-      CkPrintf("[%d] remote rem bucket %lu size %d: %s\n",
-          thisIndex, it->first, remlist.size(), oss.str().c_str());
-    }
-    iit = remlist.find(Key(0));
-    CkAssert(iit != remlist.end());
-  }
-#endif
 }
 
 void TreePiece::quiescence(){

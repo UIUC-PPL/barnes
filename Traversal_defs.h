@@ -24,39 +24,30 @@ void Traversal<T>::preorderTraversal(Node<T> *root, CutoffWorker<T> *worker){
 template<typename T>
 void Traversal<T>::topDownTraversal_local(Node<T> *root, CutoffWorker<T> *worker){
   stack<Node<T>*> ptrStk;
-  //CkPrintf("(%d) VISIT node %ld\n", CkMyPe(), getKey());
   int ret = worker->work(root);
   if(ret == 0) return;
 
   ptrStk.push(root); 
-  //CkPrintf("(%d) PUSH node %ld\n", CkMyPe(), getKey());
 
   Node<T> *tmp[BRANCH_FACTOR];
   int numChildrenToExpand;
-  //tmp.reserve(2);
 
   while(!ptrStk.empty()){
-    //pair<Node<T>*,int> pr = ptrStk.top();
     Node<T> *t_parent = ptrStk.top();
     Node<T> *t_children = t_parent->getChildren();
     int t_numChildren = t_parent->getNumChildren();
-    //CkPrintf("(%d) POP node %ld\n", CkMyPe(), t_parent->getKey());
     ptrStk.pop();
 
-    //tmp.length() = 0;
     numChildrenToExpand = 0;
     for(int i = 0; i < t_numChildren; i++){
       Node<T> *t_node = t_children+i;
-      //CkPrintf("(%d) VISIT node %ld\n", CkMyPe(), t_node->getKey());
       ret = worker->work(t_node);
       if(ret > 0 && t_node->getNumChildren() > 0){
-        //tmp.push_back(t_node);
         tmp[numChildrenToExpand] = t_node;
         numChildrenToExpand++;
       } 
     }
     for(int i = numChildrenToExpand-1; i >= 0; i--){
-      //CkPrintf("(%d) PUSH child %d key %ld\n", CkMyPe(), i, tmp[i]->getKey());
       ptrStk.push(tmp[i]);
     }
   }
@@ -65,26 +56,20 @@ void Traversal<T>::topDownTraversal_local(Node<T> *root, CutoffWorker<T> *worker
 template<typename T>
 void Traversal<T>::topDownTraversal(Node<T> *root, CutoffWorker<T> *worker, State *state){
   stack<Node<T>*> ptrStk;
-  //CkPrintf("(%d) VISIT node %ld\n", CkMyPe(), getKey());
   int ret = worker->work(root);
   if(ret == 0) return;
 
   ptrStk.push(root); 
-  //CkPrintf("(%d) PUSH node %ld\n", CkMyPe(), getKey());
 
   Node<T> *tmp[BRANCH_FACTOR];
   int numChildrenToExpand;
-  //tmp.reserve(2);
 
   while(!ptrStk.empty()){
-    //pair<Node<T>*,int> pr = ptrStk.top();
     Node<T> *t_parent = ptrStk.top();
     Node<T> *t_children = t_parent->getChildren();
     int t_numChildren = t_parent->getNumChildren();
-    //CkPrintf("(%d) POP node %ld\n", CkMyPe(), t_parent->getKey());
     ptrStk.pop();
 
-    //tmp.length() = 0;
     numChildrenToExpand = 0;
     if(t_numChildren == 0){
       processLeaf(t_parent,worker,state);
@@ -93,16 +78,13 @@ void Traversal<T>::topDownTraversal(Node<T> *root, CutoffWorker<T> *worker, Stat
 
     for(int i = 0; i < t_numChildren; i++){
       Node<T> *t_node = t_children+i;
-      //CkPrintf("(%d) VISIT node %ld\n", CkMyPe(), t_node->getKey());
       ret = worker->work(t_node);
       if(ret > 0){
-        //tmp.push_back(t_node);
         tmp[numChildrenToExpand] = t_node;
         numChildrenToExpand++;
       }
     }
     for(int i = numChildrenToExpand-1; i >= 0; i--){
-      //CkPrintf("(%d) PUSH child %d key %ld\n", CkMyPe(), i, tmp[i]->getKey());
       ptrStk.push(tmp[i]);
     }
   }
@@ -160,7 +142,6 @@ void Traversal<T>::postorderTraversal(Node<T> *root, CutoffWorker<T> *worker){
   nstk.push(root);
 
   while(!cstk.empty()){
-    //pair<Node<T>*,int> cpair = cstk.top();
     Node<T> *c_node = cstk.top();
     Node<T> *n_node = nstk.top();
 

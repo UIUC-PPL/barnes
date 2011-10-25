@@ -27,12 +27,6 @@ struct State {
   CmiUInt8 numInteractions[3];
 #endif
 
-#ifdef CHECK_NUM_INTERACTIONS
-  map<Key,CmiUInt8> bucketNodeInteractions;
-  map<Key,CmiUInt8> bucketPartInteractions;
-#endif
-
-
   void incrPending() { pending++; }
   bool decrPending() {
     pending--;
@@ -61,9 +55,7 @@ struct State {
   }
   
   void reset(TreePiece *owner, int p, Node<ForceData> **bucketPtr){
-  //void reset(TreePiece *owner, string &id, int p, Node<ForceData> **bucketPtr){
     ownerTreePiece = owner;
-    //description = id;
     pending = p;
     current = 0;
     currentBucketPtr = bucketPtr;
@@ -81,40 +73,20 @@ struct State {
     numInteractions[1] = 0;
     numInteractions[2] = 0;
 #endif
-#ifdef CHECK_NUM_INTERACTIONS
-    bucketNodeInteractions.clear();
-    bucketPartInteractions.clear();
-#endif
   }
 
   void insert(Key bucketKey, Key k){
-#ifdef DEBUG_TRAVERSALS
-    Key parentKey = (k>>1);
-    set<Key>::iterator it = bucketKeys[bucketKey].find(parentKey);
-    while(it != bucketKeys[bucketKey].end()){
-      bucketKeys[bucketKey].erase(it);
-      parentKey >>= 1;
-      it = bucketKeys[bucketKey].find(parentKey);
-    }
-    bucketKeys[bucketKey].insert(parentKey);
-#endif
   }
 
   void incrPartNodeInteractions(Key bucketKey, CmiUInt8 n){
 #ifdef STATISTICS
     numInteractions[0] += n;
 #endif
-#ifdef CHECK_NUM_INTERACTIONS
-    bucketNodeInteractions[bucketKey] += n;
-#endif
   }
 
   void incrPartPartInteractions(Key bucketKey, CmiUInt8 n){
 #ifdef STATISTICS
     numInteractions[1] += n;
-#endif
-#ifdef CHECK_NUM_INTERACTIONS
-    bucketPartInteractions[bucketKey] += n;
 #endif
   }
 
