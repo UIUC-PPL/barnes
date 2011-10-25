@@ -1,6 +1,4 @@
-CHARM_PATH = #
-INCPATH = $(CHARM_PATH)/include
-STRUCTURES_PATH = #
+STRUCTURES_PATH = utility/structures
 
 VPATH = $(STRUCTURES_PATH)
 
@@ -9,7 +7,6 @@ OPTS = -O3 -g $(APP_FLAGS)
 CXXFLAGS += $(OPTS) -I$(INCPATH) -I$(STRUCTURES_PATH)
 LDFLAGS += $(OPTS) -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -memory os #-tracemode projections
 
-CHARMC = $(CHARM_PATH)/bin/charmc
 
 CXX = $(CHARMC)
 CC = $(CXX)
@@ -37,6 +34,12 @@ gen_util.o: gen_util.cc
 
 plummer: plummer.o gen_util.o 
 	g++ -I$(STRUCTURES_PATH) -o plummer plummer.o gen_util.o
+
+10k.dat: plummer 
+	./plummer 10000 10k.dat
+
+test: $(TARGET) 10k.dat
+	./charmrun +p8 ./barnes -in=10k.dat -killat=20 -ppc=100 -p=250 -b=10 ++local +LBPeriod 0.01
 
 %.decl.h %.def.h : %.ci
 	$(CHARMC) $(APP_FLAGS) -E $<
