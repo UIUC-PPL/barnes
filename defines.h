@@ -28,10 +28,8 @@ const double opening_geometry_factor = 2 / sqrt(3.0);
 #define COSMO_CONST(x) (x)
 #define CONVERT_TO_COSMO_TYPE
 
-//#define RRDEBUG CkPrintf
 #define RRDEBUG /* empty */
 
-//#define TB_DEBUG CkPrintf
 #define TB_DEBUG /* empty */
 
 #define NUM_PRIORITY_BITS (sizeof(int)*CHAR_BIT)

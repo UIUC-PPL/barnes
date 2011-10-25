@@ -30,9 +30,7 @@ int binary_search_ge(Key check, T *particles, int start, int end, BinarySearchGE
   return lo;
 }
 
-//template<typename T>
 void getMomentsFromParticles(Node<ForceData> *bucket);
-//template<typename T>
 void getMomentsFromChildren(Node<ForceData> *node);
 void getBoundingBoxFromParticles(Node<ForceData> *node);
 void getBoundingBoxFromChildren(Node<ForceData> *node);

@@ -60,7 +60,6 @@ void generateRandom(ofstream &file, int np){
   file.write((char *)&tnow, sizeof(real));
 
   for(int i = 0; i < np; i++){
-    //printf("writing particle: ");
     // position
     for(int j = 0; j < 3; j++){
       vals[j] = ((1.0*(rand()%max))/max)-0.5;
@@ -68,12 +67,9 @@ void generateRandom(ofstream &file, int np){
     // velocity
     for(int j = 3; j < 6; j++){
       vals[j] = (maxVel-minVel)*((1.0*(rand()%max))/max)+minVel;
-      //vals[j] = ((maxVel-minVel)*(1.0*(rand()%max))/max)+minVel;
     }
     vals[6] = mass;
     vals[7] = soft;
-    //printf("%lf,", mass);
-    //printf("%lf\n", soft);
     printf("%f %f %f %f\n", vals[0], vals[1], vals[2], sqrt(vals[3]*vals[3]+vals[4]*vals[4]+vals[5]*vals[5]));
     file.write((char *)vals,size);
   }
@@ -91,7 +87,6 @@ int main(int argc, char **argv){
   ofstream file;
   file.open(fileName, ios::out|ios::binary);
   generateRandom(file,numParticles);
-  //generateSequential(file,numParticles);
   file.close();
   return 0;
 }

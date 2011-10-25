@@ -65,10 +65,7 @@ Particle *testdata(int nbody)
       pickshell(p->velocity, vsc * v);
       cmv += p->velocity;
       
-      //cout << "particle generated" << endl;
    }
-
-   //cout << "done first loop" << endl;
 
    offset = 4.0;
 
@@ -97,8 +94,6 @@ Particle *testdata(int nbody)
  */
 
 void pickshell(Vector3D<Real> &vec, Real rad)
-   //Real vec[];                     /* coordinate vector chosen */
-   //Real rad;                       /* radius of chosen point */
 {
    register int k;
    Real rsq, rsc;
@@ -108,7 +103,6 @@ void pickshell(Vector3D<Real> &vec, Real rad)
      vec.y = xrand(-1.0,1.0);
      vec.z = xrand(-1.0,1.0);
      rsq = vec.lengthSquared();
-     //cout << "rsq " << vec.x << "," << vec.y << "," << vec.z << "," << rsq << endl;
    } while (rsq > 1.0);
 
    rsc = rad / sqrt(rsq);

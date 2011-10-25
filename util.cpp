@@ -52,12 +52,6 @@ bool CompareParticleToKey(void *a, Key k){
 
 void findSplitters(Particle *particles, int start, int end, int *splitters, Key childKey, int childDepth){
   int nRankBits = LOG_BRANCH_FACTOR;
-  /*
-  CkPrintf("findSplitters parentKey %lx nRankBits %d startChildKey %lx parentDepth %d childDepth %d\n", 
-      parentKey, 
-      nRankBits, childKey,
-      parentDepth, childDepth);
-  */
   // particles of first child always begin at index 0
   splitters[0] = start;
   // for all other children, set the beginning of each 
@@ -65,7 +59,6 @@ void findSplitters(Particle *particles, int start, int end, int *splitters, Key 
   for(int i = 1; i < BRANCH_FACTOR; i++){
     childKey++;
     Key testKey = (childKey << (TREE_KEY_BITS-(nRankBits*childDepth+1))); 
-    //CkPrintf("(%d) findSplitters [%d - %d] start %lx end %lx test %lx\n", CkMyPe(), start, end-1, particles[start].key, particles[end-1].key, testKey);
     int firstGEIdx = binary_search_ge<Particle>(testKey, particles, start, end, CompareParticleToKey); 
     splitters[i] = firstGEIdx;
     start = firstGEIdx;
