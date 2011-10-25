@@ -68,8 +68,6 @@ mainmodule barnes {
     entry void doRemoteGravity(RescheduleMsg *);
     entry [expedited] void requestParticles(std::pair<Key, int> request);
     entry [expedited] void requestNode(std::pair<Key, int> request);
-    // ----- Load Balancing -----
-    entry void doAtSync();
   };
 
   include "Node.h";
