@@ -134,12 +134,6 @@ class DataManager : public CBase_DataManager {
   void freeTree();
   void finishIteration();
 
-  void findMinVByA(DtReductionStruct &);
-
-  void markNaNBuckets();
-  void printTree(Node<ForceData>*, ostream &);
-  void doPrintTree();
-
   void init();
 
   public:
@@ -173,8 +167,6 @@ class DataManager : public CBase_DataManager {
   void recvNode(NodeReplyMsg *msg);
 
   void recvUnivBoundingBox(CkReductionMsg *msg);
-
-  void quiescence();
 
   void addBucketNodeInteractions(Key k, CmiUInt8 pn);
   void addBucketPartInteractions(Key k, CmiUInt8 pp);

@@ -8,7 +8,7 @@
 
 #define DEFAULT_THETA 0.5 
 #define DEFAULT_DT 0
-#define DEFAULT_DTIME 0.025
+#define DEFAULT_DTIME 0.0001
 #define DEFAULT_EPS 0.05
 #define DEFAULT_TOL 1.0
 

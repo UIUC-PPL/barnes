@@ -13,7 +13,6 @@ class Main : public CBase_Main {
 
   void getNumParticles();
   void setParameters(CkArgMsg *m);
-  void usage();
 
   public:
   Main(CkArgMsg *msg);

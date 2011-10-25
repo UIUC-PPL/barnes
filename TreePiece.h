@@ -68,7 +68,6 @@ class TreePiece : public CBase_TreePiece {
   void requestMoments(Key k, int replyTo);
   void traversalDone();
 
-  void quiescence();
   int getIteration();
 
   void pup(PUP::er &p);

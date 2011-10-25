@@ -44,8 +44,6 @@ mainmodule barnes {
     entry Main(CkArgMsg *m);
     entry [threaded] void commence();
     entry void niceExit();
-    entry void quiescence();
-    entry void quiescenceExit();
   };
 
   include "Particle.h";
@@ -70,7 +68,6 @@ mainmodule barnes {
 
     entry [expedited] void requestParticles(std::pair<Key, int> request);
     entry [expedited] void requestNode(std::pair<Key, int> request);
-    entry void quiescence();
   };
 
   include "Node.h";
@@ -99,8 +96,6 @@ mainmodule barnes {
     entry void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit);
 
     entry void recvUnivBoundingBox(CkReductionMsg *msg);
-
-    entry void quiescence();
     entry void resumeFromLB();
   };
 };
