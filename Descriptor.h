@@ -71,30 +71,8 @@ struct NodeDescriptor {
   {
   }
 
-  /*
-  NodeDescriptor(Key nk) :
-    numParticles(0), 
-    nodeKey(nk) 
-  {
-    largestKey = Key(0);
-    smallestKey = ~largestKey;
-  }
-  */
-
-  void grow(const NodeDescriptor &other){
-    /*
-    CkPrintf("(%d) grow1 %d sk %lx lk %lx grow2 %d sk %lx lk %lx\n",
-              CkMyPe(),
-              numParticles, 
-              smallestKey, 
-              largestKey,
-              other.numParticles, 
-              other.smallestKey, 
-              other.largestKey
-              );
-    */
-    if(other.numParticles == 0){
-      //CkPrintf("(%d) growresult 1\n", CkMyPe());
+ void grow(const NodeDescriptor &other){
+   if(other.numParticles == 0){
       return;
     }
 
@@ -102,12 +80,10 @@ struct NodeDescriptor {
       smallestKey = other.smallestKey;
       largestKey = other.largestKey;
       numParticles = other.numParticles;
-      //CkPrintf("(%d) growresult 2\n", CkMyPe());
     } else {
       if(smallestKey > other.smallestKey) smallestKey = other.smallestKey;
       if(largestKey < other.largestKey) largestKey = other.largestKey;
       numParticles += other.numParticles;
-      //CkPrintf("(%d) growresult 3\n", CkMyPe());
     }
 
   }

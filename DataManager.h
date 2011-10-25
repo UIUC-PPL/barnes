@@ -170,7 +170,6 @@ class DataManager : public CBase_DataManager {
   
   // called by tree pieces
   void submitParticles(CkVec<ParticleMsg *> *vec, int numParticles, TreePiece *tp, Key smallestKey, Key largestKey); 
-  //void requestMoments(MomentsRequestMsg *msg);
   void requestMoments(Key k, int replyTo);
   void advance(CkReductionMsg *);
 #ifdef STATISTICS

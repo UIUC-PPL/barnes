@@ -73,28 +73,15 @@ class Node {
 
   public:
   T data;
-#ifdef CHECK_NUM_INTERACTIONS
-  CmiUInt8 nodeInteractions;
-  CmiUInt8 partInteractions;
-#endif
-
   Node(Key k, int d, Particle *p, int np, Node<T> *par=NULL) : 
     core(k,d,p,np), parent(par), children(NULL), data(),
-#ifdef CHECK_NUM_INTERACTIONS
-    nodeInteractions(0),
-    partInteractions(0),
-#endif
-    numChildrenMomentsReady(0)
+   numChildrenMomentsReady(0)
   {
   }
 
   Node() : 
     core(), parent(NULL), children(NULL), data(),
-#ifdef CHECK_NUM_INTERACTIONS
-    nodeInteractions(0),
-    partInteractions(0),
-#endif
-    numChildrenMomentsReady(0)
+   numChildrenMomentsReady(0)
   {
   }
 
@@ -219,7 +206,6 @@ class Node {
     int end = getNumParticles();
     Particle *particles = getParticles();
     int splitters[BRANCH_FACTOR+1];
-    //splitters.resize(BRANCH_FACTOR+1);
 
     Key childKey = (myKey << numRankBits);
     int childDepth = depth+1;
@@ -242,8 +228,6 @@ class Node {
     child->setKey(childKey);
     child->setDepth(childDepth);
     child->setParent(this);
-
-    //CkPrintf("(%d) child %lu splitteridx %d\n", CkMyPe(), child->getKey(), childPartStart);
 
     // findSplitters distributed particles over
     // different children
@@ -389,15 +373,6 @@ class Node {
 
   }
 
-#ifdef CHECK_NUM_INTERACTIONS
-  void addNodeInteractions(CmiUInt8 pn){
-    nodeInteractions += pn;
-  }
-
-  void addPartInteractions(CmiUInt8 pp){
-    partInteractions += pp;
-  }
-#endif
 };
 
 template<typename T>
@@ -407,15 +382,7 @@ ostream &operator<<(ostream &os, const Node<T> &node){
   os << node.getKey() 
      << " [label=\"" << node.getKey() 
      << " (" << node.getNumParticles() << ","
-#ifdef CHECK_NUM_INTERACTIONS
-     << node.nodeInteractions << ","
-     << node.partInteractions << ","
-#endif
-     /*
-     << "\\n" << oss.str() << ","
-     << node.data.moments.totalMass << ","
-     */
-     << "\\n" << node.data.moments.rsq << ","
+    << "\\n" << node.data.moments.rsq << ","
      << "\\n" << node.getOwnerStart() << ":" 
      << node.getOwnerEnd() << ")\\n"
      << NodeTypeString[node.getType()]
@@ -430,8 +397,6 @@ ostream &operator<<(ostream &os, const Node<T> &node){
   else if(node.getType() == Invalid) os << ", color=\"firebrick1\"";
 
   os << "]" << endl;
-
-  //if(node.getType() == Internal) return os;
 
   for(int i = 0; i < node.getNumChildren(); i++){
     Node<T> &childref = *(node.getChild(i));

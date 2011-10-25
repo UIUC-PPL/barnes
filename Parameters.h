@@ -42,7 +42,6 @@ struct Parameters {
     p | dthf;
     p | tolsq;
     p | epssq;
-    //p | branchFactor;
     p | ppc;
     p | ppb;
     p | yieldPeriod;
@@ -70,7 +69,6 @@ struct Parameters {
     if(it != table.end()){
       return it->second;
     }
-    //cerr << "getparam: " << name.c_str() << " unknown" << endl;
     return string();
   }
 
