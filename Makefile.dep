@@ -1,19 +1,19 @@
 Main.o: \
-Main.cpp \
+Main.cc \
 Main.h \
 Parameters.h \
 defines.h \
 common.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-MultipoleMoments.h \
-Vector3D.h \
-Node.h \
-Particle.h \
-util.h \
 TreePiece.h \
+Particle.h \
+Vector3D.h \
 Messages.h \
+MultipoleMoments.h \
+Node.h \
+util.h \
+Descriptor.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
@@ -24,18 +24,18 @@ Reduction.h \
 defaults.h \
 
 DataManager.o: \
-DataManager.cpp \
+DataManager.cc \
 DataManager.h \
 Particle.h \
 common.h \
 Vector3D.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-defines.h \
-MultipoleMoments.h \
 Node.h \
+MultipoleMoments.h \
+defines.h \
 util.h \
+Descriptor.h \
 ActiveBinInfo.h \
 Traversal_decls.h \
 Worker.h \
@@ -48,19 +48,19 @@ TreePiece.h \
 defaults.h \
 
 TreePiece.o: \
-TreePiece.cpp \
+TreePiece.cc \
 TreePiece.h \
 defines.h \
 common.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-MultipoleMoments.h \
-Vector3D.h \
-Node.h \
 Particle.h \
-util.h \
+Vector3D.h \
 Messages.h \
+MultipoleMoments.h \
+Node.h \
+util.h \
+Descriptor.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
@@ -73,7 +73,7 @@ Orb3dLB_notopo.h \
 Orb3dLB_notopo.decl.h \
 
 util.o: \
-util.cpp \
+util.cc \
 defines.h \
 common.h \
 Particle.h \
@@ -90,7 +90,7 @@ State.h \
 Worker.h \
 
 Reduction.o: \
-Reduction.cpp \
+Reduction.cc \
 OrientedBox.h \
 defines.h \
 common.h \
@@ -102,7 +102,7 @@ Particle.h \
 util.h \
 
 Worker.o: \
-Worker.cpp \
+Worker.cc \
 Worker.h \
 Node.h \
 MultipoleMoments.h \
@@ -122,11 +122,10 @@ Request.h \
 TreePiece.h \
 Messages.h \
 gravity.h \
-Space.h \
 Parameters.h \
 
 Request.o: \
-Request.cpp \
+Request.cc \
 Request.h \
 Node.h \
 MultipoleMoments.h \
@@ -147,23 +146,16 @@ Traversal_defs.h \
 DataManager.h \
 
 Orb3dLB_notopo.o: \
-Orb3dLB_notopo.cpp \
+Orb3dLB_notopo.cc \
 Orb3dLB_notopo.h \
 Orb3dLB_notopo.decl.h \
 TaggedVector3D.h \
-barnes.decl.h \
-Descriptor.h \
-defines.h \
-common.h \
 OrientedBox.h \
-MultipoleMoments.h \
+barnes.decl.h \
 Vector3D.h \
-Node.h \
-Particle.h \
-util.h \
 
 State.o: \
-State.cpp \
+State.cc \
 Node.h \
 MultipoleMoments.h \
 Vector3D.h \
@@ -180,10 +172,10 @@ Messages.h \
 Worker.h \
 
 gen_util.o: \
-gen_util.cpp \
+gen_util.cc \
 
 plummer.o: \
-plummer.cpp \
+plummer.cc \
 Vector3D.h \
 Particle.h \
 

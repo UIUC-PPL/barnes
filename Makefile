@@ -20,10 +20,10 @@ CFLAGS = $(OPTS) $(DEFINE_FLAGS) -g
 OBJECTS = Main.o DataManager.o TreePiece.o util.o \
 	  Orb3dLB_notopo.o \
 	  Reduction.o Worker.o Request.o State.o
-SRC = Main.cpp DataManager.cpp TreePiece.cpp \
-      util.cpp Reduction.cpp Worker.cpp Request.cpp \
-      Orb3dLB_notopo.cpp \
-      State.cpp gen_util.cpp plummer.cpp
+SRC = Main.cc DataManager.cc TreePiece.cc \
+      util.cc Reduction.cc Worker.cc Request.cc \
+      Orb3dLB_notopo.cc \
+      State.cc gen_util.cc plummer.cc
 
 TARGET = barnes 
 all: $(TARGET) plummer
@@ -34,11 +34,11 @@ $(TARGET): $(OBJECTS) Makefile.dep libmoduleOrb3dLB_notopo.a
 libmoduleOrb3dLB_notopo.a: Orb3dLB_notopo.o
 	$(CHARMC) -o libmoduleOrb3dLB_notopo.a Orb3dLB_notopo.o 
 
-plummer.o: plummer.cpp 
-	g++ -I$(STRUCTURES_PATH) -c plummer.cpp 
+plummer.o: plummer.cc 
+	g++ -I$(STRUCTURES_PATH) -c plummer.cc 
 
-gen_util.o: gen_util.cpp 
-	g++ -I$(STRUCTURES_PATH) -c gen_util.cpp 
+gen_util.o: gen_util.cc 
+	g++ -I$(STRUCTURES_PATH) -c gen_util.cc 
 
 plummer: plummer.o gen_util.o 
 	g++ -I$(STRUCTURES_PATH) -o plummer plummer.o gen_util.o

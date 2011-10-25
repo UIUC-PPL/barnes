@@ -32,7 +32,7 @@ struct Parameters {
   Real epssq;
   Real tolsq;
 
-  // Parallel simulation parameters (see Main.cpp for explanations)
+  // Parallel simulation parameters (see Main.cc for explanations)
   int numTreePieces;
   int numParticles;
   int ppc;
