@@ -105,11 +105,9 @@ void Traversal<T>::processLeaf(Node<T> *leaf, CutoffWorker<T> *worker, State *st
     CkAssert(particles);
     CkAssert(np > 0);
    
-    worker->beforeParticleForces(leaf->getKey());
     for(int i = 0; i < np; i++){
       worker->work(particles+i);
     }
-    worker->bucketDone(leaf->getKey());
   }
   else if(type == RemoteBucket){
     ExternalParticle *particles = (ExternalParticle *)leaf->getParticles();
@@ -120,11 +118,9 @@ void Traversal<T>::processLeaf(Node<T> *leaf, CutoffWorker<T> *worker, State *st
       return;
     }
 
-    worker->beforeParticleForces(leaf->getKey());
     for(int i = 0; i < np; i++){
       worker->work(particles+i);
     }
-    worker->bucketDone(leaf->getKey());
   }
   else if(type == Remote){
     state->incrPending();

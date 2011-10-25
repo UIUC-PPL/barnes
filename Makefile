@@ -7,7 +7,7 @@ VPATH = $(STRUCTURES_PATH)
 APP_FLAGS = #
 OPTS = -O3 -g $(APP_FLAGS)
 CXXFLAGS += $(OPTS) -I$(INCPATH) -I$(STRUCTURES_PATH)
-LDFLAGS += $(OPTS) -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -module Orb3dLB_notopo -memory os #-tracemode projections
+LDFLAGS += $(OPTS) -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -memory os #-tracemode projections
 
 CHARMC = $(CHARM_PATH)/bin/charmc
 
@@ -18,21 +18,16 @@ CXX_DEPEND = $(CXX) -M -MM -MG -Wall $(APP_FLAGS)
 CFLAGS = $(OPTS) $(DEFINE_FLAGS) -g 
 
 OBJECTS = Main.o DataManager.o TreePiece.o util.o \
-	  Orb3dLB_notopo.o \
-	  Reduction.o Worker.o Request.o State.o
+	  Reduction.o Worker.o Request.o
 SRC = Main.cc DataManager.cc TreePiece.cc \
       util.cc Reduction.cc Worker.cc Request.cc \
-      Orb3dLB_notopo.cc \
-      State.cc gen_util.cc plummer.cc
+      gen_util.cc plummer.cc
 
 TARGET = barnes 
 all: $(TARGET) plummer
 
-$(TARGET): $(OBJECTS) Makefile.dep libmoduleOrb3dLB_notopo.a 
+$(TARGET): $(OBJECTS) Makefile.dep 
 	$(CHARMC) -o $(TARGET) $(LDFLAGS) $(OBJECTS)
-
-libmoduleOrb3dLB_notopo.a: Orb3dLB_notopo.o
-	$(CHARMC) -o libmoduleOrb3dLB_notopo.a Orb3dLB_notopo.o 
 
 plummer.o: plummer.cc 
 	g++ -I$(STRUCTURES_PATH) -c plummer.cc 

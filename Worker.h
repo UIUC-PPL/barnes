@@ -15,11 +15,9 @@ class CutoffWorker {
   public:
   virtual int work(Node<T> *) = 0; 
   virtual void work(ExternalParticle *) {}
-  virtual void bucketDone(Key k) {}
   virtual void *getContext() {return NULL;}
   virtual void setContext(void *context) {}
   virtual void done() {}
-  virtual void beforeParticleForces(Key k) {}
 };
 
 class DataManager;
@@ -109,13 +107,11 @@ class TraversalWorker : public CutoffWorker<ForceData> {
 
   int work(Node<ForceData> *node);
   void work(ExternalParticle *particle);
-  void bucketDone(Key k);
   
   virtual void done() {}
   virtual bool getKeep(NodeType type) = 0;
   virtual bool repeat(NodeType type) {return false;}
 
-  void beforeParticleForces(Key k); 
 };
 
 class LocalTraversalWorker : public TraversalWorker {

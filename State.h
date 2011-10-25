@@ -84,30 +84,11 @@ struct State {
     currentBucketPtr = bucketPtr;
   }
 
-  void nodeEncountered(Key bucketKey, Node<ForceData> *node);
-  void nodeOpened(Key bucketKey, Node<ForceData> *node);
-  void nodeDiscarded(Key bucketKey, Node<ForceData> *node);
-  void nodeComputed(Node<ForceData> *bucket, Key nodeKey);
-  void bucketComputed(Node<ForceData> *bucket, Key k);
-
   // Clear counts of interactions/opening criterion applications
   void finishedIteration(){
     numInteractions[0] = 0;
     numInteractions[1] = 0;
     numInteractions[2] = 0;
-  }
-
-  void insert(Key bucketKey, Key k){
-#ifdef DEBUG_TRAVERSALS
-    Key parentKey = (k>>1);
-    set<Key>::iterator it = bucketKeys[bucketKey].find(parentKey);
-    while(it != bucketKeys[bucketKey].end()){
-      bucketKeys[bucketKey].erase(it);
-      parentKey >>= 1;
-      it = bucketKeys[bucketKey].find(parentKey);
-    }
-    bucketKeys[bucketKey].insert(parentKey);
-#endif
   }
 
   // Methods to increment different statistics
@@ -123,21 +104,6 @@ struct State {
     numInteractions[2]++;
   }
 
-  virtual string getDescription() = 0;
-
-#ifdef VERBOSE_TRAVERSAL_INTERACTION
-  CkVec<Vector3D<Real> > savedAccelerations;
-#endif
-  void beforeForces(Node<ForceData> *bucket, Key k);
-
-};
-
-struct LocalState : public State {
-  string getDescription(){ return "LOCAL"; }
-};
-
-struct RemoteState : public State {
-  string getDescription(){ return "REMOTE"; }
 };
 
 #endif

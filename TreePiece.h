@@ -29,8 +29,8 @@ class TreePiece : public CBase_TreePiece {
   Node<ForceData> *root;
   Node<ForceData> *myRoot;
 
-  LocalState localTraversalState;
-  RemoteState remoteTraversalState;
+  State localTraversalState;
+  State remoteTraversalState;
 
   LocalTraversalWorker localTraversalWorker;
   RemoteTraversalWorker remoteTraversalWorker;
@@ -41,16 +41,11 @@ class TreePiece : public CBase_TreePiece {
   Key largestKey;
   DataManager *myDM;
 
-  CkGroupID orbLBProxy;
-  int numLB;
-  bool haveOrbLB;
-
   int totalNumTraversals;
 
   void submitParticles();
   void finishIteration();
   void init();
-  void findOrbLB();
 
   public:
   TreePiece();
@@ -78,7 +73,6 @@ class TreePiece : public CBase_TreePiece {
 
   void pup(PUP::er &p);
   void startlb();
-  void doAtSync(); 
   void ResumeFromSync();
 };
 
