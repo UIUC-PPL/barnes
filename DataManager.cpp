@@ -25,7 +25,6 @@ void copyMomentsToNode(Node<ForceData> *node, const MomentsExchangeStruct &mes){
   node->data.box = mes.box;
   NodeType type = mes.type;
   node->setType(Node<ForceData>::makeRemote(type));
-
 }
 
 DataManager::DataManager() : 
@@ -56,12 +55,6 @@ void DataManager::loadParticles(CkCallback &cb){
   const char *fname = globalParams.filename.c_str();
   int npart = globalParams.numParticles;
 
-
-#ifdef MEMCHECK
-  CkPrintf("[%d] before loadParticles\n", CkMyPe());
-  CmiMemoryCheck();
-#endif
-
   std::ifstream partFile;
   partFile.open(fname, ios::in | ios::binary);
   CkAssert(partFile.is_open());
@@ -86,8 +79,6 @@ void DataManager::loadParticles(CkCallback &cb){
   myParticles.reserve(myNumParticles);
   myParticles.length() = myNumParticles;
 
-  //CkPrintf("[%d] seeking to %d\n", myid, offset);
-  //  CkAssert(partFile.is_open());
   partFile.clear();
   partFile.seekg(offset,ios::beg);
   if(partFile.fail()){
@@ -122,17 +113,9 @@ void DataManager::loadParticles(CkCallback &cb){
   CkAssert(numParticlesDone == myNumParticles);
   myBox.numParticles = myNumParticles;
 
-#ifdef DECOMP_VERY_VERBOSE
-#endif
-
   partFile.close();
 
   contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
-
-#ifdef MEMCHECK
-  CkPrintf("[%d] before loadParticles\n", CkMyPe());
-  CmiMemoryCheck();
-#endif
 }
 
 void DataManager::hashParticleCoordinates(OrientedBox<Real> &universe){
@@ -168,30 +151,12 @@ void DataManager::hashParticleCoordinates(OrientedBox<Real> &universe){
 }
 
 void DataManager::decompose(BoundingBox &universe){
-
-#ifdef CHECK_CORRUPTION
-  CkPrintf("(%d) check before decompose\n", CkMyPe());
-  CmiMemoryCheck();
-#endif
-
   hashParticleCoordinates(universe.box);
   myParticles.quickSort();
 
   if(CkMyPe()==0){
     float memMB = (1.0*CmiMemoryUsage())/(1<<20);
     ostringstream oss; 
-    /*
-    CkPrintf("(%d) start iteration %d mem %f MB univ %f %f %f %f %f %f prev %g s\n", 
-              CkMyPe(),iteration,memMB,
-              universe.box.lesser_corner.x,
-              universe.box.lesser_corner.y,
-              universe.box.lesser_corner.z,
-              universe.box.greater_corner.x,
-              universe.box.greater_corner.y,
-              universe.box.greater_corner.z,
-              CmiWallTimer()-prevIterationStart
-              );
-    */
     CkPrintf("(%d) prev time %g s\n", CkMyPe(), CmiWallTimer()-prevIterationStart);
     CkPrintf("(%d) start iteration %d\n", CkMyPe(), iteration);
     CkPrintf("(%d) mem %.2f MB\n", CkMyPe(), memMB);
@@ -204,7 +169,6 @@ void DataManager::decompose(BoundingBox &universe){
               universe.box.greater_corner.y,
               universe.box.greater_corner.z,
               universe.energy);
- 
 
     prevIterationStart = CkWallTimer();
   }
@@ -215,11 +179,6 @@ void DataManager::decompose(BoundingBox &universe){
 }
 
 void DataManager::initHistogramParticles(){
-#ifdef MEMCHECK
-  CkPrintf("[%d] before initHistogramParticles\n", CkMyPe());
-  CmiMemoryCheck();
-#endif
-
   int rootDepth = 0;
   
   sortingRoot = new Node<NodeDescriptor>(Key(1),
@@ -233,56 +192,20 @@ void DataManager::initHistogramParticles(){
   // to receive submitted particles from TPs placed on it
   myNumParticles = 0;
   myParticles.length() = 0;
-
-#ifdef MEMCHECK
-  CkPrintf("[%d] after initHistogramParticles\n", CkMyPe());
-  CmiMemoryCheck();
-#endif
-  //CkPrintf("[%d]Added %d particles\n", CkMyPe(), myNumParticles);
 }
 
 void DataManager::sendHistogram(){
-  /*
-  NodeDescriptor *descriptors = activeBins.getCounts();
-  for(int i = 0; i < activeBins.getNumCounts(); i++){
-    CkPrintf("(%d) sendHistogram nk %lu count %d sk %lx lk %lx\n",
-              CkMyPe(), 
-              descriptors->nodeKey,
-              descriptors->numParticles,
-              descriptors->smallestKey,
-              descriptors->largestKey);
-    CkAssert((descriptors->numParticles == 0) || (descriptors->smallestKey <= descriptors->largestKey));
-    descriptors++;
-  }
-  */
-
-#ifdef DECOMP_VERBOSE
-#endif
 
   CkCallback cb(CkIndex_DataManager::receiveHistogram(NULL),0,this->thisgroup);
   contribute(sizeof(NodeDescriptor)*activeBins.getNumCounts(),activeBins.getCounts(),NodeDescriptorReductionType,cb);
-  //contribute(sizeof(int)*activeBins.getNumCounts(),activeBins.getCounts(),CkReduction::sum_int,cb);
   activeBins.reset();
-
-#ifdef MEMCHECK
-  CkPrintf("[%d] after sendHistogram\n", CkMyPe());
-  CmiMemoryCheck();
-#endif
 }
 
 // executed on PE 0
 void DataManager::receiveHistogram(CkReductionMsg *msg){
 
-#ifdef MEMCHECK
-  CkPrintf("[%d] before receiveHistogram\n", CkMyPe());
-  CmiMemoryCheck();
-#endif
-
   int numRecvdBins = msg->getSize()/sizeof(NodeDescriptor);
   NodeDescriptor *descriptors = (NodeDescriptor *)msg->getData();
-#ifdef DECOMP_VERBOSE
-  CkPrintf("PL0: in receiveHistogram %d bins\n", numRecvdBins);
-#endif
 
   // XXX remove this and make a refine function for ActiveBinInfo
   CkVec<int> binsToRefine;
@@ -296,16 +219,9 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   CkAssert(numRecvdBins == active->length());
 
   for(int i = 0; i < numRecvdBins; i++){
-#ifdef DECOMP_VERBOSE
-    CkPrintf("PL0: bin %d nk %lu count %d sk %lx lk %lx\n", 
-              i, descriptors[i].nodeKey, descriptors[i].numParticles, descriptors[i].smallestKey, descriptors[i].largestKey);
-#endif
     if(descriptors[i].numParticles > (Real)(DECOMP_TOLERANCE*globalParams.ppc)){
       // need to refine this bin (partition)
       binsToRefine.push_back(i);
-#ifdef DECOMP_VERBOSE
-      CkPrintf("PL0: refine bin %d\n", i);
-#endif
       numTreePieces += (BRANCH_FACTOR-1);
       if(numTreePieces > globalParams.numTreePieces){
         CkPrintf("have %d treepieces need %d\n",globalParams.numTreePieces,numTreePieces);
@@ -323,10 +239,6 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   int numBinsToRefine = binsToRefine.length();
 
   if(numBinsToRefine > 0){
-
-#ifdef DECOMP_VERBOSE
-    CkPrintf("DM0: Refine %d bins %d particles histogrammed\n", numBinsToRefine, particlesHistogrammed);
-#endif
     SplitterMsg *m = new (numBinsToRefine,0) SplitterMsg;
     memcpy(m->splitBins,binsToRefine.getVec(),sizeof(int)*numBinsToRefine);
     m->nSplitBins = numBinsToRefine; 
@@ -335,12 +247,9 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   }
   else{
     // create tree pieces and send proxy
-#ifdef DECOMP_VERBOSE
-#endif
     CkPrintf("[0] decomp done after %d iterations used treepieces %d\n", decompIterations, numTreePieces);
     decompIterations = 0;
     
-    //keyRanges.reserve(numTreePieces*2);
     keyRanges = new Key[numTreePieces*2];
     // so that by the time tree pieces start submitting
     // particles (which can only happen after the flushParticles()
@@ -358,11 +267,6 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
     thisProxy.sendParticles(rmsg);
   }
 
-#ifdef MEMCHECK
-  CkPrintf("[%d] before loadParticles\n", CkMyPe());
-  CmiMemoryCheck();
-#endif
-
   delete msg;
 }
 
@@ -371,9 +275,6 @@ void DataManager::flushParticles(){
   scaffoldTrav.preorderTraversal(sortingRoot,&pfw);
 
   int numUsefulTreePieces = pfw.getNumLeaves(); 
-#ifdef DECOMP_VERBOSE
-  if(CkMyPe() == 0) CkPrintf("(%d) num useful tree pieces %d\n", CkMyPe(), numUsefulTreePieces);
-#endif
 
   for(int i = numUsefulTreePieces; i < globalParams.numTreePieces; i++){
     treePieceProxy[i].receiveParticles();
@@ -385,28 +286,11 @@ void DataManager::flushParticles(){
 
   delete sortingRoot;
   sortingRoot = NULL;
-
 }
 
 void DataManager::receiveSplitters(SplitterMsg *msg){
 
   int numRefineBins = msg->nSplitBins;
-  /*
-  if(firstSplitterRound){
-    firstSplitterRound = false;
-    freeTree();
-    nodeTable.clear();
-  }
-  */
-
-#ifdef DECOMP_VERBOSE
-  CkPrintf("[%d] received %d splitters\n", CkMyPe(), numRefineBins);
-#endif
-
-#ifdef MEMCHECK
-  CkPrintf("[%d] before loadParticles\n", CkMyPe());
-  CmiMemoryCheck();
-#endif
 
   // process bins to refine
   activeBins.processRefine(msg->splitBins,msg->nSplitBins);
@@ -419,19 +303,8 @@ void DataManager::receiveSplitters(SplitterMsg *msg){
   // iteration; we can send particles to these
   // CkVec<Node<NodeDescriptor>*> &unrefined = activeBins.getUnrefined();
 
-#ifdef DECOMP_VERBOSE
-  //CkPrintf("[%d] num UNREFINED %d\n", CkMyPe(), unrefined.length());
-#endif
-
-  //activeBins.processEmpty(msg->emptyBins,msg->nEmptyBins);
-
   sendHistogram();
   delete msg;
-
-#ifdef MEMCHECK
-  CkPrintf("[%d] before loadParticles\n", CkMyPe());
-  CmiMemoryCheck();
-#endif
 }
 
 void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
@@ -464,10 +337,6 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
 
 void DataManager::sendParticles(RangeMsg *msg){
 
-#ifdef DECOMP_VERBOSE
-  CkPrintf("[%d] send particles to %d tree pieces\n", CkMyPe(), numTreePieces);
-#endif
-
   if(CkMyPe() != 0){
     numTreePieces = msg->numTreePieces;
     keyRanges = msg->keys;
@@ -488,7 +357,6 @@ void DataManager::sendParticles(RangeMsg *msg){
     delete msg;
   }
 
-
   // there are tree piece on this PE
   // these will eventually receive their respective
   // particles and submit them to the DM. Also, the
@@ -496,11 +364,6 @@ void DataManager::sendParticles(RangeMsg *msg){
   // leader (i.e. DM on PE 0) When all particles and 
   // rangeKeys have been received, the DM begins tree
   // construction
-
-#ifdef PARTICLE_LOADER_VERBOSE
-  CkPrintf("[%d] done with sendParticles\n", 
-      CkMyPe());
-#endif
 }
 
 void DataManager::senseTreePieces(){
@@ -525,7 +388,6 @@ void DataManager::processSubmittedParticles(){
   submittedParticles.quickSort();
   
   myParticles.resize(myNumParticles);
-  //CkPrintf("(%d) process %d submitted particles from %d local treepieces\n", CkMyPe(), myNumParticles, numLocalTreePieces);
 
   for(int i = 0; i < submittedParticles.length(); i++){
     TreePieceDescriptor &descr = submittedParticles[i];
@@ -588,15 +450,6 @@ void DataManager::buildTree(){
     // 2. if not 1, check for numparticles in node 
     // if ownerStart of node is > curTP, curTP = curTP->next
     // when a node its split, 
-    // search_begin_idx = node->ownerStart*2;
-    // search_end_idx = (node->ownerEnd*2+1)+1;
-    // search_idx = binary_search_first_ge(Node::ParticleLevelKey(rightChildKey), tps, search_begin_idx, search_end_idx);
-    // lchild->ownerStart = node->ownerStart;
-    // lchild->ownerEnd = search_idx/2;
-    // rchild->ownerStart = search_idx/2;
-    // rchild->ownerEnd = node->ownerEnd;
-    // if(EVEN(search_idx)) lchild->ownerEnd--;
-
     for(int i = 0; i < active->length(); i++){
       Node<ForceData> *node = (*active)[i].first;
       if((node->getOwnerEnd() > node->getOwnerStart()) || 
@@ -790,9 +643,6 @@ void DataManager::startTraversal(){
 void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
   Key key = leaf->getKey();
   Request &request = particleRequestTable[key];
-#ifdef TRACE_REMOTE_DATA_REQUESTS
-  traceUserEvent(REMOTE_PARTICLE_REQUEST);
-#endif
   if(!request.sent){
     partReqs.incrRequests();
 
@@ -850,9 +700,6 @@ void DataManager::requestParticles(RequestMsg *msg){
 void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
   Key key = leaf->getKey();
   Request &request = nodeRequestTable[key];
-#ifdef TRACE_REMOTE_DATA_REQUESTS
-  traceUserEvent(REMOTE_NODE_REQUEST);
-#endif
   if(!request.sent){
     nodeReqs.incrRequests();
 
@@ -963,7 +810,6 @@ void DataManager::recvNode(NodeReplyMsg *msg){
   node->deserialize(msg->data, msg->nn);
 
   ostringstream oss;
-  //ostream &oss = cerr;
   oss << "(" << CkMyPe() << ") key check: " << msg->key << endl;
   TreeChecker checker(oss);
   fillTrav.topDownTraversal_local(node,&checker);
@@ -1233,40 +1079,15 @@ void DataManager::findMinVByA(DtReductionStruct &dtred){
     return;
   }
   
-  /*
-  Real min_v = myParticles[0].velocity.length();
-  Real min_a = myParticles[0].acceleration.length();
-  */
   dtred.haveNaN = false;
-
-  //CkAssert(!isnan(min_v));
-  //if(isnan(min_a)) dtred.haveNaN = true;
-
-  //Real min_vbya = min_v/min_a;
 
   for(int i = 0; i < myNumParticles; i++){
     Real v = myParticles[i].velocity.length();
     Real a = myParticles[i].acceleration.length();
     CkAssert(!isnan(v));
-    /*
-    if(isnan(a)){
-      CkPrintf("(%d) particle %d key %lu accel is nan!\n", CkMyPe(), i, myParticles[i].key);
-      CkAbort("bad acceleration\n");
-    }
-    */
     if(isnan(a)) dtred.haveNaN = true;
-    /*
-    Real vbya = v/a;
-    if(vbya < min_vbya){
-      min_vbya = vbya;
-      min_v = v; 
-      min_a = a; 
-    }
-    */
-  }
+   }
 
-  //CkPrintf("(%d) vbya %f v %f a %f\n", CkMyPe(), min_vbya, min_v, min_a);
-  //dtred.vbya = min_vbya;
   dtred.vbya = -1.0;
 }
 
