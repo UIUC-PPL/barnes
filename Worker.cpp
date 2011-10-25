@@ -10,6 +10,10 @@ int ParticleFlushWorker::work(Node<NodeDescriptor> *node){
   if(node->getNumChildren() > 0) return 1;
 
   dataManager->sendParticlesToTreePiece(node,leafCnt); 
+  // Since this is a leaf and we are using Oct
+  // decomposition, all the particles under this node
+  // belong to the leafCnt-th TreePiece
+  node->setOwners(leafCnt,leafCnt);
   leafCnt++;
   return 0;
 }

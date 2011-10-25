@@ -58,21 +58,16 @@ class DataManager : public CBase_DataManager {
 
   bool firstSplitterRound;
 
-  Node<NodeDescriptor> *sortingRoot;
   int numTreePieces;
 
   int iteration;
   int decompIterations;
-  ActiveBinInfo<NodeDescriptor> activeBins;
+  ActiveBinInfo<ForceData> activeBins;
 
   TreePieceCounter localTreePieces;
   int numLocalTreePieces;
   CkVec<TreePieceDescriptor> submittedParticles;
-  Node<ForceData> *root;
 
-  Key *keyRanges;
-  bool haveRanges;
-  RangeMsg *rangeMsg;
   CkVec<Node<ForceData>*> myBuckets;
 
   // I am done constructing the tree 

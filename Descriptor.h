@@ -77,23 +77,11 @@ struct BoundingBox {
  */
 struct NodeDescriptor {
   int numParticles;
-  Key nodeKey;
-
-  Key smallestKey;
-  Key largestKey;
-
   NodeDescriptor() {
     numParticles = 0;
-    largestKey = Key(0);
-    smallestKey = ~largestKey;
-    nodeKey = smallestKey;
   }
 
-  NodeDescriptor(int np, Key nk, Key sk, Key lk) : 
-    numParticles(np), 
-    nodeKey(nk), smallestKey(sk), largestKey(lk) 
-  {
-  }
+  NodeDescriptor(int np) : numParticles(np) {}
 
   /*
    * This method is called during the histogram reduction. Each PE
@@ -104,19 +92,7 @@ struct NodeDescriptor {
    * particles under a given node, its contribution is not considered.
    */
   void grow(const NodeDescriptor &other){
-    if(other.numParticles == 0){
-      return;
-    }
-
-    if(numParticles == 0){
-      smallestKey = other.smallestKey;
-      largestKey = other.largestKey;
-      numParticles = other.numParticles;
-    } else {
-      if(smallestKey > other.smallestKey) smallestKey = other.smallestKey;
-      if(largestKey < other.largestKey) largestKey = other.largestKey;
-      numParticles += other.numParticles;
-    }
+    numParticles += other.numParticles;
   }
 };
 

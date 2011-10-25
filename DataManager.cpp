@@ -59,8 +59,6 @@ DataManager::DataManager() :
   iteration(0),
   prevIterationStart(0.0),
   root(NULL),
-  keyRanges(NULL), 
-  rangeMsg(NULL)
 {
   init();
 }
@@ -317,7 +315,7 @@ void DataManager::decompose(BoundingBox &universe){
 void DataManager::initHistogramParticles(){
   int rootDepth = 0;
   
-  sortingRoot = new Node<NodeDescriptor>(Key(1),
+  root = new Node<ForceData>(Key(1),
                          rootDepth,
                          myParticles.getVec(),
                          myNumParticles);
@@ -330,7 +328,7 @@ void DataManager::initHistogramParticles(){
     its children and contributes the number of particles
     held by each child to a reduction.
   */
-  activeBins.addNewNode(sortingRoot);
+  activeBins.addNewNode(root);
 
   // don't access myParticles through ckvec after this
   // anyway. these must be reset before this DM starts
@@ -368,7 +366,7 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
     The newly created children of the active leaves
     are now the active leaves themselves. 
   */
-  CkVec<pair<Node<NodeDescriptor>*,bool> > *active = activeBins.getActive();
+  CkVec<pair<Node<ForceData>*,bool> > *active = activeBins.getActive();
   CkAssert(numRecvdBins == active->length());
 
   // Check which new active leaves need to be partitioned
@@ -384,11 +382,6 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
         CkPrintf("have %d treepieces need %d\n",globalParams.numTreePieces,numTreePieces);
         CkAbort("Need more tree pieces!\n");
       }
-    }
-    else{
-      // This node will NOT be refined further; save its particulars
-      Node<NodeDescriptor> *nd = (*active)[i].first;
-      nd->data = descriptors[i];
     }
 
     particlesHistogrammed += descriptors[i].numParticles;
@@ -406,40 +399,21 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
     decompIterations = 0;
     
     /*
-      As a result of the decomposition, each tree piece has a contiguous 
-      range of particles (keys). These are to be broadcast to the workers
-      becaue they are needed to construct the local tree on each PE. 
-    */
-    keyRanges = new Key[numTreePieces*2];
-    /*
       Here the master is also worker 0. It holds some particles 
       that are to be sent to the appropriate tree pieces. These
       are flushed now.
     */
     flushParticles();
-    // PE 0 sets ranges in sendParticlesToTreePiece, which is
-    // called by ParticleFlushWorker in flushParticles()
-    haveRanges = true;
     // Find out how many tree pieces are hosted on this PE
     senseTreePieces();
-
-    int numKeys = numTreePieces*2;
 
     /*
       Tell all PEs that there are no remaining active leaves,
       i.e. we have obtained a partitioning of particles on to
       tree pieces such that each tree piece gets no more than 
       a threshold (ppc) number of particles.
-
-      Also, give the workers the range of particles held by 
-      each tree piece. The worker PEs will use this information
-      to find which portions of the tree are local to the PE,
-      and which ones are remote.
     */
-    RangeMsg *rmsg = new (numKeys) RangeMsg;
-    rmsg->numTreePieces = numTreePieces;
-    memcpy(rmsg->keys,keyRanges,sizeof(Key)*numKeys);
-    thisProxy.sendParticles(rmsg);
+    thisProxy.sendParticles(numTreePieces);
   }
 
   delete msg;
@@ -456,21 +430,13 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   activeBins data structure.
 */
 void DataManager::flushParticles(){
-  ParticleFlushWorker pfw(this);
-  scaffoldTrav.preorderTraversal(sortingRoot,&pfw);
+  int numLeaves = 0;
+  root->markNode(numLeaves);
 
-  int numUsefulTreePieces = pfw.getNumLeaves(); 
+  int numUsefulTreePieces = numLeaves;
   for(int i = numUsefulTreePieces; i < globalParams.numTreePieces; i++){
     treePieceProxy[i].receiveParticles();
   }
-
-  // done with sorting tree; delete
-  FreeTreeWorker<NodeDescriptor> freeWorker;
-  scaffoldTrav.postorderTraversal(sortingRoot,&freeWorker);
-
-  delete sortingRoot;
-  sortingRoot = NULL;
-
 }
 
 /*
@@ -495,7 +461,7 @@ void DataManager::receiveSplitters(CkVec<int> splitBins) {
 /*
   Send the particles that you are holding for tree piece 'tp' to it.
 */
-void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
+void DataManager::sendParticlesToTreePiece(Node<ForceData> *nd, int tp) {
   CkAssert(nd->getNumChildren() == 0);
   int np = nd->getNumParticles();
 
@@ -509,22 +475,6 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
     treePieceProxy[tp].receiveParticles();
   }
 
-  /* 
-    Only PE 0 (the master) has the correct ranges, 
-    since it receives reduced data from all workers
-  */
-  if(CkMyPe() == 0){
-    // Sanity checks
-    if(nd->data.numParticles > 0){
-      CkAssert(nd->data.smallestKey <= nd->data.largestKey);
-    } else {
-      CkAssert(nd->data.smallestKey == nd->data.largestKey);
-    }
-
-    keyRanges[(tp<<1)] = nd->data.smallestKey;
-    keyRanges[(tp<<1)+1] = nd->data.largestKey;
-
-  }
 }
 
 /*
@@ -535,14 +485,10 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
   It also communicates the ranges of particles held  by each
   tree piece to every PE. 
 */
-void DataManager::sendParticles(RangeMsg *msg){
+void DataManager::sendParticles(int ntp){
   if(CkMyPe() != 0){
     // Save tree piece particle ranges
-    numTreePieces = msg->numTreePieces;
-    // Save tree piece particle ranges
-    keyRanges = msg->keys;
-    haveRanges = true;
-    rangeMsg = msg;
+    numTreePieces = ntp;
     // Flush particles to their owner tree pieces
     flushParticles();
 
@@ -555,8 +501,6 @@ void DataManager::sendParticles(RangeMsg *msg){
       have done the above at the end of receiveHistogram.
     */
     CkAssert(numTreePieces == msg->numTreePieces);
-    CkAssert(haveRanges);
-    delete msg;
   }
 }
 
@@ -587,7 +531,7 @@ void DataManager::senseTreePieces(){
   from them. All nodes and particles within this PE-level tree are
   then visible to all the tree pieces on the PE.
 */
-void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp, Key smallestKey, Key largestKey){ 
+void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp){ 
   submittedParticles.push_back(TreePieceDescriptor(vec,numParticles,tp,tp->getIndex(),smallestKey,largestKey));
   myNumParticles += numParticles;
   if(submittedParticles.length() == numLocalTreePieces && haveRanges){
@@ -635,11 +579,6 @@ void DataManager::processSubmittedParticles(){
   myParticles.quickSort();
 
   buildTree();
-  // add dummy tree piece whose index is larger than
-  // that of all others. this is required to mark the
-  // boundary of nodes/particles owned by this PE.
-  submittedParticles.push_back(TreePieceDescriptor(globalParams.numTreePieces));
-
   // makeMoments also sends out requests for moments 
   // of remote nodes
   makeMoments();
