@@ -11,16 +11,16 @@ int mssb64_pos(Key x);
 
 void findSplitters(Particle *particles, int start, int end, int *splitters, Key childKey, int childDepth);
 
-typedef bool (*BinarySearchGEFn)(void *, Key k);
+typedef bool (*BinarySearchGEFn)(void *, void *);
 
-template<typename T>
-int binary_search_ge(Key check, T *particles, int start, int end, BinarySearchGEFn fn){
+template<typename KEY_TYPE, typename OBJ_TYPE>
+int binary_search_ge(const KEY_TYPE &check, const OBJ_TYPE *particles, int start, int end){
   int lo = start;
   int hi = end;
   int mid;
   while(lo < hi){
     mid = lo+((hi-lo)>>1);
-    if((*fn)(particles+mid,check)){
+    if(particles[mid] >= check){
       hi = mid;
     }
     else{

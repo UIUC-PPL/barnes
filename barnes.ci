@@ -91,7 +91,7 @@ mainmodule barnes {
     entry void decompose(BoundingBox &universe);
     entry void receiveHistogram(CkReductionMsg *msg);
     entry void receiveSplitters(CkVec<int> splitBins);
-    entry void sendParticles(RangeMsg *msg);
+    entry void sendParticles(int numTreePieces);
     entry [expedited] void receiveMoments(MomentsExchangeStruct moments);
 
     entry void recvParticles(ParticleReplyMsg *msg);

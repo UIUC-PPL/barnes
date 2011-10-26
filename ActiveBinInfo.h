@@ -66,7 +66,7 @@ template<typename T>
 struct ActiveBinInfo{ 
   CkVec<std::pair<Node<T>*, bool> > *oldvec;
   CkVec<std::pair<Node<T>*, bool> > *newvec;
-  CkVec<NodeDescriptor> counts;
+  CkVec<int> counts;
   //CkVec<Node<T>*> unrefined;
 
 
@@ -107,7 +107,7 @@ struct ActiveBinInfo{
     }else{
       kfirst = klast = Node<T>::getParticleLevelKey(node);
     }
-    counts.push_back(NodeDescriptor(np,node->getKey(),kfirst,klast));
+    counts.push_back(np);
   }
 
   /*
@@ -156,7 +156,7 @@ struct ActiveBinInfo{
         }else{
           kfirst = klast = Node<T>::getParticleLevelKey(child);
         }
-        counts.push_back(NodeDescriptor(np,child->getKey(),kfirst,klast));
+        counts.push_back(np);
       }
     }
 
@@ -197,7 +197,7 @@ struct ActiveBinInfo{
     return counts.length();
   }
 
-  NodeDescriptor *getCounts(){
+  int *getCounts(){
     return counts.getVec();
   }
 
@@ -222,8 +222,10 @@ struct ActiveBinInfo{
   }
 };
 
-bool CompareKeys(void *a, Key k);
 
+#if 0
+
+bool CompareKeys(void *a, Key k);
 /*
  * This is a customization of the ActiveBinInfo class for the
  * purpose of tree building. It differs from its parent in the
@@ -327,5 +329,6 @@ struct OwnershipActiveBinInfo : public ActiveBinInfo<T> {
     }
   }
 };
+#endif
 
 #endif

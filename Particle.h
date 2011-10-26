@@ -19,8 +19,9 @@ struct Particle : public ExternalParticle {
 
   Particle() : potential(0.0), acceleration(0.0) { }
 
-  bool operator<=(const Particle &other){ return key <= other.key; }
-  bool operator>=(const Particle &other){ return key >= other.key; }
+  bool operator<=(const Particle &other) const { return key <= other.key; }
+  bool operator>=(const Particle &other) const { return key >= other.key; }
+  bool operator>=(const Key &k) const {return key >= k; }
 };
 
 

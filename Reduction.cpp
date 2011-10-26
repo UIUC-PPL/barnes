@@ -12,7 +12,9 @@
 #include "ActiveBinInfo.h"
 
 CkReduction::reducerType BoundingBoxGrowReductionType;
+#if 0
 CkReduction::reducerType NodeDescriptorReductionType;
+#endif
 CkReduction::reducerType DtReductionType;
 
 /*
@@ -30,6 +32,7 @@ CkReductionMsg *BoundingBoxGrowReduction(int nmsgs, CkReductionMsg **msgs){
   return CkReductionMsg::buildNew(sizeof(BoundingBox),&bb);
 }
 
+#if 0
 /*
  * Reduction type for computing the total number of particles underneath 
  * active nodes during decomposition. Also computes the smallest and 
@@ -49,6 +52,7 @@ CkReductionMsg *NodeDescriptorReduction(int nmsgs, CkReductionMsg **msgs){
   }
   return CkReductionMsg::buildNew(msgs[0]->getSize(),msgs[0]->getData());
 }
+#endif
 
 /*
  * Reduction type for basic statistics instrumented during the course of the
@@ -75,6 +79,8 @@ CkReductionMsg *DtReduction(int nmsgs, CkReductionMsg **msgs){
  */
 void registerReducers(){
   BoundingBoxGrowReductionType = CkReduction::addReducer(BoundingBoxGrowReduction);
+#if 0
   NodeDescriptorReductionType = CkReduction::addReducer(NodeDescriptorReduction);
+#endif
   DtReductionType = CkReduction::addReducer(DtReduction);
 }

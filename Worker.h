@@ -22,6 +22,7 @@ class CutoffWorker {
   virtual void beforeParticleForces(Key k) {}
 };
 
+#if 0
 class DataManager;
 class ParticleFlushWorker : public CutoffWorker<NodeDescriptor> {
   int leafCnt;
@@ -72,6 +73,7 @@ class MomentsWorker : public CutoffWorker<ForceData> {
   void setLeafType(Node<ForceData> *leaf);
   void setTypeFromChildren(Node<ForceData> *node);
 };
+#endif
 
 class State;
 class TraversalWorker : public CutoffWorker<ForceData> {

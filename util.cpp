@@ -40,14 +40,16 @@ Key mssb64(Key x)
   return(x & ~(x >> 1));
 }
 
-bool CompareKeys(void *a, Key k){
+bool CompareKeys(void *a, void *b){
   Key *ownerKey = (Key *)a;
-  return (*ownerKey >= k);
+  Key *k = (Key *)b;
+  return (*ownerKey >= *k);
 }
 
-bool CompareParticleToKey(void *a, Key k){
+bool CompareParticleToKey(void *a, void *b){
   Particle *p = (Particle *)a;
-  return (p->key >= k);
+  Key *k = (Key *)b;
+  return (p->key >= *k);
 }
 
 void findSplitters(Particle *particles, int start, int end, int *splitters, Key childKey, int childDepth){
@@ -66,7 +68,7 @@ void findSplitters(Particle *particles, int start, int end, int *splitters, Key 
     childKey++;
     Key testKey = (childKey << (TREE_KEY_BITS-(nRankBits*childDepth+1))); 
     //CkPrintf("(%d) findSplitters [%d - %d] start %lx end %lx test %lx\n", CkMyPe(), start, end-1, particles[start].key, particles[end-1].key, testKey);
-    int firstGEIdx = binary_search_ge<Particle>(testKey, particles, start, end, CompareParticleToKey); 
+    int firstGEIdx = binary_search_ge<Key,Particle>(testKey, particles, start, end); 
     splitters[i] = firstGEIdx;
     start = firstGEIdx;
   }

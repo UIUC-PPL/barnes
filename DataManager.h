@@ -63,6 +63,9 @@ class DataManager : public CBase_DataManager {
   int iteration;
   int decompIterations;
   ActiveBinInfo<ForceData> activeBins;
+  // Root of particles on this PE
+  // Used in both decomposition and traversal
+  Node<ForceData> *root;
 
   TreePieceCounter localTreePieces;
   int numLocalTreePieces;
@@ -86,12 +89,10 @@ class DataManager : public CBase_DataManager {
   CkVec< std::pair<Key, int> > bufferedNodeRequests;
   CkVec< std::pair<Key, int> > bufferedParticleRequests;
 
-  Traversal<NodeDescriptor> scaffoldTrav;
-  Traversal<ForceData> fillTrav;
-
   map<Key,Request> nodeRequestTable;
   map<Key,Request> particleRequestTable;
 
+  Traversal<ForceData> fillTrav;
   int numTreePiecesDoneTraversals;
   CacheStats nodeReqs;
   CacheStats partReqs;
@@ -108,13 +109,20 @@ class DataManager : public CBase_DataManager {
   void sendHistogram();
   
   void senseTreePieces();
-  void buildTree();
+  void processSubmittedParticles();
+  int buildTree(Node<ForceData> *node, int pstart, int pend, int tpstart, int tpend);
+  void singleBuildTree(Node<ForceData> *node, int ownerTreePiece);
 
   void flushParticles();
+  int flushAndMark(Node<ForceData> *node, int mark); 
 
-  void processSubmittedParticles();
+#if 0
   void makeMoments();
   void flushMomentRequests();
+#endif
+
+  void notifyParentMomentsDone(Node<ForceData> *node);
+  void momentsResponseHelper(Node<ForceData> *);
   void respondToMomentsRequest(Node<ForceData> *,CkVec<int>&);
   Node<ForceData> *lookupNode(Key k);
 
@@ -129,9 +137,11 @@ class DataManager : public CBase_DataManager {
   void freeTree();
   void finishIteration();
 
+#if 0
   void findMinVByA(DtReductionStruct &);
-
   void markNaNBuckets();
+#endif
+  
   void printTree(Node<ForceData>*, ostream &);
   void doPrintTree();
 
@@ -145,13 +155,13 @@ class DataManager : public CBase_DataManager {
   void decompose(BoundingBox &universe);
   void receiveHistogram(CkReductionMsg *msg);
   void receiveSplitters(CkVec<int> splitBins);
-  void sendParticles(RangeMsg *msg);
-  void sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp);
+  void sendParticles(int);
+  void sendParticlesToTreePiece(Node<ForceData> *nd, int tp);
 
   void receiveMoments(MomentsExchangeStruct moments);
   
   // called by tree pieces
-  void submitParticles(CkVec<ParticleMsg *> *vec, int numParticles, TreePiece *tp, Key smallestKey, Key largestKey); 
+  void submitParticles(CkVec<ParticleMsg *> *vec, int numParticles, TreePiece *tp);
   void requestMoments(Key k, int replyTo);
   void advance(CkReductionMsg *);
   void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit);

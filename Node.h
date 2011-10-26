@@ -221,6 +221,7 @@ class Node {
   void childMomentsReady(){ numChildrenMomentsReady++; }
   int getNumChildrenMomentsReady() const { return numChildrenMomentsReady; }
   bool allChildrenMomentsReady() const { return numChildrenMomentsReady == core.numChildren; }
+  void setChildrenMomentsReady() { numChildrenMomentsReady = getNumChildren(); }
 
 #if 0
   void getOwnershipFromChildren(){
@@ -518,17 +519,6 @@ class Node {
 
   }
 
-  void preorder(CutoffWorker<T> &worker){
-    int ret = worker.work(this);
-    if(ret > 0 && getNumChildren() > 0){
-      Node<T> *child = getChildren();
-      for(int i = 0; i < getNumChildren(); i++){
-        child->preorder(worker);
-        child++;
-      }
-    }
-  }
-
   Node<T> *getLeftChild(){
     return getChildren();
   }
@@ -537,115 +527,6 @@ class Node {
     return getChildren()+1;
   }
 
-  bool isLeft() { 
-    Node<T> *par = getParent();
-    if(par == NULL) return false;
-    return (par->getKey()>>1 == getKey());
-  }
-
-  // FIXME 
-  // After flushing particles, delete old array
-  int markNode(int leafNum){
-    setOwnerStart(leafNum);
-    int firstNotInLeft, firstNotInNode;
-    if(getNumChildren() > 0){
-      firstNotInLeft = getLeftChild()->markNode(leafNum);
-      firstNotInNode = getRightChild()->markNode(firstNotInLeft);
-    }
-    else{
-      // FIXME - call senddParticlesToTreePiece
-      firstNotInNode = leafNum+1;
-    }
-    setOwnerEnd(firstNotInNode);
-    return getOwnerEnd();
-  }
-
-  // Each node should have been marked with the 
-  // min and max tree piece indices that it
-  // hosts beneath it. Use this information to
-  // obtain the roots of the 'localTreePieces' 
-  // and build trees there. 
-  // This procedure only goes
-  // down to the depths of TreePiece roots; after that,
-  // the TreePiece::buildTree function is invoked.
-  // Returns the extent of this node's particles in the DM's array
-  int buildTree(Particle *particles, int pstart, int pend, int *localTreePieces, int tpstart, int tpend){
-    if(tpend <= tpstart){
-      // No local tree piece under this node
-      // It is Remote/RemoteBucket/RemoteEmptyBucket
-      // FIXME 
-      // Make request for remote node
-      setParticles(NULL,0);
-      setChildren(NULL,0);
-      // Set type when requested moments are received
-      // FIXME 
-      // Delete subtree beneath it
-      // Don't tell parent that I'm done
-      return;
-    }
-
-    int firstParticleNotInLeft, firstParticleNotInRight;
-    if(tpstart-tpend=1){
-      // This is the first node that has 
-      // a single tree piece beneath it:
-      // must be the root of that tree piece
-
-      // Construct the entire tree underneath this node
-      // and report the first particle index that doesn't
-      // lie within it
-      firstParticleNotInRight = singleTreeBuild(tpstart);
-      if(getNumChildren() == 0){
-        if(getNumParticles() == 0) setType(EmptyBucket);
-        else setType(Bucket);
-      }
-      else setType(Internal);
-    }
-    else{
-      // Make sure that the range of tree pieces
-      // is contained within this node; otherwise,
-      // we shouldn't have made this call at all.
-      CkAssert(tpstart >= getOwnerStart());
-      CkAssert(tpend <= getOwnerEnd());
-      // Find the first local TreePiece that has
-      // an index beyond the left child's last
-      // contained TreePiece, i.e. equal to or after
-      // the right child's first contained TreePiece 
-      Node<T> *leftChild = getLeftChild();
-      Node<T> *rightChild = getRightChild();
-      int tp = binary_search_ge<int>(rightChild->getOwnerStart(),localTreePieces,tpstart,tpend); 
-      firstParticleNotInLeft = leftChild->buildTree(particles,pstart,pend,treePieceKeys,tpstart,tp);
-      firstParticleNotInRight = rightChild->buildTree(particles,firstParticleNotInLeft,pend,treePieceKeys,tp,tpend);
-    }
-
-    if(childMomentsReady()){
-      // All descendants were able to construct their subtrees
-      // from data local to this PE: they must all be internal,
-      // and so must this node
-      setType(Internal);
-      // Create node's moments from those of children
-      getMomentsFromChildren();
-      // Tell node's parent it is done building subtree
-      Node<T> *parent = getParent();
-      if(parent != NULL){
-        parent->childMomentsReady();
-      }
-      else{
-        // The root's moments have been computed,
-        // i.e. all particles were internal to this
-        // PE.
-        CkAssert(getKey() == Key(1));
-        treeMomentsDone();
-      }
-    }
-    else{
-      // Some descendants of node were unable to
-      // construct their moments from PE-local data,
-      // i.e. they are Remote: therefore, this node must be 
-      // Boundary. It CANNOT be Remote since tpstart < tpend for it
-      setType(Boundary);
-    }
-  }
-  
 };
 
 /*

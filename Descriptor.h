@@ -69,6 +69,7 @@ struct BoundingBox {
 
 };
 
+#if 0
 /* 
  * NodeDescriptor: used to keep track of the number of particles
  * on a particular PE under an active node during domain decomposition. 
@@ -95,6 +96,7 @@ struct NodeDescriptor {
     numParticles += other.numParticles;
   }
 };
+#endif
 
 class TreePiece;
 struct ParticleMsg;
@@ -113,32 +115,34 @@ struct TreePieceDescriptor {
   TreePiece *owner;
   int index;
   int numParticles;
-  Key smallestKey;
-  Key largestKey;
 
   int bucketStartIdx;
   int bucketEndIdx;
 
   TreePieceDescriptor() : 
-    vec(NULL), owner(NULL), numParticles(0), index(-1), smallestKey(~Key(0)), largestKey(Key(0))
+    vec(NULL), owner(NULL), numParticles(0), index(-1)
   {
   }
 
-  TreePieceDescriptor(CkVec<ParticleMsg*> *v, int np, TreePiece *o, int i, Key sk, Key lk) : 
-    vec(v), owner(o), index(i), smallestKey(sk), largestKey(lk), numParticles(np)
+  TreePieceDescriptor(CkVec<ParticleMsg*> *v, int np, TreePiece *o, int i) : 
+    vec(v), owner(o), index(i), numParticles(np)
   {
   }
 
   TreePieceDescriptor(int i) : 
-    vec(NULL), owner(NULL), numParticles(0), index(i), smallestKey(~Key(0)), largestKey(Key(0))
+    vec(NULL), owner(NULL), numParticles(0), index(i)
   {
   }
 
-  bool operator<=(const TreePieceDescriptor &t){
-    return smallestKey <= t.smallestKey;
+  bool operator<=(const TreePieceDescriptor &t) const {
+    return index <= t.index;
   }
-  bool operator>=(const TreePieceDescriptor &t){
-    return smallestKey >= t.smallestKey;
+  bool operator>=(const TreePieceDescriptor &t) const {
+    return index >= t.index;
+  }
+
+  bool operator>=(const int &t) const {
+    return index >= t;
   }
 };
 

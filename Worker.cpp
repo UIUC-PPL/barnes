@@ -6,6 +6,7 @@
 
 extern CProxy_TreePiece treePieceProxy;
 
+#if 0
 int ParticleFlushWorker::work(Node<NodeDescriptor> *node){
   if(node->getNumChildren() > 0) return 1;
 
@@ -133,6 +134,7 @@ void MomentsWorker::setTypeFromChildren(Node<ForceData> *node){
     node->setType(Boundary);
   }
 }
+#endif
 
 int TraversalWorker::work(Node<ForceData> *node){
   NodeType type = node->getType();

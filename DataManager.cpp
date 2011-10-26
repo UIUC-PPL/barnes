@@ -17,6 +17,8 @@
 
 */
 
+#define TB_DEBUG CkPrintf
+
 #include "DataManager.h"
 #include "Reduction.h"
 #include "defines.h"
@@ -58,7 +60,7 @@ void copyMomentsToNode(Node<ForceData> *node, const MomentsExchangeStruct &mes){
 DataManager::DataManager() : 
   iteration(0),
   prevIterationStart(0.0),
-  root(NULL),
+  root(NULL)
 {
   init();
 }
@@ -344,14 +346,14 @@ void DataManager::initHistogramParticles(){
 */
 void DataManager::sendHistogram(){
   CkCallback cb(CkIndex_DataManager::receiveHistogram(NULL),0,this->thisgroup);
-  contribute(sizeof(NodeDescriptor)*activeBins.getNumCounts(),activeBins.getCounts(),NodeDescriptorReductionType,cb);
+  contribute(sizeof(int)*activeBins.getNumCounts(),activeBins.getCounts(),CkReduction::sum_int,cb);
   activeBins.reset();
 }
 
 // executed on PE 0
 void DataManager::receiveHistogram(CkReductionMsg *msg){
-  int numRecvdBins = msg->getSize()/sizeof(NodeDescriptor);
-  NodeDescriptor *descriptors = (NodeDescriptor *)msg->getData();
+  int numRecvdBins = msg->getSize()/sizeof(int);
+  int *descriptors = (int *)msg->getData();
   CkVec<int> binsToRefine;
 
   /* 
@@ -371,7 +373,7 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
 
   // Check which new active leaves need to be partitioned
   for(int i = 0; i < numRecvdBins; i++){
-    if(descriptors[i].numParticles > (Real)(DECOMP_TOLERANCE*globalParams.ppc)){
+    if(descriptors[i] > (Real)(DECOMP_TOLERANCE*globalParams.ppc)){
       // Need to refine this leaf (partition)
       binsToRefine.push_back(i);
       // By refining this node, we will remove one tree piece
@@ -384,7 +386,7 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
       }
     }
 
-    particlesHistogrammed += descriptors[i].numParticles;
+    particlesHistogrammed += descriptors[i];
   }
 
   // Do any active leaves need to be partitioned?
@@ -430,10 +432,8 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   activeBins data structure.
 */
 void DataManager::flushParticles(){
-  int numLeaves = 0;
-  root->markNode(numLeaves);
+  int numUsefulTreePieces = flushAndMark(root,0);
 
-  int numUsefulTreePieces = numLeaves;
   for(int i = numUsefulTreePieces; i < globalParams.numTreePieces; i++){
     treePieceProxy[i].receiveParticles();
   }
@@ -500,7 +500,7 @@ void DataManager::sendParticles(int ntp){
       If this is worker 0, it is also the master, so it must
       have done the above at the end of receiveHistogram.
     */
-    CkAssert(numTreePieces == msg->numTreePieces);
+    CkAssert(numTreePieces == ntp);
   }
 }
 
@@ -532,9 +532,9 @@ void DataManager::senseTreePieces(){
   then visible to all the tree pieces on the PE.
 */
 void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp){ 
-  submittedParticles.push_back(TreePieceDescriptor(vec,numParticles,tp,tp->getIndex(),smallestKey,largestKey));
+  submittedParticles.push_back(TreePieceDescriptor(vec,numParticles,tp,tp->getIndex()));
   myNumParticles += numParticles;
-  if(submittedParticles.length() == numLocalTreePieces && haveRanges){
+  if(submittedParticles.length() == numLocalTreePieces){
     processSubmittedParticles();
   }
 }
@@ -565,34 +565,41 @@ void DataManager::processSubmittedParticles(){
   
   myParticles.resize(myNumParticles);
 
+  int numLocalUseful = 0;
   for(int i = 0; i < submittedParticles.length(); i++){
     TreePieceDescriptor &descr = submittedParticles[i];
+    
+    if(descr.index < numTreePieces) numLocalUseful++;
+
     CkVec<ParticleMsg*> *vec = descr.vec;
     for(int j = 0; j < vec->length(); j++){
       ParticleMsg *msg = (*vec)[j];
-      memcpy(myParticles.getVec()+offset,msg->part,sizeof(Particle)*msg->numParticles);
+      memcpy(&myParticles[offset],msg->part,sizeof(Particle)*msg->numParticles);
       offset += msg->numParticles;
       delete msg;
     }
   }
 
+  // XXX can make this a number of smaller sorts
   myParticles.quickSort();
 
+  buildTree(root,0,myNumParticles,0,numLocalUseful);
+  doneTreeBuild = true;
+
+#if 0
   buildTree();
   // makeMoments also sends out requests for moments 
   // of remote nodes
   makeMoments();
-
-  doneTreeBuild = true;
+#endif
 
   // are all particles local to this PE? 
-  if(root != NULL && root->getType() == Internal){
+  if(root != NULL && root->allChildrenMomentsReady()){
     passMomentsUpward(root);
   }
-
-  flushMomentRequests();
 }
 
+#if 0
 void DataManager::buildTree(){
 
   int rootDepth = 0;
@@ -628,15 +635,19 @@ void DataManager::buildTree(){
     abi.processRefine(refines.getVec(), refines.length());
     numFatNodes = abi.getNumCounts();
   }
+  */
 
 }
+#endif
 
+#if 0
 void DataManager::makeMoments(){
   if(root == NULL) return;
 
   MomentsWorker mw(submittedParticles, nodeTable, localTPRoots, myBuckets);
   fillTrav.postorderTraversal(root,&mw);
 }
+#endif
 
 Node<ForceData> *DataManager::lookupNode(Key k){
   map<Key,Node<ForceData>*>::iterator it;
@@ -647,29 +658,27 @@ Node<ForceData> *DataManager::lookupNode(Key k){
 
 void DataManager::requestMoments(Key k, int replyTo){
   pendingMoments[k].push_back(replyTo);
-  TB_DEBUG("(%d) received requestMoments %lu from pe %d doneTreeBuild %d\n", 
-          CkMyPe(), k, replyTo, doneTreeBuild);
+  TB_DEBUG("(%d) received requestMoments from pe %d node %lu\n", CkMyPe(), replyTo, k);
 
-  if(doneTreeBuild){    
+  if(doneTreeBuild){
     Node<ForceData> *node = lookupNode(k);
+    CkAssert(node != NULL);
+#if 0
     if(node == NULL){
       CkPrintf("(%d) recvd request from %d for moments %lu\n", CkMyPe(), replyTo, k);
       CkAbort("bad request\n");
     }
-    bool ready = node->allChildrenMomentsReady();
-    TB_DEBUG("(%d) node %lu ready %d\n", CkMyPe(), k, ready);
+#endif
 
-    if(ready){
-      map<Key,CkVec<int> >::iterator it = pendingMoments.find(k);
-      CkVec<int> &requestors = it->second;
-      respondToMomentsRequest(node,requestors);
-      pendingMoments.erase(it);
-    }
+    bool ready = node->allChildrenMomentsReady();
+    TB_DEBUG("(%d) ready %d node %lu\n", CkMyPe(), ready, k);
+
+    if(ready) momentsResponseHelper(node);
   }
 }
 
+#if 0
 void DataManager::flushMomentRequests(){
-  CkAssert(doneTreeBuild);
   map<Key,CkVec<int> >::iterator it;
   for(it = pendingMoments.begin(); it != pendingMoments.end();){
     Key k = it->first;
@@ -687,6 +696,7 @@ void DataManager::flushMomentRequests(){
     }
   }
 }
+#endif
 
 void DataManager::respondToMomentsRequest(Node<ForceData> *node, CkVec<int> &replyTo){
   MomentsExchangeStruct moments = *node;
@@ -713,14 +723,18 @@ void DataManager::updateLeafMoments(Node<ForceData> *node, MomentsExchangeStruct
   passMomentsUpward(node);
 }
 
-void DataManager::passMomentsUpward(Node<ForceData> *node){
-  TB_DEBUG("(%d) passUp %lu\n", CkMyPe(), node->getKey());
+void DataManager::momentsResponseHelper(Node<ForceData> *node){
   map<Key,CkVec<int> >::iterator it = pendingMoments.find(node->getKey());
   if(it != pendingMoments.end()){
     CkVec<int> &requestors = it->second;
     respondToMomentsRequest(node,requestors);
     pendingMoments.erase(it);
   }
+}
+
+void DataManager::passMomentsUpward(Node<ForceData> *node){
+  TB_DEBUG("(%d) passUp %lu\n", CkMyPe(), node->getKey());
+  momentsResponseHelper(node);
 
   Node<ForceData> *parent = node->getParent();
   if(parent == NULL){
@@ -728,16 +742,13 @@ void DataManager::passMomentsUpward(Node<ForceData> *node){
     treeReady();
   }else{
     parent->childMomentsReady();
-    TB_DEBUG("[%d] parent %lu children ready %d\n", CkMyPe(), parent->getKey(), parent->getNumChildrenMomentsReady());
+    TB_DEBUG("[%d] passup children ready %d for node %lu\n", CkMyPe(), parent->getNumChildrenMomentsReady(), parent->getKey());
     if(parent->allChildrenMomentsReady()){
       parent->getMomentsFromChildren();
-      //parent->getOwnershipFromChildren();
       passMomentsUpward(parent);
     }
   }
 }
-
-// doneTreeBuild: built local tree and sent out requests for remote 
 
 void DataManager::treeReady(){
   treeMomentsReady = true;
@@ -769,6 +780,8 @@ void DataManager::startTraversal(){
   int start = 0;
   int end = myBuckets.length();
 
+  doPrintTree();
+
 #if 0
   for(int i = 0; i < myNumParticles; i++){
     Particle *p = &myParticles[i];
@@ -780,6 +793,10 @@ void DataManager::startTraversal(){
 
 #endif
 
+  //CkAbort("Code not yet fixed!\n");
+  contribute(0,0,CkReduction::sum_int,CkCallback(CkCallback::ckExit));
+
+#if 0
   if(end > 0){
     for(int i = 0; i < numLocalTreePieces-1; i++){
       TreePieceDescriptor &descr = submittedParticles[i];
@@ -808,6 +825,7 @@ void DataManager::startTraversal(){
   else{
     finishIteration();
   }
+#endif
 }
 
 void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
@@ -999,7 +1017,9 @@ void DataManager::finishIteration(){
   CkAssert(partReqs.test());
 
   DtReductionStruct dtred;
+#if 0
   findMinVByA(dtred);
+#endif
 
   dtred.pnInteractions = numInteractions[0];
   dtred.ppInteractions = numInteractions[1];
@@ -1169,8 +1189,8 @@ void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
   }
 }
 
-void DataManager::findMinVByA(DtReductionStruct &dtred){
 #if 0
+void DataManager::findMinVByA(DtReductionStruct &dtred){
   if(myNumParticles == 0) {
     dtred.haveNaN = false;
     return;
@@ -1184,12 +1204,12 @@ void DataManager::findMinVByA(DtReductionStruct &dtred){
     CkAssert(!isnan(v));
     if(isnan(a)) dtred.haveNaN = true;
   }
-#endif
 
 }
+#endif
 
-void DataManager::markNaNBuckets(){
 #if 0
+void DataManager::markNaNBuckets(){
   for(int i = 0; i < myBuckets.length(); i++){
     Node<ForceData> *bucket = myBuckets[i];
     Particle *part = bucket->getParticles();
@@ -1201,8 +1221,8 @@ void DataManager::markNaNBuckets(){
       }
     }
   }
-#endif
 }
+#endif
 
 void DataManager::init(){
   LBTurnInstrumentOff();
@@ -1213,10 +1233,9 @@ void DataManager::init(){
 
   decompIterations = 0;
 
-  haveRanges = false;
+  doneTreeBuild = false;
   numLocalTreePieces = -1;
   myBuckets.length() = 0;
-  doneTreeBuild = false;
   treeMomentsReady = false;
   numTreePiecesDoneTraversals = 0;
 
@@ -1227,6 +1246,7 @@ void DataManager::init(){
 
   CkAssert(activeBins.getNumCounts() == 0);
 
+#if 0
   if(CkMyPe() == 0 && keyRanges != NULL){
     delete[] keyRanges;
     keyRanges = NULL;
@@ -1235,6 +1255,7 @@ void DataManager::init(){
     delete rangeMsg;
     rangeMsg = NULL;
   }
+#endif
 
 
   numInteractions[0] = 0;
@@ -1246,7 +1267,6 @@ void DataManager::init(){
 void DataManager::resumeFromLB(){
 #if 0
   ckerr << CkMyPe() << " resumeFromLB" << endl;
-  // FIXME - remove this
   CkCallback excb(CkIndex_Main::niceExit(),mainProxy);
   contribute(0,0,CkReduction::sum_int,excb);
   return;
@@ -1293,6 +1313,159 @@ void DataManager::doPrintTree(){
   ofs << "}" << endl;
   ofs.close();
 }
+
+int DataManager::flushAndMark(Node<ForceData> *node, int leafNum){
+  node->setOwnerStart(leafNum);
+  int firstNotInLeft, firstNotInNode;
+  if(node->getNumChildren() > 0){
+    firstNotInLeft = flushAndMark(node->getLeftChild(),leafNum);
+    firstNotInNode = flushAndMark(node->getRightChild(),firstNotInLeft);
+  }
+  else{
+    // sendParticlesToTreePiece whose root is 'node'
+    sendParticlesToTreePiece(node,leafNum);
+    firstNotInNode = leafNum+1;
+  }
+  node->setOwnerEnd(firstNotInNode);
+  return firstNotInNode;
+}
+
+// Each node should have been marked with the 
+// min and max tree piece indices that it
+// hosts beneath it. Use this information to
+// obtain the roots of the 'localTreePieces' 
+// and build trees there. 
+// This procedure only goes
+// down to the depths of TreePiece roots; after that,
+// the singleBuildTree function is invoked.
+// Returns the extent of this node's particles in the DM's array
+int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpstart, int tpend){
+  CkPrintf("(%d) pstart %d pend %d tpstart %d tpend %d node %lu\n", CkMyPe(), pstart, pend, tpstart, tpend, node->getKey());
+  nodeTable[node->getKey()] = node;
+  if(tpend <= tpstart){
+    // No local tree piece under this node
+    // It is Remote/RemoteBucket/RemoteEmptyBucket
+    // Make request for remote node
+    int numOwners = node->getOwnerEnd()-node->getOwnerStart();
+    int requestOwner = node->getOwnerStart()+(rand()%numOwners);
+    TB_DEBUG("(%d) requestMoments from tree piece %d for node %lu\n", CkMyPe(), requestOwner, node->getKey());
+
+    CkEntryOptions opts;
+    opts.setQueueing(CK_QUEUEING_IFIFO);
+    opts.setPriority(REQUEST_MOMENTS_PRIORITY);
+    treePieceProxy[requestOwner].requestMoments(node->getKey(),CkMyPe(),&opts);
+
+    // There are no particles on this PE under this node
+    node->setParticles(NULL,0);
+    node->setChildren(NULL,0);
+    // Set type when requested moments are received
+    // FIXME 
+    // Delete subtree beneath this node
+    // Don't tell parent that I'm done
+
+    // Since this node didn't "consume" any particles,
+    return pstart;
+  }
+  else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
+    CkPrintf("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), submittedParticles[tpstart].index, node->getKey());
+    // This is the first node that has 
+    // a single tree piece beneath it.
+
+    // Construct the entire tree underneath this node
+    // and report the first particle index that doesn't
+    // lie within it
+    CkAssert(node->getOwnerStart() == submittedParticles[tpstart].index);
+    int np = submittedParticles[tpstart].numParticles;
+    node->setParticles(&myParticles[pstart],np);
+    singleBuildTree(node,submittedParticles[tpstart].index);
+    node->setChildrenMomentsReady();
+    notifyParentMomentsDone(node);
+    return pstart+np;
+  }
+
+  // Make sure that the range of tree pieces
+  // is contained within this node; otherwise,
+  // we shouldn't have made this call at all.
+  CkAssert(submittedParticles[tpstart].index >= node->getOwnerStart());
+  // Find the first local TreePiece that has
+  // an index beyond the left child's last
+  // contained TreePiece, i.e. equal to or after
+  // the right child's first contained TreePiece 
+  Node<ForceData> *leftChild = node->getLeftChild();
+  Node<ForceData> *rightChild = node->getRightChild();
+  int rightFirstOwner = rightChild->getOwnerStart(); 
+  int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner,&submittedParticles[0],tpstart,tpend); 
+  int firstParticleNotInLeft = buildTree(leftChild,pstart,pend,tpstart,tp);
+  int firstParticleNotInRight = buildTree(rightChild,firstParticleNotInLeft,pend,tp,tpend);
+
+  if(node->allChildrenMomentsReady()){
+    // All descendants were able to construct their subtrees
+    // from data local to this PE: they must all be internal,
+    // and so must this node. Note that this node cannot be
+    // a Bucket or EmptyBucket, since it has more than one
+    // local TreePiece underneath it
+    node->setType(Internal);
+    // Create node's moments from those of children
+    node->getMomentsFromChildren();
+    // Tell node's parent it is done building subtree
+    notifyParentMomentsDone(node);
+  }
+  else{
+    // Some descendants of node were unable to
+    // construct their moments from PE-local data,
+    // i.e. they are Remote: therefore, this node must be 
+    // Boundary. It CANNOT be Remote since tpstart < tpend for it
+    node->setType(Boundary);
+  }
+
+  return firstParticleNotInRight;
+}
+
+void DataManager::notifyParentMomentsDone(Node<ForceData> *node){
+  // Respond to any requestors for the moments of 'node'
+  CkPrintf("(%d) Notify parent flushing moments for node %lu\n", CkMyPe(), node->getKey());
+  momentsResponseHelper(node);
+
+  Node<ForceData> *parent = node->getParent();
+  if(parent != NULL) parent->childMomentsReady();
+  else{
+    // The root's moments have been computed,
+    // i.e. all particles were internal to this PE.
+    CkAssert(node->getKey() == Key(1));
+    treeReady();
+  }
+}
+
+// Recursive method to build the tree under a single TreePiece.
+// given an array of particles
+void DataManager::singleBuildTree(Node<ForceData> *node, int ownerTreePiece){
+  node->setOwners(ownerTreePiece,ownerTreePiece+1);
+  nodeTable[node->getKey()] = node;
+
+  int np = node->getNumParticles();
+  if(np <= globalParams.ppb){
+    if(np == 0) node->setType(EmptyBucket);
+    else node->setType(Bucket);
+    node->getMomentsFromParticles();
+  }
+  else{
+    node->setType(Internal);
+    // Shouldn't not have allocated any children yet.
+    CkAssert(node->getNumChildren() == 0);
+    // Partition the particles under this
+    // node among the two children. To do this,
+    // find the first particle that does not belong
+    // underneath the left child, which is the same
+    // as the first child that does belong under the
+    // right child.
+    node->refine();
+    singleBuildTree(node->getLeftChild(),ownerTreePiece);
+    singleBuildTree(node->getRightChild(),ownerTreePiece);
+    node->getMomentsFromChildren();
+  }
+}
+
+
 
 #include "Traversal_defs.h"
 
