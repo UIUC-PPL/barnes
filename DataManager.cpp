@@ -17,7 +17,7 @@
 
 */
 
-#define TB_DEBUG CkPrintf
+#define TB_DEBUG 
 
 #include "DataManager.h"
 #include "Reduction.h"
@@ -1141,9 +1141,8 @@ void DataManager::quiescence(){
 }
 
 void DataManager::freeTree(){
-  if(root != NULL){
-    FreeTreeWorker<ForceData> freeWorker;
-    fillTrav.postorderTraversal(root,&freeWorker); 
+  if(root != NULL) {
+    root->deleteBeneath();
     delete root;
     root = NULL;
   }
@@ -1340,7 +1339,7 @@ int DataManager::flushAndMark(Node<ForceData> *node, int leafNum){
 // the singleBuildTree function is invoked.
 // Returns the extent of this node's particles in the DM's array
 int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpstart, int tpend){
-  CkPrintf("(%d) pstart %d pend %d tpstart %d tpend %d node %lu\n", CkMyPe(), pstart, pend, tpstart, tpend, node->getKey());
+  TB_DEBUG("(%d) pstart %d pend %d tpstart %d tpend %d node %lu\n", CkMyPe(), pstart, pend, tpstart, tpend, node->getKey());
   nodeTable[node->getKey()] = node;
   if(tpend <= tpstart){
     // No local tree piece under this node
@@ -1357,17 +1356,17 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
 
     // There are no particles on this PE under this node
     node->setParticles(NULL,0);
+    // Delete subtree beneath this node
+    node->deleteBeneath();
     node->setChildren(NULL,0);
     // Set type when requested moments are received
-    // FIXME 
-    // Delete subtree beneath this node
     // Don't tell parent that I'm done
 
     // Since this node didn't "consume" any particles,
     return pstart;
   }
   else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
-    CkPrintf("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), submittedParticles[tpstart].index, node->getKey());
+    TB_DEBUG("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), submittedParticles[tpstart].index, node->getKey());
     // This is the first node that has 
     // a single tree piece beneath it.
 
@@ -1423,7 +1422,7 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
 
 void DataManager::notifyParentMomentsDone(Node<ForceData> *node){
   // Respond to any requestors for the moments of 'node'
-  CkPrintf("(%d) Notify parent flushing moments for node %lu\n", CkMyPe(), node->getKey());
+  TB_DEBUG("(%d) Notify parent flushing moments for node %lu\n", CkMyPe(), node->getKey());
   momentsResponseHelper(node);
 
   Node<ForceData> *parent = node->getParent();

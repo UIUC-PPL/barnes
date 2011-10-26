@@ -527,6 +527,16 @@ class Node {
     return getChildren()+1;
   }
 
+  void deleteBeneath(){
+    if(getNumChildren() == 0) return;
+    Node<T> *child = getChildren(); 
+    for(int i = 0; i < getNumChildren(); i++){
+      child->deleteBeneath();
+      child++;
+    }
+    delete[] getChildren();
+  }
+
 };
 
 /*
