@@ -1397,6 +1397,7 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
   int firstParticleNotInLeft = buildTree(leftChild,pstart,pend,tpstart,tp);
   int firstParticleNotInRight = buildTree(rightChild,firstParticleNotInLeft,pend,tp,tpend);
 
+  node->setParticles(&myParticles[pstart],pend-pstart);
   if(node->allChildrenMomentsReady()){
     // All descendants were able to construct their subtrees
     // from data local to this PE: they must all be internal,
