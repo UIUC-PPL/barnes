@@ -111,7 +111,7 @@ class DataManager : public CBase_DataManager {
   void senseTreePieces();
   void processSubmittedParticles();
   int buildTree(Node<ForceData> *node, int pstart, int pend, int tpstart, int tpend);
-  void singleBuildTree(Node<ForceData> *node, int ownerTreePiece);
+  void singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &ownerTreePiece);
 
   void flushParticles();
   int flushAndMark(Node<ForceData> *node, int mark); 

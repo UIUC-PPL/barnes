@@ -858,7 +858,7 @@ void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData
     if(leaf->isCached()) request.parentCached = true;
     else request.parentCached = false;
 
-    CkAssert(leaf->getOwnerStart() == leaf->getOwnerEnd());
+    CkAssert(leaf->getOwnerStart()+1 == leaf->getOwnerEnd());
     int owner = leaf->getOwnerStart();
     treePieceProxy[owner].requestParticles( std::make_pair(key, CkMyPe()) );
     request.sent = true;
@@ -911,7 +911,7 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
     if(leaf->isCached()) request.parentCached = true;
     else request.parentCached = false;
 
-    int numOwners = leaf->getOwnerEnd()-leaf->getOwnerStart()+1;
+    int numOwners = leaf->getOwnerEnd()-leaf->getOwnerStart();
     int requestOwner = leaf->getOwnerStart()+(rand()%numOwners);
     RRDEBUG("(%d) REQUEST node %lu from tp %d\n", CkMyPe(), key, requestOwner);
     treePieceProxy[requestOwner].requestNode( std::make_pair(key, CkMyPe()) );
@@ -1403,7 +1403,7 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
     // bucket and increment each time a new bucket is encountered (in singleBuildTree)
     currentTP.bucketEndIdx = currentTP.bucketStartIdx;
     // Build the completely local tree underneath the root current TreePiece
-    singleBuildTree(node,currentTP.index);
+    singleBuildTree(node,currentTP);
     // Since this node was completely local, its moments must have been computed
     node->setChildrenMomentsReady();
     // Tell parent node that one of its children has computed its moments
@@ -1470,8 +1470,8 @@ void DataManager::notifyParentMomentsDone(Node<ForceData> *node){
 
 // Recursive method to build the tree under a single TreePiece.
 // given an array of particles
-void DataManager::singleBuildTree(Node<ForceData> *node, int ownerTreePiece){
-  node->setOwners(ownerTreePiece,ownerTreePiece+1);
+void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp){
+  node->setOwners(tp.index,tp.index+1);
   nodeTable[node->getKey()] = node;
 
   int np = node->getNumParticles();
@@ -1482,7 +1482,7 @@ void DataManager::singleBuildTree(Node<ForceData> *node, int ownerTreePiece){
     // Add to the list of buckets on this PE
     myBuckets.push_back(node);
     // Record the fact that current tree piece has another bucket
-    submittedParticles[ownerTreePiece].bucketEndIdx++;
+    tp.bucketEndIdx++;
   }
   else{
     node->setType(Internal);
@@ -1495,8 +1495,8 @@ void DataManager::singleBuildTree(Node<ForceData> *node, int ownerTreePiece){
     // as the first child that does belong under the
     // right child.
     node->refine();
-    singleBuildTree(node->getLeftChild(),ownerTreePiece);
-    singleBuildTree(node->getRightChild(),ownerTreePiece);
+    singleBuildTree(node->getLeftChild(),tp);
+    singleBuildTree(node->getRightChild(),tp);
     node->getMomentsFromChildren();
   }
 }
