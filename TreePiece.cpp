@@ -69,13 +69,11 @@ void TreePiece::submitParticles(){
   myDM->submitParticles(&decompMsgsRecvd,myNumParticles,this);
 }
 
-void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int bucketStart, int bucketEnd){
+void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int _numBuckets){
   root = _root;
   myRoot = _myRoot;
-  myBuckets = buckets+bucketStart;
-  myNumBuckets = bucketEnd-bucketStart;
-
-  //if(myRoot != NULL) CkPrintf("tree piece %d prepare root %lu pe %d \n", thisIndex, myRoot->getKey(), CkMyPe());
+  myBuckets = buckets;
+  myNumBuckets = _numBuckets;
 }
 
 void TreePiece::startTraversal(){

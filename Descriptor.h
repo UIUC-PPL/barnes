@@ -115,6 +115,7 @@ struct TreePieceDescriptor {
   TreePiece *owner;
   int index;
   int numParticles;
+  Node<ForceData> *root;
 
   int bucketStartIdx;
   int bucketEndIdx;

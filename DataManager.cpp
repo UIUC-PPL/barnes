@@ -565,11 +565,11 @@ void DataManager::processSubmittedParticles(){
   
   myParticles.resize(myNumParticles);
 
-  int numLocalUseful = 0;
+  numLocalUsefulTreePieces = 0;
   for(int i = 0; i < submittedParticles.length(); i++){
     TreePieceDescriptor &descr = submittedParticles[i];
     
-    if(descr.index < numTreePieces) numLocalUseful++;
+    if(descr.index < numTreePieces) numLocalUsefulTreePieces++;
 
     CkVec<ParticleMsg*> *vec = descr.vec;
     for(int j = 0; j < vec->length(); j++){
@@ -583,7 +583,16 @@ void DataManager::processSubmittedParticles(){
   // XXX can make this a number of smaller sorts
   myParticles.quickSort();
 
-  buildTree(root,0,myNumParticles,0,numLocalUseful);
+  // The first local TreePiece will always have buckets numbered from 0
+  submittedParticles[0].bucketStartIdx = 0;
+  buildTree(root,0,myNumParticles,0,numLocalUsefulTreePieces);
+  // Set the set of buckets assigned to each non-useful tree piece to empty:
+#if 0
+  for(int i = numLocalUsefulTreePieces; i < numLocalTreePieces; i++){
+    TreePieceDescriptor &tp = submittedParticles[i];
+    tp.bucketStartIdx = tp.bucketEndIdx = myBuckets.length(); 
+  }
+#endif
   doneTreeBuild = true;
 
 #if 0
@@ -782,6 +791,17 @@ void DataManager::startTraversal(){
 
   doPrintTree();
 
+  if(numLocalUsefulTreePieces > 0){
+    for(int i = 0; i < numLocalUsefulTreePieces; i++){
+      TreePieceDescriptor &tp = submittedParticles[i];
+      tp.owner->prepare(root,tp.root,&myBuckets[tp.bucketStartIdx],tp.bucketEndIdx-tp.bucketStartIdx);
+      treePieceProxy[tp.index].startTraversal();
+    }
+  }
+  else{
+    finishIteration();
+  }
+
 #if 0
   for(int i = 0; i < myNumParticles; i++){
     Particle *p = &myParticles[i];
@@ -793,8 +813,6 @@ void DataManager::startTraversal(){
 
 #endif
 
-  //CkAbort("Code not yet fixed!\n");
-  contribute(0,0,CkReduction::sum_int,CkCallback(CkCallback::ckExit));
 
 #if 0
   if(end > 0){
@@ -1003,7 +1021,7 @@ void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 op
   numInteractions[0] += pnInter;
   numInteractions[1] += ppInter;
   numInteractions[2] += openCrit;
-  if(numTreePiecesDoneTraversals == numLocalTreePieces){
+  if(numTreePiecesDoneTraversals == numLocalUsefulTreePieces){
     finishIteration();
   }
 }
@@ -1241,7 +1259,6 @@ void DataManager::init(){
   firstSplitterRound = true;
   freeTree();
   nodeTable.clear();
-  localTPRoots.clear();
 
   CkAssert(activeBins.getNumCounts() == 0);
 
@@ -1366,19 +1383,34 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
     return pstart;
   }
   else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
-    TB_DEBUG("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), submittedParticles[tpstart].index, node->getKey());
+    TreePieceDescriptor &currentTP = submittedParticles[tpstart];
+    TB_DEBUG("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), currentTP.index, node->getKey());
     // This is the first node that has 
     // a single tree piece beneath it.
 
     // Construct the entire tree underneath this node
     // and report the first particle index that doesn't
     // lie within it
-    CkAssert(node->getOwnerStart() == submittedParticles[tpstart].index);
-    int np = submittedParticles[tpstart].numParticles;
+    CkAssert(node->getOwnerStart() == currentTP.index);
+    // There must be these many particles under the root of this TreePiece
+    int np = currentTP.numParticles;
     node->setParticles(&myParticles[pstart],np);
-    singleBuildTree(node,submittedParticles[tpstart].index);
+    // Set the bucket indices for this TreePiece
+    // If this is not the 0-th local TreePiece to have its bucket indices set,
+    // it can use the last bucket (exclusive) of the one previous to it as its first bucket
+    if(tpstart > 0) currentTP.bucketStartIdx = submittedParticles[tpstart-1].bucketEndIdx; 
+    // To obtain the last bucket, set it to the first
+    // bucket and increment each time a new bucket is encountered (in singleBuildTree)
+    currentTP.bucketEndIdx = currentTP.bucketStartIdx;
+    // Build the completely local tree underneath the root current TreePiece
+    singleBuildTree(node,currentTP.index);
+    // Since this node was completely local, its moments must have been computed
     node->setChildrenMomentsReady();
+    // Tell parent node that one of its children has computed its moments
     notifyParentMomentsDone(node);
+
+    // Set the root of the TreePiece
+    currentTP.root = node;
     return pstart+np;
   }
 
@@ -1447,6 +1479,10 @@ void DataManager::singleBuildTree(Node<ForceData> *node, int ownerTreePiece){
     if(np == 0) node->setType(EmptyBucket);
     else node->setType(Bucket);
     node->getMomentsFromParticles();
+    // Add to the list of buckets on this PE
+    myBuckets.push_back(node);
+    // Record the fact that current tree piece has another bucket
+    submittedParticles[ownerTreePiece].bucketEndIdx++;
   }
   else{
     node->setType(Internal);

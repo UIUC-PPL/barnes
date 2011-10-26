@@ -59,6 +59,10 @@ class DataManager : public CBase_DataManager {
   bool firstSplitterRound;
 
   int numTreePieces;
+  int numLocalUsefulTreePieces;
+  int numLocalTreePieces;
+  TreePieceCounter localTreePieces;
+  CkVec<TreePieceDescriptor> submittedParticles;
 
   int iteration;
   int decompIterations;
@@ -67,9 +71,6 @@ class DataManager : public CBase_DataManager {
   // Used in both decomposition and traversal
   Node<ForceData> *root;
 
-  TreePieceCounter localTreePieces;
-  int numLocalTreePieces;
-  CkVec<TreePieceDescriptor> submittedParticles;
 
   CkVec<Node<ForceData>*> myBuckets;
 
@@ -77,7 +78,6 @@ class DataManager : public CBase_DataManager {
   // from particles present on this PE
   bool doneTreeBuild;
   map<Key,Node<ForceData>*> nodeTable;
-  map<int,Node<ForceData>*> localTPRoots;
 
   map<Key,CkVec<int> > pendingMoments;
 
