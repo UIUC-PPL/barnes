@@ -568,6 +568,7 @@ void DataManager::processSubmittedParticles(){
   numLocalUsefulTreePieces = 0;
   for(int i = 0; i < submittedParticles.length(); i++){
     TreePieceDescriptor &descr = submittedParticles[i];
+    CkPrintf("(%d) tree piece %d submitted %d particles:\n", CkMyPe(), descr.index, descr.numParticles);
     
     if(descr.index < numTreePieces) numLocalUsefulTreePieces++;
 
@@ -575,6 +576,9 @@ void DataManager::processSubmittedParticles(){
     for(int j = 0; j < vec->length(); j++){
       ParticleMsg *msg = (*vec)[j];
       memcpy(&myParticles[offset],msg->part,sizeof(Particle)*msg->numParticles);
+      for(int k = offset; k < offset+msg->numParticles; k++){
+        CkPrintf("(%d) particle %d key %lu\n", CkMyPe(), k, myParticles[k].key);
+      }
       offset += msg->numParticles;
       delete msg;
     }
@@ -1069,7 +1073,9 @@ void DataManager::advance(CkReductionMsg *msg){
   myBox.numParticles = myNumParticles;
 
   if(CkMyPe() == 0){
-    CkPrintf("[STATS] node inter %lu part inter %lu open crit %lu dt %f\n", dtred->pnInteractions, dtred->ppInteractions, dtred->openCrit, globalParams.dtime);
+    CkPrintf("[STATS] node inter %lu\n", dtred->pnInteractions);
+    CkPrintf("[STATS] part inter %lu\n", dtred->ppInteractions);
+    CkPrintf("[STATS] open crit %lu\n", dtred->openCrit);
   }
 
   iteration++;
@@ -1355,7 +1361,7 @@ int DataManager::flushAndMark(Node<ForceData> *node, int leafNum){
 // down to the depths of TreePiece roots; after that,
 // the singleBuildTree function is invoked.
 // Returns the extent of this node's particles in the DM's array
-int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpstart, int tpend){
+void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpstart, int tpend){
   TB_DEBUG("(%d) pstart %d pend %d tpstart %d tpend %d node %lu\n", CkMyPe(), pstart, pend, tpstart, tpend, node->getKey());
   nodeTable[node->getKey()] = node;
   if(tpend <= tpstart){
@@ -1372,6 +1378,7 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
     treePieceProxy[requestOwner].requestMoments(node->getKey(),CkMyPe(),&opts);
 
     // There are no particles on this PE under this node
+    CkAssert(pstart == pend);
     node->setParticles(NULL,0);
     // Delete subtree beneath this node
     node->deleteBeneath();
@@ -1380,7 +1387,7 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
     // Don't tell parent that I'm done
 
     // Since this node didn't "consume" any particles,
-    return pstart;
+    return;
   }
   else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
     TreePieceDescriptor &currentTP = submittedParticles[tpstart];
@@ -1394,6 +1401,7 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
     CkAssert(node->getOwnerStart() == currentTP.index);
     // There must be these many particles under the root of this TreePiece
     int np = currentTP.numParticles;
+    CkAssert(np == pend-pstart);
     node->setParticles(&myParticles[pstart],np);
     // Set the bucket indices for this TreePiece
     // If this is not the 0-th local TreePiece to have its bucket indices set,
@@ -1411,8 +1419,21 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
 
     // Set the root of the TreePiece
     currentTP.root = node;
-    return pstart+np;
+    return;
   }
+
+
+  Node<ForceData> *leftChild = node->getLeftChild();
+  Node<ForceData> *rightChild = node->getRightChild();
+  node->setParticles(&myParticles[pstart],pend-pstart);
+
+  CkPrintf("(%d) BUILDTREE %lu\n", CkMyPe(), node->getKey());
+  CkPrintf("(%d) BUILDTREE rightChild %lu\n", CkMyPe(), rightChild->getKey());
+  CkPrintf("(%d) BUILDTREE testKey %lu\n", CkMyPe(), Node<ForceData>::getParticleLevelKey(rightChild));
+  for(int i = pstart; i < pend; i++){
+    CkPrintf("particle %d key %lu\n", i, myParticles[i].key);
+  }
+
 
   // Make sure that the range of tree pieces
   // is contained within this node; otherwise,
@@ -1422,14 +1443,13 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
   // an index beyond the left child's last
   // contained TreePiece, i.e. equal to or after
   // the right child's first contained TreePiece 
-  Node<ForceData> *leftChild = node->getLeftChild();
-  Node<ForceData> *rightChild = node->getRightChild();
   int rightFirstOwner = rightChild->getOwnerStart(); 
   int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner,&submittedParticles[0],tpstart,tpend); 
-  int firstParticleNotInLeft = buildTree(leftChild,pstart,pend,tpstart,tp);
-  int firstParticleNotInRight = buildTree(rightChild,firstParticleNotInLeft,pend,tp,tpend);
+  Key particleTestKey = Node<ForceData>::getParticleLevelKey(rightChild);
+  int firstParticleNotInLeft = binary_search_ge<Key,Particle>(particleTestKey,&myParticles[pstart],pstart,pend);
+  buildTree(leftChild,pstart,firstParticleNotInLeft,tpstart,tp);
+  buildTree(rightChild,firstParticleNotInLeft,pend,tp,tpend);
 
-  node->setParticles(&myParticles[pstart],pend-pstart);
   if(node->allChildrenMomentsReady()){
     // All descendants were able to construct their subtrees
     // from data local to this PE: they must all be internal,
@@ -1449,8 +1469,6 @@ int DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpst
     // Boundary. It CANNOT be Remote since tpstart < tpend for it
     node->setType(Boundary);
   }
-
-  return firstParticleNotInRight;
 }
 
 void DataManager::notifyParentMomentsDone(Node<ForceData> *node){
