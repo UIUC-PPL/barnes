@@ -568,7 +568,7 @@ void DataManager::processSubmittedParticles(){
   numLocalUsefulTreePieces = 0;
   for(int i = 0; i < submittedParticles.length(); i++){
     TreePieceDescriptor &descr = submittedParticles[i];
-    CkPrintf("(%d) tree piece %d submitted %d particles:\n", CkMyPe(), descr.index, descr.numParticles);
+    //CkPrintf("(%d) tree piece %d submitted %d particles:\n", CkMyPe(), descr.index, descr.numParticles);
     
     if(descr.index < numTreePieces) numLocalUsefulTreePieces++;
 
@@ -576,9 +576,11 @@ void DataManager::processSubmittedParticles(){
     for(int j = 0; j < vec->length(); j++){
       ParticleMsg *msg = (*vec)[j];
       memcpy(&myParticles[offset],msg->part,sizeof(Particle)*msg->numParticles);
+      /*
       for(int k = offset; k < offset+msg->numParticles; k++){
         CkPrintf("(%d) particle %d key %lu\n", CkMyPe(), k, myParticles[k].key);
       }
+      */
       offset += msg->numParticles;
       delete msg;
     }
@@ -1073,9 +1075,9 @@ void DataManager::advance(CkReductionMsg *msg){
   myBox.numParticles = myNumParticles;
 
   if(CkMyPe() == 0){
-    CkPrintf("[STATS] node inter %lu\n", dtred->pnInteractions);
-    CkPrintf("[STATS] part inter %lu\n", dtred->ppInteractions);
-    CkPrintf("[STATS] open crit %lu\n", dtred->openCrit);
+    CkPrintf("[STATS] node inter %llu\n", dtred->pnInteractions);
+    CkPrintf("[STATS] part inter %llu\n", dtred->ppInteractions);
+    CkPrintf("[STATS] open crit %llu\n", dtred->openCrit);
   }
 
   iteration++;
@@ -1391,7 +1393,9 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   }
   else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
     TreePieceDescriptor &currentTP = submittedParticles[tpstart];
+    int np = currentTP.numParticles;
     TB_DEBUG("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), currentTP.index, node->getKey());
+    //CkPrintf("(%d) SINGLE TREE index %d np %d pstart %d pend %d\n", CkMyPe(), currentTP.index, np, pstart, pend);
     // This is the first node that has 
     // a single tree piece beneath it.
 
@@ -1400,7 +1404,6 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     // lie within it
     CkAssert(node->getOwnerStart() == currentTP.index);
     // There must be these many particles under the root of this TreePiece
-    int np = currentTP.numParticles;
     CkAssert(np == pend-pstart);
     node->setParticles(&myParticles[pstart],np);
     // Set the bucket indices for this TreePiece
@@ -1427,12 +1430,16 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   Node<ForceData> *rightChild = node->getRightChild();
   node->setParticles(&myParticles[pstart],pend-pstart);
 
-  CkPrintf("(%d) BUILDTREE %lu\n", CkMyPe(), node->getKey());
-  CkPrintf("(%d) BUILDTREE rightChild %lu\n", CkMyPe(), rightChild->getKey());
-  CkPrintf("(%d) BUILDTREE testKey %lu\n", CkMyPe(), Node<ForceData>::getParticleLevelKey(rightChild));
+  /*
+  CkPrintf("(%d) BUILDTREE %lu pstart %d pend %d tpstart %d tpend %d\n", CkMyPe(), node->getKey(),
+                                                                         pstart, pend, 
+                                                                         tpstart, tpend
+                                                                         );
+  CkPrintf("(%d) BUILDTREE rightChild %lu testKey %lu\n", CkMyPe(), rightChild->getKey(), Node<ForceData>::getParticleLevelKey(rightChild));
   for(int i = pstart; i < pend; i++){
     CkPrintf("particle %d key %lu\n", i, myParticles[i].key);
   }
+  */
 
 
   // Make sure that the range of tree pieces
@@ -1446,7 +1453,8 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   int rightFirstOwner = rightChild->getOwnerStart(); 
   int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner,&submittedParticles[0],tpstart,tpend); 
   Key particleTestKey = Node<ForceData>::getParticleLevelKey(rightChild);
-  int firstParticleNotInLeft = binary_search_ge<Key,Particle>(particleTestKey,&myParticles[pstart],pstart,pend);
+  int firstParticleNotInLeft = binary_search_ge<Key,Particle>(particleTestKey,&myParticles[0],pstart,pend);
+  //CkPrintf("(%d) BUILDTREE firstParticleNotInLeft %d\n", CkMyPe(), firstParticleNotInLeft);
   buildTree(leftChild,pstart,firstParticleNotInLeft,tpstart,tp);
   buildTree(rightChild,firstParticleNotInLeft,pend,tp,tpend);
 
