@@ -2,6 +2,8 @@
 #define __TRAVERSAL_DEFS_H__
 
 #include "DataManager.h"
+
+#if 0
 template<typename T>
 void Traversal<T>::preorderTraversal(Node<T> *root, CutoffWorker<T> *worker){
   stack<Node<T>*> stk;
@@ -20,6 +22,7 @@ void Traversal<T>::preorderTraversal(Node<T> *root, CutoffWorker<T> *worker){
     }
   }
 }
+#endif
 
 template<typename T>
 void Traversal<T>::topDownTraversal_local(Node<T> *root, CutoffWorker<T> *worker){
@@ -132,6 +135,8 @@ void Traversal<T>::processLeaf(Node<T> *leaf, CutoffWorker<T> *worker, State *st
   }
 }
 
+#if 0
+
 template<typename T>
 void Traversal<T>::postorderTraversal(Node<T> *root, CutoffWorker<T> *worker){
   // value returned from work() is ignored
@@ -182,6 +187,8 @@ void Traversal<T>::postorderTraversal(Node<T> *root, CutoffWorker<T> *worker){
     nstk.pop();
   }
 }
+
+#endif
 
 #endif // __TRAVERSAL_DEFS_H__
 

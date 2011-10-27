@@ -42,7 +42,7 @@ void State::nodeComputed(Node<ForceData> *bucket, Key nodeKey){
     Vector3D<Real> deltaAcc = p->acceleration-savedAccelerations[i];
     oss << deltaAcc.x << " " << deltaAcc.y << " " << deltaAcc.z << " ; " ;
   }
-  CkPrintf("(%d,%d) bucket %lu node %lu 3 computing acc: %s\n", ownerTreePiece->getIndex(), ownerTreePiece->getIteration(), bucket->getKey(), nodeKey, oss.str().c_str());
+  CkPrintf("(%d,%d) bucket %llu node %llu 3 computing acc: %s\n", ownerTreePiece->getIndex(), ownerTreePiece->getIteration(), bucket->getKey(), nodeKey, oss.str().c_str());
 #endif
   insert(bucket->getKey(),nodeKey);
 }
@@ -55,7 +55,7 @@ void State::bucketComputed(Node<ForceData> *bucket, Key k){
     Vector3D<Real> deltaAcc = p->acceleration-savedAccelerations[i];
     oss << deltaAcc.x << " " << deltaAcc.y << " " << deltaAcc.z << " ; "; 
   }
-  CkPrintf("(%d,%d) bucket %lu node %lu 3 computing acc: %s\n", ownerTreePiece->getIndex(), ownerTreePiece->getIteration(), bucket->getKey(), k, oss.str().c_str());
+  CkPrintf("(%d,%d) bucket %llu node %llu 3 computing acc: %s\n", ownerTreePiece->getIndex(), ownerTreePiece->getIteration(), bucket->getKey(), k, oss.str().c_str());
 #endif
   insert(bucket->getKey(),k);
 }

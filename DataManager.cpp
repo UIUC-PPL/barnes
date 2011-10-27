@@ -795,7 +795,7 @@ void DataManager::startTraversal(){
   int start = 0;
   int end = myBuckets.length();
 
-  doPrintTree();
+  //doPrintTree();
 
   if(numLocalUsefulTreePieces > 0){
     for(int i = 0; i < numLocalUsefulTreePieces; i++){

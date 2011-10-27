@@ -32,7 +32,7 @@ void Request::deliverParticles(int num){
      * are performing the traversal (either remote or local). 
      * Currently, the worker could be in the middle of a traversal
      * for some other local bucket. We save the pointer to this 
-     * local bucket here, and replace it with the one which caused
+     * local bucket here, and replace it with the one which had caused
      * the worker to request these particles in the first place.
      */
     void *saveContext = worker->getContext();
