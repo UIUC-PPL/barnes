@@ -74,6 +74,7 @@ class DataManager : public CBase_DataManager {
 
   CkVec<Node<ForceData>*> myBuckets;
 
+  bool doneFlushParticles; 
   // I am done constructing the tree 
   // from particles present on this PE
   bool doneTreeBuild;
@@ -91,6 +92,7 @@ class DataManager : public CBase_DataManager {
 
   map<Key,Request> nodeRequestTable;
   map<Key,Request> particleRequestTable;
+
 
   Traversal<ForceData> fillTrav;
   int numTreePiecesDoneTraversals;

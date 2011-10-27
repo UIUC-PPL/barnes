@@ -44,6 +44,8 @@ struct Parameters {
   int iterations;
   int balancePeriod;
 
+  bool doPrintAccel;
+
   //int branchFactor;
 
   /*
@@ -72,6 +74,7 @@ struct Parameters {
     p | cacheLineSize;
     p | iterations;
     p | balancePeriod;
+    p | doPrintAccel;
   }
 
   /*
@@ -80,15 +83,25 @@ struct Parameters {
    * These have been adapted from the SPLASH "barnes" benchmark.
    */
   void extractParameters(int argc, char **argv, map<string,string> &tab){
-    for(int i = 0; i < argc; i++){
+    for(int i = 1; i < argc; i++){
       string arg = string(argv[i]);
+      size_t mpos = arg.find("-");
       size_t pos = arg.find("=");
+      size_t len = arg.length();
+      if(mpos != 0) continue;
+
+      string key, val; 
       if(pos != string::npos){
-        size_t len = arg.length();
-        string key = arg.substr(1,pos-1); 
-        string val = arg.substr(pos+1,len-pos-1);
-        tab[key] = val;
+        key = arg.substr(mpos+1,pos-mpos-1);
+        val = arg.substr(pos+1,len-pos-1);
       }
+      else{
+        key = arg.substr(mpos+1,len-mpos-1); 
+        val = "";
+      }
+      CkPrintf("arg %s mpos %d pos %d len %d key %s val %s\n", arg.c_str(), mpos, pos, len, key.c_str(), val.c_str());
+
+      tab[key] = val;
     }
   }
 

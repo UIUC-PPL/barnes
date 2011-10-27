@@ -141,6 +141,11 @@ void Main::setParameters(CkArgMsg *m){
   globalParams.balancePeriod = params.getiparam("balancePeriod", DEFAULT_BALANCE_PERIOD, table);
   CkPrintf("balancePeriod: %d\n", globalParams.balancePeriod);
 
+  globalParams.doPrintAccel = false;
+  if(table.find("output") != table.end()) globalParams.doPrintAccel = true;
+  CkPrintf("doPrintAccel: %d\n", globalParams.doPrintAccel);
+
+
   /*
     Use the filename obtained previously to read just the 
     number of particles from the input file.

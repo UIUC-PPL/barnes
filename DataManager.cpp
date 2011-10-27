@@ -437,6 +437,8 @@ void DataManager::flushParticles(){
   for(int i = numUsefulTreePieces; i < globalParams.numTreePieces; i++){
     treePieceProxy[i].receiveParticles();
   }
+
+  doneFlushParticles = true;
 }
 
 /*
@@ -520,6 +522,7 @@ void DataManager::senseTreePieces(){
     particles and submitted them to the DM before it received the 
     "sendParticles" message. If this is the case, proceed to tree building.
   */
+  CkAssert(doneFlushParticles);
   if(submittedParticles.length() == numLocalTreePieces) processSubmittedParticles();
 }
 
@@ -534,7 +537,7 @@ void DataManager::senseTreePieces(){
 void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp){ 
   submittedParticles.push_back(TreePieceDescriptor(vec,numParticles,tp,tp->getIndex()));
   myNumParticles += numParticles;
-  if(submittedParticles.length() == numLocalTreePieces){
+  if(submittedParticles.length() == numLocalTreePieces && doneFlushParticles){
     processSubmittedParticles();
   }
 }
@@ -608,10 +611,12 @@ void DataManager::processSubmittedParticles(){
   makeMoments();
 #endif
 
+  /*
   // are all particles local to this PE? 
   if(root != NULL && root->allChildrenMomentsReady()){
     passMomentsUpward(root);
   }
+  */
 }
 
 #if 0
@@ -1075,9 +1080,7 @@ void DataManager::advance(CkReductionMsg *msg){
   myBox.numParticles = myNumParticles;
 
   if(CkMyPe() == 0){
-    CkPrintf("[STATS] node inter %llu\n", dtred->pnInteractions);
-    CkPrintf("[STATS] part inter %llu\n", dtred->ppInteractions);
-    CkPrintf("[STATS] open crit %llu\n", dtred->openCrit);
+    CkPrintf("[STATS] node inter %llu part inter %llu open crit %llu\n", dtred->pnInteractions, dtred->ppInteractions, dtred->openCrit);
   }
 
   iteration++;
@@ -1177,21 +1180,33 @@ void DataManager::freeTree(){
 void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
   Vector3D<Real> dv;
 
-  Particle *pstart = myParticles.getVec();
-  Particle *pend = myParticles.getVec()+myNumParticles;
+  Particle *pstart = &myParticles[0];
+  Particle *pend = &myParticles[myNumParticles-1];
 
   Real particleEnergy;
   Real particleKinetic;
   Real particlePotential;
-  for(Particle *p = pstart; p != pend; p++){
+  
+
+  if(globalParams.doPrintAccel && (iteration == globalParams.iterations-1)){
+    Node<ForceData> *bucket;
+    for(int i = 0; i < myBuckets.length(); i++){
+      bucket = myBuckets[i];
+      ostringstream oss;
+      oss << "final bucket " << bucket->getKey() << " PE " << CkMyPe() << ": ";
+      for(Particle *p = bucket->getParticles(); p != bucket->getParticles()+bucket->getNumParticles(); p++){
+        oss << p->acceleration.x << " " << p->acceleration.y << " " << p->acceleration.z << " ;";
+      }
+      CkPrintf("%s\n", oss.str().c_str());
+    }
+  }
+
+  for(Particle *p = pstart; p <= pend; p++){
     particlePotential = p->mass*p->potential;
     particleKinetic = 0.5*p->mass*p->velocity.lengthSquared();
     particleEnergy = particlePotential+particleKinetic;
     energy += particleEnergy;
 
-#if 0
-    CkPrintf("%d before update iteration %d energy T %f K %f U %f pos %f %f %f a %f %f %f v %f %f %f\n", p->id, iteration, particleEnergy, particleKinetic, particlePotential, p->position.x, p->position.y, p->position.z, p->acceleration.x, p->acceleration.y, p->acceleration.z, p->velocity.x, p->velocity.y, p->velocity.z);
-#endif
 
     // kick
     p->velocity += globalParams.dthf*p->acceleration;
@@ -1258,6 +1273,7 @@ void DataManager::init(){
 
   decompIterations = 0;
 
+  doneFlushParticles = false;
   doneTreeBuild = false;
   numLocalTreePieces = -1;
   myBuckets.length() = 0;
@@ -1330,9 +1346,9 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
 
 void DataManager::doPrintTree(){
   ostringstream oss;
-  oss << "tree." << CkMyPe() << "." << iteration << ".dot";
+  oss << "new." << CkMyPe() << "." << iteration << ".dot";
   ofstream ofs(oss.str().c_str());
-  ofs << "digraph PE" << CkMyPe() << "{" << endl;
+  ofs << "digraph newPE" << CkMyPe() << "{" << endl;
   if(root != NULL) printTree(root,ofs);
   ofs << "}" << endl;
   ofs.close();
@@ -1501,7 +1517,7 @@ void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp
   nodeTable[node->getKey()] = node;
 
   int np = node->getNumParticles();
-  if(np <= globalParams.ppb){
+  if(np <= ((Real)globalParams.ppb*BUCKET_TOLERANCE)){
     if(np == 0) node->setType(EmptyBucket);
     else node->setType(Bucket);
     node->getMomentsFromParticles();
