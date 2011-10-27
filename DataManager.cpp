@@ -1091,7 +1091,7 @@ void DataManager::advance(CkReductionMsg *msg){
   }
   else if(iteration % globalParams.balancePeriod == 0){
     if(CkMyPe() == 0) CkPrintf("(%d) INITIATE LB\n", CkMyPe()); 
-    for(int i = 0; i < submittedParticles.length()-1; i++){
+    for(int i = 0; i < submittedParticles.length(); i++){
       TreePiece *tp = submittedParticles[i].owner;
       tp->startlb();
     }
