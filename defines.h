@@ -47,5 +47,5 @@ const double opening_geometry_factor = 2 / sqrt(3.0);
 
 #define REMOTE_NODE_REQUEST 9998
 #define REMOTE_PARTICLE_REQUEST 9999
-
+#define MemPrintf CkPrintf
 #endif

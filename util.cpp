@@ -81,3 +81,11 @@ ExternalParticle &ExternalParticle::operator=(const Particle &p){
   return *this;
 }
 
+void printMemUsage()
+{
+    float memMB = (1.0*CmiMemoryUsage())/(1<<20);
+    CkPrintf("(%d) mem %.2f MB\n", CkMyPe(), memMB);
+}
+
+
+

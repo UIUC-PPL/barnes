@@ -29,7 +29,7 @@ int binary_search_ge(Key check, T *particles, int start, int end, BinarySearchGE
   }
   return lo;
 }
-
+void printMemUsage();
 //template<typename T>
 void getMomentsFromParticles(Node<ForceData> *bucket);
 //template<typename T>

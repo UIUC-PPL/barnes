@@ -585,6 +585,8 @@ void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, Tr
   myNumParticles += numParticles;
   if(submittedParticles.length() == numLocalTreePieces && haveRanges){
     processSubmittedParticles();
+ MemPrintf("Local Tree formed\n");
+	printMemUsage();
   }
 }
 
@@ -1035,6 +1037,8 @@ void DataManager::recvNode(NodeReplyMsg *msg){
 
 void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit)
 {
+	MemPrintf("DataManager Traversal done \n");	
+	printMemUsage();
   numTreePiecesDoneTraversals++;
   numInteractions[0] += pnInter;
   numInteractions[1] += ppInter;

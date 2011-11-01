@@ -150,7 +150,10 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
   }
 }
 
-void TreePiece::traversalDone(){ 
+void TreePiece::traversalDone(){
+//			MemPrintf("TreePiece Traversal done \n");	
+//	printMemUsage();
+
   totalNumTraversals--;
   if(totalNumTraversals == 0) finishIteration();
 }

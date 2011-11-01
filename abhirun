@@ -1,0 +1,1 @@
+./charmrun +p2 ./barnes -in=1k.dat -ppc=100 -p=40 -b=8 -dtime=0.0001 -killat=30 -balancePeriod=10 +balancer Orb3dLB_notopo 
