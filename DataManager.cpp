@@ -399,16 +399,6 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
     // No more leaves to refine; send out particles to tree pieces
     CkPrintf("[0] decomp done after %d iterations used treepieces %d\n", decompIterations, numTreePieces);
     decompIterations = 0;
-    
-    /*
-      Here the master is also worker 0. It holds some particles 
-      that are to be sent to the appropriate tree pieces. These
-      are flushed now.
-    */
-    flushParticles();
-    // Find out how many tree pieces are hosted on this PE
-    senseTreePieces();
-
     /*
       Tell all PEs that there are no remaining active leaves,
       i.e. we have obtained a partitioning of particles on to
@@ -488,22 +478,13 @@ void DataManager::sendParticlesToTreePiece(Node<ForceData> *nd, int tp) {
   tree piece to every PE. 
 */
 void DataManager::sendParticles(int ntp){
-  if(CkMyPe() != 0){
-    // Save tree piece particle ranges
-    numTreePieces = ntp;
-    // Flush particles to their owner tree pieces
-    flushParticles();
+  // Save tree piece particle ranges
+  numTreePieces = ntp;
+  // Flush particles to their owner tree pieces
+  flushParticles();
 
-    // Obtain the number of tree pieces that are hosted on this PE
-    senseTreePieces();
-  }
-  else{
-    /* 
-      If this is worker 0, it is also the master, so it must
-      have done the above at the end of receiveHistogram.
-    */
-    CkAssert(numTreePieces == ntp);
-  }
+  // Obtain the number of tree pieces that are hosted on this PE
+  senseTreePieces();
 }
 
 /*
@@ -1286,18 +1267,6 @@ void DataManager::init(){
 
   CkAssert(activeBins.getNumCounts() == 0);
 
-#if 0
-  if(CkMyPe() == 0 && keyRanges != NULL){
-    delete[] keyRanges;
-    keyRanges = NULL;
-  }
-  else if(CkMyPe() != 0){
-    delete rangeMsg;
-    rangeMsg = NULL;
-  }
-#endif
-
-
   numInteractions[0] = 0;
   numInteractions[1] = 0;
   numInteractions[2] = 0;
@@ -1305,13 +1274,6 @@ void DataManager::init(){
 }
 
 void DataManager::resumeFromLB(){
-#if 0
-  ckerr << CkMyPe() << " resumeFromLB" << endl;
-  CkCallback excb(CkIndex_Main::niceExit(),mainProxy);
-  contribute(0,0,CkReduction::sum_int,excb);
-  return;
-#endif
-
   /* we delay the freeing of data structures to this point
    * because we want the tree pieces to be able to use the
    * tree, and in particular their roots for load balancing
@@ -1446,18 +1408,6 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   Node<ForceData> *rightChild = node->getRightChild();
   node->setParticles(&myParticles[pstart],pend-pstart);
 
-  /*
-  CkPrintf("(%d) BUILDTREE %lu pstart %d pend %d tpstart %d tpend %d\n", CkMyPe(), node->getKey(),
-                                                                         pstart, pend, 
-                                                                         tpstart, tpend
-                                                                         );
-  CkPrintf("(%d) BUILDTREE rightChild %lu testKey %lu\n", CkMyPe(), rightChild->getKey(), Node<ForceData>::getParticleLevelKey(rightChild));
-  for(int i = pstart; i < pend; i++){
-    CkPrintf("particle %d key %lu\n", i, myParticles[i].key);
-  }
-  */
-
-
   // Make sure that the range of tree pieces
   // is contained within this node; otherwise,
   // we shouldn't have made this call at all.
@@ -1470,7 +1420,6 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner,&submittedParticles[0],tpstart,tpend); 
   Key particleTestKey = Node<ForceData>::getParticleLevelKey(rightChild);
   int firstParticleNotInLeft = binary_search_ge<Key,Particle>(particleTestKey,&myParticles[0],pstart,pend);
-  //CkPrintf("(%d) BUILDTREE firstParticleNotInLeft %d\n", CkMyPe(), firstParticleNotInLeft);
   buildTree(leftChild,pstart,firstParticleNotInLeft,tpstart,tp);
   buildTree(rightChild,firstParticleNotInLeft,pend,tp,tpend);
 
