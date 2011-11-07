@@ -59,7 +59,7 @@ mainmodule barnes {
   array[1D] TreePiece {
     entry TreePiece();
     entry void receiveParticles(ParticleMsg *msg);
-    entry void receiveParticles();
+    entry void submitParticles();
     entry void requestMoments(Key k, int replyTo);
 
     entry [expedited] void startTraversal();

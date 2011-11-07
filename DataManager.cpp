@@ -423,11 +423,6 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
 */
 void DataManager::flushParticles(){
   int numUsefulTreePieces = flushAndMark(root,0);
-
-  for(int i = numUsefulTreePieces; i < globalParams.numTreePieces; i++){
-    treePieceProxy[i].receiveParticles();
-  }
-
   doneFlushParticles = true;
 }
 
@@ -463,10 +458,6 @@ void DataManager::sendParticlesToTreePiece(Node<ForceData> *nd, int tp) {
     msg->numParticles = np;
     treePieceProxy[tp].receiveParticles(msg);
   }
-  else{
-    treePieceProxy[tp].receiveParticles();
-  }
-
 }
 
 /*

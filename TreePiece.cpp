@@ -36,7 +36,6 @@ void TreePiece::findOrbLB(){
 
 void TreePiece::init(){
   myNumParticles = 0;
-  numDecompMsgsRecvd = 0;
   decompMsgsRecvd.length() = 0;
   totalNumTraversals = 2;
   myDM = dataManagerProxy.ckLocalBranch();
@@ -49,23 +48,10 @@ void TreePiece::receiveParticles(ParticleMsg *msg){
   int msgNumParticles = msg->numParticles;
   decompMsgsRecvd.push_back(msg);
   myNumParticles += msgNumParticles;
-  numDecompMsgsRecvd++;
-  
-  if(numDecompMsgsRecvd == CkNumPes()){
-    submitParticles();
-    numDecompMsgsRecvd = 0;
-  }
-}
-
-void TreePiece::receiveParticles(){
-  numDecompMsgsRecvd++;
-  if(numDecompMsgsRecvd == CkNumPes()){
-    submitParticles();
-    numDecompMsgsRecvd = 0;
-  }
 }
 
 void TreePiece::submitParticles(){
+  if(thisIndex == 0) CkStartQD(CkCallback(CkIndex_TreePiece::submitParticles(),thisProxy));
   myDM->submitParticles(&decompMsgsRecvd,myNumParticles,this);
 }
 
