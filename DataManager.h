@@ -4,6 +4,7 @@
 #include "Particle.h"
 
 #include "OrientedBox.h"
+#include "MeshStreamer.h"
 #include "barnes.decl.h"
 #include "Node.h"
 #include "Descriptor.h"
@@ -11,6 +12,7 @@
 
 #include "Traversal_decls.h"
 #include "Request.h"
+
 
 class TreePiece;
 
@@ -48,7 +50,7 @@ struct CacheStats {
   bool test(){ return (outstandingRequests==0) && (outstandingDeliveries==0); }
 };
 
-class DataManager : public CBase_DataManager {
+class DataManager : public MeshStreamerClient<NodeRequest> {
   int numRankBits;
   double prevIterationStart;
 
@@ -87,7 +89,8 @@ class DataManager : public CBase_DataManager {
   // the tree on this PE is now ready for 
   // traversal
   bool treeMomentsReady;
-  CkVec< std::pair<Key, int> > bufferedNodeRequests;
+  CkVec<RequestMsg*> bufferedNodeRequests;
+  //CkVec< std::pair<Key, int> > bufferedNodeRequests;
   CkVec< std::pair<Key, int> > bufferedParticleRequests;
 
   map<Key,Request> nodeRequestTable;
@@ -96,6 +99,7 @@ class DataManager : public CBase_DataManager {
 
   Traversal<ForceData> fillTrav;
   int numTreePiecesDoneTraversals;
+  int numTreePiecesDoneRemoteRequests;
   CacheStats nodeReqs;
   CacheStats partReqs;
 
@@ -103,6 +107,13 @@ class DataManager : public CBase_DataManager {
   Real compareEnergy;
 
   CmiUInt8 numInteractions[3];
+  CProxy_DataManager myProxy;
+  
+  MeshStreamer<NodeRequest> *combiner;
+  CkArray *tpArray;
+
+  // Called by requestNode() and process() (when streaming-combining)
+  void processNodeRequest(Key key, int replyTo);
 
   void kickDriftKick(OrientedBox<Real> &box, Real &energy);
 
@@ -167,13 +178,18 @@ class DataManager : public CBase_DataManager {
   void requestMoments(Key k, int replyTo);
   void advance(CkReductionMsg *);
   void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit);
+  void doneRemoteRequests();
 
   // called by tree piece that is making a request
   void requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
   void requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
 
+  void combineNodeRequest(int tpindex, Key k);
+  void combineParticleRequest(Key k, int tpindex);
+
   // called by tree piece that is forwarding a remote request
-  void requestNode(std::pair<Key, int> request);
+  void requestNode(RequestMsg *);
+  //void requestNode(std::pair<Key, int> request);
   void requestParticles(std::pair<Key, int> request);
   
   void recvParticles(ParticleReplyMsg *msg);
@@ -187,6 +203,8 @@ class DataManager : public CBase_DataManager {
   void addBucketPartInteractions(Key k, CmiUInt8 pp);
 
   void resumeFromLB();
+
+  void process(NodeRequest);
 };
 
 #endif

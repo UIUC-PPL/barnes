@@ -44,6 +44,9 @@ struct Parameters {
   int iterations;
   int balancePeriod;
 
+  int combineFlushCount;
+  int combineFlushPeriod;
+
   bool doPrintAccel;
 
   //int branchFactor;
@@ -75,6 +78,9 @@ struct Parameters {
     p | iterations;
     p | balancePeriod;
     p | doPrintAccel;
+
+    p | combineFlushCount;
+    p | combineFlushPeriod;
   }
 
   /*

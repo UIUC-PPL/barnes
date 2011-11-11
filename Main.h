@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "OrientedBox.h"
 
+#include "MeshStreamer.h"
 #include "barnes.decl.h"
 
 class Main : public CBase_Main {

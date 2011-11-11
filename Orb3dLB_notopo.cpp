@@ -1,5 +1,6 @@
 #include <charm++.h>
 #include "Orb3dLB_notopo.h"
+#include "MeshStreamer.h"
 #include "barnes.decl.h"
 #include "Vector3D.h"
 

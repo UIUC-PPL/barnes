@@ -126,8 +126,16 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
   }
   else{
     delete msg;
-    if(remoteTraversalState.complete()) traversalDone();
+    if(remoteTraversalState.complete()){
+      doneRemoteRequests();
+      traversalDone();
+    }
   }
+}
+
+void TreePiece::doneRemoteRequests(){
+  myDM->doneRemoteRequests();
+  //dataManagerProxy[CkMyPe()].doneRemoteRequests();
 }
 
 void TreePiece::traversalDone(){ 
@@ -184,7 +192,8 @@ void TreePiece::requestParticles(std::pair<Key, int> request) {
   myDM->requestParticles(request);
 }
 
-void TreePiece::requestNode(std::pair<Key, int> request) {
+void TreePiece::requestNode(RequestMsg *request){
+//void TreePiece::requestNode(std::pair<Key, int> request) {
   myDM->requestNode(request);
 }
 

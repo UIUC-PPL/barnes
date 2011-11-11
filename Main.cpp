@@ -16,6 +16,7 @@
 #include "Messages.h"
 
 #include "defaults.h"
+#include "TopoManager.h"
 
 #include <iostream>
 #include <fstream>
@@ -25,6 +26,8 @@ using namespace std;
 CProxy_TreePiece treePieceProxy;
 CProxy_DataManager dataManagerProxy;
 CProxy_Main mainProxy;
+
+CProxy_MeshStreamer<NodeRequest> combinerProxy;
 
 Parameters globalParams;
 
@@ -38,6 +41,11 @@ Main::Main(CkArgMsg *msg){
      of the group on each PE.
   */
   dataManagerProxy = CProxy_DataManager::ckNew();
+  TopoManager tmgr;
+  int meshNumRows = tmgr.getDimNX()*tmgr.getDimNT();
+  int meshNumColumns = tmgr.getDimNY();
+  int meshNumPlanes = tmgr.getDimNZ();
+  combinerProxy = CProxy_MeshStreamer<NodeRequest>::ckNew(globalParams.combineFlushCount, meshNumRows, meshNumColumns, meshNumPlanes, dataManagerProxy, 0, globalParams.combineFlushPeriod);
 
   CkArrayOptions opts(globalParams.numTreePieces);
   /* 

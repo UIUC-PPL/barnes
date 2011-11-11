@@ -40,6 +40,8 @@ extern CProxy_TreePiece treePieceProxy;
 extern CProxy_Main mainProxy;
 extern Parameters globalParams;
 
+extern CProxy_MeshStreamer<NodeRequest> combinerProxy;
+
 /*
   This function is called during tree building. When a 
   PE requests the data for a remote node, it receives only
@@ -63,6 +65,8 @@ DataManager::DataManager() :
   root(NULL)
 {
   init();
+
+  //tpArray = CkArrayID::CkLocalBranch(treePieceProxy.ckGetArrayID());
 }
 
 /*
@@ -70,6 +74,12 @@ DataManager::DataManager() :
   file. 
 */
 void DataManager::loadParticles(CkCallback &cb){
+
+  // set up my own proxy, local combiner, TP ckarray
+  myProxy = CProxy_DataManager(thisgroup);
+  combiner = ((MeshStreamer<NodeRequest> *)CkLocalBranch(combinerProxy));
+  tpArray = treePieceProxy.ckGetArrayID().ckLocalBranch();
+
   numRankBits = LOG_BRANCH_FACTOR;
 
   const char *fname = globalParams.filename;
@@ -392,7 +402,7 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   // Do any active leaves need to be partitioned?
   if(binsToRefine.size()) {
     // Yes, tell workers which ones  
-    thisProxy.receiveSplitters(binsToRefine);
+    myProxy.receiveSplitters(binsToRefine);
     decompIterations++;
   }
   else{
@@ -405,7 +415,7 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
       tree pieces such that each tree piece gets no more than 
       a threshold (ppc) number of particles.
     */
-    thisProxy.sendParticles(numTreePieces);
+    myProxy.sendParticles(numTreePieces);
   }
 
   delete msg;
@@ -694,7 +704,7 @@ void DataManager::respondToMomentsRequest(Node<ForceData> *node, CkVec<int> &rep
   MomentsExchangeStruct moments = *node;
   for(int i = 0; i < replyTo.length(); i++){
     TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), replyTo[i], node->getKey());
-    thisProxy[replyTo[i]].receiveMoments(moments);
+    myProxy[replyTo[i]].receiveMoments(moments);
   }
   replyTo.length() = 0;
 }
@@ -879,7 +889,7 @@ void DataManager::requestParticles(std::pair<Key, int> request) {
     pmsg->data[i] = data[i];
   }
 
-  thisProxy[request.second].recvParticles(pmsg);
+  myProxy[request.second].recvParticles(pmsg);
 }
 
 void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
@@ -897,7 +907,8 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
     int numOwners = leaf->getOwnerEnd()-leaf->getOwnerStart();
     int requestOwner = leaf->getOwnerStart()+(rand()%numOwners);
     RRDEBUG("(%d) REQUEST node %lu from tp %d\n", CkMyPe(), key, requestOwner);
-    treePieceProxy[requestOwner].requestNode( std::make_pair(key, CkMyPe()) );
+    //treePieceProxy[requestOwner].requestNode( std::make_pair(key, CkMyPe()) );
+    combineNodeRequest(requestOwner,key);
     request.sent = true;
     request.parent = leaf;
   }
@@ -905,27 +916,50 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
   nodeReqs.incrDeliveries();
 }
 
-void DataManager::requestNode(std::pair<Key, int> request) {
+void DataManager::combineNodeRequest(int tpindex, Key k){
+  int dest_pe = tpArray->lastKnown(CkArrayIndex1D(tpindex)); 
+  combiner->insertData(NodeRequest(tpindex,k,CkMyPe()),dest_pe);
+}
+
+void DataManager::process(NodeRequest req){
+  int dest_pe = tpArray->lastKnown(CkArrayIndex1D(req.tp));
+  // The target tree piece is on this PE: we must have its nodes
+  if(dest_pe == CkMyPe()){
+    processNodeRequest(req.key, req.replyTo);
+  }
+  else{
+    RequestMsg *msg = new RequestMsg(req.key, req.replyTo);
+    tpArray->deliver((CkArrayMessage*)msg, CkDeliver_queue);
+  }
+}
+
+void DataManager::doneRemoteRequests(){
+  numTreePiecesDoneRemoteRequests++;
+  if(numTreePiecesDoneRemoteRequests == numLocalUsefulTreePieces){
+    combiner->doneInserting();
+  }
+}
+
+void DataManager::requestNode(RequestMsg *msg){
   if(!treeMomentsReady){
-    bufferedNodeRequests.push_back(request);
+    bufferedNodeRequests.push_back(msg);
     return;
   }
 
-  RRDEBUG("(%d) REPLY node %lu to %d\n", CkMyPe(), request.first, request.second);
+  processNodeRequest(msg->key,msg->replyTo);
+  delete msg;
+}
 
+void DataManager::processNodeRequest(Key key, int replyTo){
+  RRDEBUG("(%d) REPLY node %lu to %d\n", CkMyPe(), key, replyTo);
 
-  map<Key,Node<ForceData>*>::iterator it = nodeTable.find(request.first);
+  map<Key,Node<ForceData>*>::iterator it = nodeTable.find(key);
   CkAssert(it != nodeTable.end());
   Node<ForceData> *node = it->second;
 
   CkAssert(node->getNumChildren() > 0);
-#if 0
-  if(node->getNumChildren() == 0){
-    CkPrintf("[%d] children of leaf node %lu type %s requested!\n", CkMyPe(), node->getKey(), NodeTypeString[node->getType()].c_str());
-    CkAbort("Leaf children request\n");
-  }
-#endif
 
+  // FIXME - make this a recursive function
   TreeSizeWorker tsz(node->getDepth()+globalParams.cacheLineSize);
   fillTrav.topDownTraversal_local(node,&tsz);
 
@@ -935,14 +969,14 @@ void DataManager::requestNode(std::pair<Key, int> request) {
   *(int *)CkPriorityPtr(nmsg) = RECV_NODE_PRIORITY;
   CkSetQueueing(nmsg,CK_QUEUEING_IFIFO);
 
-  nmsg->key = request.first;
+  nmsg->key = key;
   nmsg->nn = nn;
 
   Node<ForceData> *emptyBuf = nmsg->data;
   node->serialize(NULL,emptyBuf,globalParams.cacheLineSize);
   CkAssert(emptyBuf == nmsg->data+nn);
 
-  thisProxy[request.second].recvNode(nmsg);
+  myProxy[replyTo].recvNode(nmsg);
 }
 
 void DataManager::recvParticles(ParticleReplyMsg *msg){
@@ -1026,7 +1060,7 @@ void DataManager::finishIteration(){
   dtred.ppInteractions = numInteractions[1];
   dtred.openCrit = numInteractions[2];
 
-  CkCallback cb(CkIndex_DataManager::advance(NULL),thisProxy);
+  CkCallback cb(CkIndex_DataManager::advance(NULL),myProxy);
   contribute(sizeof(DtReductionStruct),&dtred,DtReductionType,cb);
 
 }
@@ -1070,7 +1104,7 @@ void DataManager::advance(CkReductionMsg *msg){
   }
   else{
     init();
-    cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
+    cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),myProxy);
     contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
   }
   
@@ -1251,6 +1285,7 @@ void DataManager::init(){
   myBuckets.length() = 0;
   treeMomentsReady = false;
   numTreePiecesDoneTraversals = 0;
+  numTreePiecesDoneRemoteRequests = 0;
 
   firstSplitterRound = true;
   freeTree();
@@ -1270,7 +1305,7 @@ void DataManager::resumeFromLB(){
    * tree, and in particular their roots for load balancing
    * */
   init();
-  CkCallback cb(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
+  CkCallback cb(CkIndex_DataManager::recvUnivBoundingBox(NULL),myProxy);
   contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
 }
 

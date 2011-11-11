@@ -8,6 +8,8 @@ mainmodule barnes {
   readonly CProxy_Main mainProxy;
   readonly Parameters globalParams;
 
+  readonly CProxy_MeshStreamer<NodeRequest> combinerProxy;  
+
   initproc void registerReducers();
 
   class Parameters;
@@ -28,6 +30,8 @@ mainmodule barnes {
   message ParticleReplyMsg {
     ExternalParticle data[];
   };
+
+  message RequestMsg;
 
   // To respond to remote request for subtree under node
   message NodeReplyMsg {
@@ -69,7 +73,7 @@ mainmodule barnes {
     entry void doRemoteGravity(RescheduleMsg *);
 
     entry [expedited] void requestParticles(std::pair<Key, int> request);
-    entry [expedited] void requestNode(std::pair<Key, int> request);
+    entry [expedited] void requestNode(RequestMsg *msg);
     entry void quiescence();
     entry void doAtSync();
   };
@@ -85,7 +89,7 @@ mainmodule barnes {
     5. Maintain a per-PE cache of data fetched from remote sources for TreePieces on the PE
     6. Update particle positions and velocities once traversals have completed.
   */
-  group DataManager {
+  group DataManager : MeshStreamerClient<NodeRequest> {
     entry DataManager();
     entry void loadParticles(CkCallback &cb);
     entry void decompose(BoundingBox &universe);
@@ -94,6 +98,7 @@ mainmodule barnes {
     entry void sendParticles(int numTreePieces);
     entry [expedited] void receiveMoments(MomentsExchangeStruct moments);
 
+    // FIXME - expedite these?
     entry void recvParticles(ParticleReplyMsg *msg);
     entry void recvNode(NodeReplyMsg *msg);
     entry void advance(CkReductionMsg *msg);
@@ -103,5 +108,13 @@ mainmodule barnes {
 
     entry void quiescence();
     entry void resumeFromLB();
+
+    entry void doneRemoteRequests();
   };
+
+  message MeshStreamerMessage<NodeRequest>;
+  group MeshStreamerClient<NodeRequest>;
+  group MeshStreamer<NodeRequest>;
+
+
 };

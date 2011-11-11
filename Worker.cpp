@@ -200,6 +200,7 @@ bool RemoteTraversalWorker::getKeep(NodeType type){
 }
 
 void RemoteTraversalWorker::done(){
+  ownerTreePiece->doneRemoteRequests();
   ownerTreePiece->traversalDone();
 }
 

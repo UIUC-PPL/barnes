@@ -54,4 +54,13 @@ struct NodeReplyMsg : public CMessage_NodeReplyMsg {
  */
 struct RescheduleMsg : public CMessage_RescheduleMsg {
 };
+
+struct RequestMsg : public CMessage_RequestMsg {
+  Key key;
+  int replyTo;
+  RequestMsg(Key _key, int _replyTo){
+    key = _key;
+    replyTo = _replyTo;
+  }
+};
 #endif

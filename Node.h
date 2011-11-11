@@ -556,5 +556,17 @@ struct MomentsExchangeStruct {
 };
 PUPbytes(MomentsExchangeStruct)
 
+struct NodeRequest {
+  Key key;
+  int tp;
+  int replyTo;
+
+  NodeRequest(int _tp, Key _key, int _replyTo){
+    tp = _tp;
+    key = _key;
+    replyTo = _replyTo;
+  }
+};
+
 
 #endif
