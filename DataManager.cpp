@@ -423,7 +423,9 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
 */
 void DataManager::flushParticles(){
   int numUsefulTreePieces = flushAndMark(root,0);
+#if 0
   doneFlushParticles = true;
+#endif
 }
 
 /*
@@ -502,7 +504,9 @@ void DataManager::senseTreePieces(){
   */
 #endif
 
+#if 0
   CkAssert(doneFlushParticles);
+#endif
 #if 0
   if(submittedParticles.length() == numLocalTreePieces) processSubmittedParticles();
 #endif
@@ -1267,7 +1271,9 @@ void DataManager::init(){
 
   decompIterations = 0;
 
+#if 0
   doneFlushParticles = false;
+#endif
   doneTreeBuild = false;
 #if 0
   numLocalTreePieces = -1;

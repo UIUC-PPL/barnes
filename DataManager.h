@@ -85,7 +85,9 @@ class DataManager : public CBase_DataManager {
 
   CkVec<Node<ForceData>*> myBuckets;
 
+#if 0
   bool doneFlushParticles; 
+#endif
   // I am done constructing the tree 
   // from particles present on this PE
   bool doneTreeBuild;
