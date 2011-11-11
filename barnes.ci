@@ -60,7 +60,7 @@ mainmodule barnes {
     entry TreePiece();
     entry void receiveParticles(ParticleMsg *msg);
     entry void submitParticles();
-    entry void requestMoments(Key k, int replyTo);
+    entry [expedited] void requestMoments(Key k, int replyTo);
 
     entry [expedited] void startTraversal();
     //entry void doLocalGravity();
