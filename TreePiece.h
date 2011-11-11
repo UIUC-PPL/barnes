@@ -55,7 +55,10 @@ class TreePiece : public CBase_TreePiece {
   int getIndex() {return thisIndex;}
 
   void receiveParticles(ParticleMsg *msg);
-  void submitParticles();
+
+  // invoked by DM to get particles
+  int getNumParticles() {return myNumParticles;}
+  CkVec<ParticleMsg*> *getBufferedParticleMsgs() {return &decompMsgsRecvd;}
 
   void prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int numBuckets);
   void startTraversal();

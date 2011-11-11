@@ -474,8 +474,10 @@ void DataManager::sendParticles(int ntp){
   // Flush particles to their owner tree pieces
   flushParticles();
 
+#if 0
   // Obtain the number of tree pieces that are hosted on this PE
   senseTreePieces();
+#endif
 }
 
 /*
@@ -488,16 +490,25 @@ void DataManager::senseTreePieces(){
   localTreePieces.reset();
   CkLocMgr *mgr = treePieceProxy.ckLocMgr();
   mgr->iterate(localTreePieces);
+#if 0
   numLocalTreePieces = localTreePieces.count;
+#endif
+
+#if 0
   /* 
     It could be that all tree pieces on this PE received their
     particles and submitted them to the DM before it received the 
     "sendParticles" message. If this is the case, proceed to tree building.
   */
+#endif
+
   CkAssert(doneFlushParticles);
+#if 0
   if(submittedParticles.length() == numLocalTreePieces) processSubmittedParticles();
+#endif
 }
 
+#if 0
 /*
   This is a normal C++ function called by tree pieces hosted
   on this PE. Once a tree piece has received all the particles meant
@@ -513,6 +524,7 @@ void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, Tr
     processSubmittedParticles();
   }
 }
+#endif
 
 /*
   Once the DM has collected particles from all the tree pieces hosted
@@ -534,15 +546,22 @@ void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, Tr
      PEs.
 */
 void DataManager::processSubmittedParticles(){
-  int offset = 0;
 
-  submittedParticles.quickSort();
+  if(CkMyPe() == 0) CkStartQD(CkCallback(CkIndex_DataManager::processSubmittedParticles(), thisProxy));
+  
+  // get the tree pieces (and their particles) on this PE
+  senseTreePieces();
+
+  // sort the local tree pieces by index (and hence lower/upper bound of particle range)
+  localTreePieces.submittedParticles.quickSort();
+  myNumParticles = localTreePieces.numParticles;
   
   myParticles.resize(myNumParticles);
 
+  int offset = 0;
   numLocalUsefulTreePieces = 0;
-  for(int i = 0; i < submittedParticles.length(); i++){
-    TreePieceDescriptor &descr = submittedParticles[i];
+  for(int i = 0; i < localTreePieces.submittedParticles.length(); i++){
+    TreePieceDescriptor &descr = localTreePieces.submittedParticles[i];
     //CkPrintf("(%d) tree piece %d submitted %d particles:\n", CkMyPe(), descr.index, descr.numParticles);
     
     if(descr.index < numTreePieces) numLocalUsefulTreePieces++;
@@ -565,7 +584,7 @@ void DataManager::processSubmittedParticles(){
   myParticles.quickSort();
 
   // The first local TreePiece will always have buckets numbered from 0
-  submittedParticles[0].bucketStartIdx = 0;
+  localTreePieces.submittedParticles[0].bucketStartIdx = 0;
   buildTree(root,0,myNumParticles,0,numLocalUsefulTreePieces);
   // Set the set of buckets assigned to each non-useful tree piece to empty:
 #if 0
@@ -702,7 +721,9 @@ void DataManager::respondToMomentsRequest(Node<ForceData> *node, CkVec<int> &rep
 void DataManager::receiveMoments(MomentsExchangeStruct moments){
   Node<ForceData> *node = lookupNode(moments.key);
   CkAssert(node != NULL);
+  CkAssert(!treeMomentsReady);
 
+  numMomentsReceived++;
   // update moments of leaf and pass these on 
   // to parent recursively; if there are requests
   // for these nodes, respond to them
@@ -744,6 +765,7 @@ void DataManager::passMomentsUpward(Node<ForceData> *node){
 
 void DataManager::treeReady(){
   treeMomentsReady = true;
+  CkAssert(numMomentsRequested == numMomentsReceived);
   flushBufferedRemoteDataRequests();
   startTraversal();
 }
@@ -768,7 +790,7 @@ bool CompareNodePtrToKey(void *a, Key k){
 void DataManager::startTraversal(){
   LBTurnInstrumentOn();
   Node<ForceData> **bucketPtrs = myBuckets.getVec();
-  submittedParticles[0].bucketStartIdx = 0;
+  localTreePieces.submittedParticles[0].bucketStartIdx = 0;
   int start = 0;
   int end = myBuckets.length();
 
@@ -776,7 +798,7 @@ void DataManager::startTraversal(){
 
   if(numLocalUsefulTreePieces > 0){
     for(int i = 0; i < numLocalUsefulTreePieces; i++){
-      TreePieceDescriptor &tp = submittedParticles[i];
+      TreePieceDescriptor &tp = localTreePieces.submittedParticles[i];
       tp.owner->prepare(root,tp.root,&myBuckets[tp.bucketStartIdx],tp.bucketEndIdx-tp.bucketStartIdx);
       treePieceProxy[tp.index].startTraversal();
     }
@@ -1063,8 +1085,8 @@ void DataManager::advance(CkReductionMsg *msg){
   }
   else if(iteration % globalParams.balancePeriod == 0){
     if(CkMyPe() == 0) CkPrintf("(%d) INITIATE LB\n", CkMyPe()); 
-    for(int i = 0; i < submittedParticles.length(); i++){
-      TreePiece *tp = submittedParticles[i].owner;
+    for(int i = 0; i < localTreePieces.submittedParticles.length(); i++){
+      TreePiece *tp = localTreePieces.submittedParticles[i].owner;
       tp->startlb();
     }
   }
@@ -1132,7 +1154,7 @@ void DataManager::quiescence(){
   CkPrintf("QUIESCENCE dm %d pieces done %d (%d) nodereq %d partreq %d\n",
               CkMyPe(),
               numTreePiecesDoneTraversals,
-              numLocalTreePieces,
+              localTreePieces.count,
               nodeReqs.test(),
               partReqs.test()
               );
@@ -1247,7 +1269,9 @@ void DataManager::init(){
 
   doneFlushParticles = false;
   doneTreeBuild = false;
+#if 0
   numLocalTreePieces = -1;
+#endif
   myBuckets.length() = 0;
   treeMomentsReady = false;
   numTreePiecesDoneTraversals = 0;
@@ -1261,7 +1285,11 @@ void DataManager::init(){
   numInteractions[0] = 0;
   numInteractions[1] = 0;
   numInteractions[2] = 0;
+#if 0
   submittedParticles.length() = 0;
+#endif
+
+  numMomentsRequested = numMomentsReceived = 0;
 }
 
 void DataManager::resumeFromLB(){
@@ -1347,6 +1375,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     opts.setQueueing(CK_QUEUEING_IFIFO);
     opts.setPriority(REQUEST_MOMENTS_PRIORITY);
     treePieceProxy[requestOwner].requestMoments(node->getKey(),CkMyPe(),&opts);
+    numMomentsRequested++;
 
     // There are no particles on this PE under this node
     CkAssert(pstart == pend);
@@ -1361,7 +1390,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     return;
   }
   else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
-    TreePieceDescriptor &currentTP = submittedParticles[tpstart];
+    TreePieceDescriptor &currentTP = localTreePieces.submittedParticles[tpstart];
     int np = currentTP.numParticles;
     TB_DEBUG("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), currentTP.index, node->getKey());
     //CkPrintf("(%d) SINGLE TREE index %d np %d pstart %d pend %d\n", CkMyPe(), currentTP.index, np, pstart, pend);
@@ -1378,7 +1407,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     // Set the bucket indices for this TreePiece
     // If this is not the 0-th local TreePiece to have its bucket indices set,
     // it can use the last bucket (exclusive) of the one previous to it as its first bucket
-    if(tpstart > 0) currentTP.bucketStartIdx = submittedParticles[tpstart-1].bucketEndIdx; 
+    if(tpstart > 0) currentTP.bucketStartIdx = localTreePieces.submittedParticles[tpstart-1].bucketEndIdx; 
     // To obtain the last bucket, set it to the first
     // bucket and increment each time a new bucket is encountered (in singleBuildTree)
     currentTP.bucketEndIdx = currentTP.bucketStartIdx;
@@ -1402,13 +1431,13 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   // Make sure that the range of tree pieces
   // is contained within this node; otherwise,
   // we shouldn't have made this call at all.
-  CkAssert(submittedParticles[tpstart].index >= node->getOwnerStart());
+  CkAssert(localTreePieces.submittedParticles[tpstart].index >= node->getOwnerStart());
   // Find the first local TreePiece that has
   // an index beyond the left child's last
   // contained TreePiece, i.e. equal to or after
   // the right child's first contained TreePiece 
   int rightFirstOwner = rightChild->getOwnerStart(); 
-  int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner,&submittedParticles[0],tpstart,tpend); 
+  int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner, &localTreePieces.submittedParticles[0], tpstart, tpend); 
   Key particleTestKey = Node<ForceData>::getParticleLevelKey(rightChild);
   int firstParticleNotInLeft = binary_search_ge<Key,Particle>(particleTestKey,&myParticles[0],pstart,pend);
   buildTree(leftChild,pstart,firstParticleNotInLeft,tpstart,tp);
@@ -1483,6 +1512,14 @@ void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp
   }
 }
 
+void TreePieceCounter::addLocation(CkLocation &loc) {
+  const int *indexData = loc.getIndex().data();
+  TreePiece *tp = treePieceProxy[indexData[0]].ckLocal();
+  int np = tp->getNumParticles();
+  submittedParticles.push_back(TreePieceDescriptor(tp->getBufferedParticleMsgs(), np, tp, indexData[0]));
+  numParticles += np;
+  count++;
+}
 
 
 #include "Traversal_defs.h"

@@ -216,7 +216,7 @@ void Main::commence(){
     Tell all PEs to begin Oct decomposition of read particles.
   */
   
-  CkCallback cb(CkIndex_TreePiece::submitParticles(),treePieceProxy);
+  CkCallback cb(CkIndex_DataManager::processSubmittedParticles(),dataManagerProxy);
   CkStartQD(cb);
   dataManagerProxy.decompose(universe);
 

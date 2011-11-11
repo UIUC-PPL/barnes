@@ -50,10 +50,12 @@ void TreePiece::receiveParticles(ParticleMsg *msg){
   myNumParticles += msgNumParticles;
 }
 
+/*
 void TreePiece::submitParticles(){
   if(thisIndex == 0) CkStartQD(CkCallback(CkIndex_TreePiece::submitParticles(),thisProxy));
   myDM->submitParticles(&decompMsgsRecvd,myNumParticles,this);
 }
+*/
 
 void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int _numBuckets){
   root = _root;

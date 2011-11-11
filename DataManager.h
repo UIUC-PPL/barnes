@@ -13,21 +13,25 @@
 #include "Request.h"
 
 class TreePiece;
+extern CProxy_TreePiece treePieceProxy;
 
 #include <map>
 using namespace std;
 
+class DataManager;
 class TreePieceCounter : public CkLocIterator {            
   public:
   int count;
-  CkHashtableT<CkArrayIndex, int> registered;               
-  TreePieceCounter() : count(0) { }                      
-  void addLocation(CkLocation &loc) {
-    registered.put(loc.getIndex()) = ++count;               
-  }
+  int numParticles;
+  CkVec<TreePieceDescriptor> submittedParticles;
+
+  TreePieceCounter() { }                      
+
+  void addLocation(CkLocation &loc);
   void reset() {                                            
+    numParticles = 0;
     count = 0;
-    registered.empty();                                     
+    submittedParticles.length() = 0;
   }                                                         
 };
 
@@ -60,9 +64,16 @@ class DataManager : public CBase_DataManager {
 
   int numTreePieces;
   int numLocalUsefulTreePieces;
+#if 0
   int numLocalTreePieces;
+#endif
   TreePieceCounter localTreePieces;
-  CkVec<TreePieceDescriptor> submittedParticles;
+#if 0
+  //CkVec<TreePieceDescriptor> submittedParticles;
+#endif
+
+  int numMomentsRequested;
+  int numMomentsReceived;
 
   int iteration;
   int decompIterations;
@@ -111,7 +122,6 @@ class DataManager : public CBase_DataManager {
   void sendHistogram();
   
   void senseTreePieces();
-  void processSubmittedParticles();
   void buildTree(Node<ForceData> *node, int pstart, int pend, int tpstart, int tpend);
   void singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &ownerTreePiece);
 
@@ -171,6 +181,10 @@ class DataManager : public CBase_DataManager {
   // called by tree piece that is making a request
   void requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
   void requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
+
+  // after detecting quiescence, identify tree pieces on PE
+  // and get their particles
+  void processSubmittedParticles();
 
   // called by tree piece that is forwarding a remote request
   void requestNode(std::pair<Key, int> request);

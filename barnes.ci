@@ -59,7 +59,9 @@ mainmodule barnes {
   array[1D] TreePiece {
     entry TreePiece();
     entry void receiveParticles(ParticleMsg *msg);
+#if 0
     entry void submitParticles();
+#endif
     entry [expedited] void requestMoments(Key k, int replyTo);
 
     entry [expedited] void startTraversal();
@@ -93,6 +95,8 @@ mainmodule barnes {
     entry void receiveSplitters(CkVec<int> splitBins);
     entry void sendParticles(int numTreePieces);
     entry [expedited] void receiveMoments(MomentsExchangeStruct moments);
+
+    entry void processSubmittedParticles();
 
     entry void recvParticles(ParticleReplyMsg *msg);
     entry void recvNode(NodeReplyMsg *msg);
