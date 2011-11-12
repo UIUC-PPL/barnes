@@ -318,8 +318,6 @@ void DataManager::decompose(BoundingBox &universe){
   // Send this count to the master PE
   sendHistogram();
 
-  if(CkMyPe() == 0) CkStartQD(CkCallback(CkIndex_DataManager::processSubmittedParticles(), myProxy));
-  
 }
 
 /*
@@ -564,8 +562,11 @@ void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, Tr
 */
 void DataManager::processSubmittedParticles(){
 
+  CkPrintf("(%d) processSubmittedParticles\n", CkMyPe());
+  /*
   CkPrintf("(%d) memcheck before processSubmittedParticles\n", CkMyPe());
   CmiMemoryCheck();
+  */
 
   // get the tree pieces (and their particles) on this PE
   senseTreePieces();
@@ -626,8 +627,15 @@ void DataManager::processSubmittedParticles(){
     passMomentsUpward(root);
   }
   */
+  /*
   CkPrintf("(%d) memcheck after processSubmittedParticles\n", CkMyPe());
   CmiMemoryCheck();
+  */
+
+  if(CkMyPe() == 0){
+    CkCallback cb(CkIndex_DataManager::processSubmittedParticles(),myProxy);
+    combiner->associateCallback(cb,false);
+  }
 }
 
 #if 0
@@ -811,8 +819,10 @@ bool CompareNodePtrToKey(void *a, Key k){
 void DataManager::startTraversal(){
   LBTurnInstrumentOn();
 
+  /*
   CkPrintf("(%d) memcheck before traversal\n", CkMyPe());
   CmiMemoryCheck();
+  */
 
   Node<ForceData> **bucketPtrs = myBuckets.getVec();
 #if 0

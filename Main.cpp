@@ -45,6 +45,7 @@ Main::Main(CkArgMsg *msg){
   int meshNumRows = tmgr.getDimNX()*tmgr.getDimNT();
   int meshNumColumns = tmgr.getDimNY();
   int meshNumPlanes = tmgr.getDimNZ();
+  
   combinerProxy = CProxy_MeshStreamer<NodeRequest>::ckNew(globalParams.combineFlushCount, meshNumRows, meshNumColumns, meshNumPlanes, dataManagerProxy, 0, globalParams.combineFlushPeriod);
 
   CkArrayOptions opts(globalParams.numTreePieces);
