@@ -104,6 +104,7 @@ mainmodule barnes {
     entry [expedited] void receiveMoments(MomentsExchangeStruct moments);
 
     entry void processSubmittedParticles();
+    entry void startTraversal();
 
     entry void recvParticles(ParticleReplyMsg *msg);
     entry void recvNode(NodeReplyMsg *msg);

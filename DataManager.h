@@ -155,7 +155,6 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void passMomentsUpward(Node<ForceData> *node);
   void treeReady();
 
-  void startTraversal();
   void flushBufferedRemoteDataRequests();
 
   void freeCachedData();
@@ -202,6 +201,8 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   // after detecting quiescence, identify tree pieces on PE
   // and get their particles
   void processSubmittedParticles();
+
+  void startTraversal();
 
   // called by tree piece that is forwarding a remote request
   void requestNode(RequestMsg *);

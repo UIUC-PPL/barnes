@@ -45,7 +45,7 @@ struct Parameters {
   int balancePeriod;
 
   int combineFlushCount;
-  int combineFlushPeriod;
+  Real combineFlushPeriod;
 
   bool doPrintAccel;
 

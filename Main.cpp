@@ -153,6 +153,12 @@ void Main::setParameters(CkArgMsg *m){
   if(table.find("output") != table.end()) globalParams.doPrintAccel = true;
   CkPrintf("doPrintAccel: %d\n", globalParams.doPrintAccel);
 
+  globalParams.combineFlushCount = params.getiparam("combineFlushCount", DEFAULT_COMBINE_FLUSH_COUNT, table);
+  CkPrintf("combineFlushCount: %d\n", globalParams.combineFlushCount);
+
+  globalParams.combineFlushPeriod = params.getrparam("combineFlushPeriod", DEFAULT_COMBINE_FLUSH_PERIOD, table);
+  CkPrintf("combineFlushPeriod: %f\n", globalParams.combineFlushPeriod);
+
 
   /*
     Use the filename obtained previously to read just the 
@@ -223,9 +229,8 @@ void Main::commence(){
   /*
     Tell all PEs to begin Oct decomposition of read particles.
   */
-  
-  CkCallback cb(CkIndex_DataManager::processSubmittedParticles(),dataManagerProxy);
-  CkStartQD(cb);
+
+  CkStartQD(CkCallback(CkIndex_DataManager::processSubmittedParticles(),dataManagerProxy));
   dataManagerProxy.decompose(universe);
 
 }

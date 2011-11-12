@@ -317,6 +317,9 @@ void DataManager::decompose(BoundingBox &universe){
   initHistogramParticles();
   // Send this count to the master PE
   sendHistogram();
+
+  if(CkMyPe() == 0) CkStartQD(CkCallback(CkIndex_DataManager::processSubmittedParticles(), myProxy));
+  
 }
 
 /*
@@ -561,8 +564,9 @@ void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, Tr
 */
 void DataManager::processSubmittedParticles(){
 
-  if(CkMyPe() == 0) CkStartQD(CkCallback(CkIndex_DataManager::processSubmittedParticles(), thisProxy));
-  
+  CkPrintf("(%d) memcheck before processSubmittedParticles\n", CkMyPe());
+  CmiMemoryCheck();
+
   // get the tree pieces (and their particles) on this PE
   senseTreePieces();
 
@@ -622,6 +626,8 @@ void DataManager::processSubmittedParticles(){
     passMomentsUpward(root);
   }
   */
+  CkPrintf("(%d) memcheck after processSubmittedParticles\n", CkMyPe());
+  CmiMemoryCheck();
 }
 
 #if 0
@@ -781,7 +787,8 @@ void DataManager::treeReady(){
   treeMomentsReady = true;
   CkAssert(numMomentsRequested == numMomentsReceived);
   flushBufferedRemoteDataRequests();
-  startTraversal();
+  //startTraversal();
+  contribute(0,0,CkReduction::sum_int,CkCallback(CkIndex_DataManager::startTraversal(),myProxy));
 }
 
 void DataManager::flushBufferedRemoteDataRequests(){
@@ -803,6 +810,10 @@ bool CompareNodePtrToKey(void *a, Key k){
 
 void DataManager::startTraversal(){
   LBTurnInstrumentOn();
+
+  CkPrintf("(%d) memcheck before traversal\n", CkMyPe());
+  CmiMemoryCheck();
+
   Node<ForceData> **bucketPtrs = myBuckets.getVec();
 #if 0
   localTreePieces.submittedParticles[0].bucketStartIdx = 0;
@@ -843,7 +854,7 @@ void DataManager::startTraversal(){
       descr.bucketEndIdx = bucketIdx;
       int tpIndex = descr.owner->getIndex();
       descr.owner->prepare(root,localTPRoots[tpIndex],myBuckets.getVec(),descr.bucketStartIdx,descr.bucketEndIdx);
-      treePieceProxy[tpIndex].startTraversal();
+      treePieceProxy[tpIndex].tartTraversal();
       submittedParticles[i+1].bucketStartIdx = bucketIdx;
       start = bucketIdx;
     }
@@ -851,14 +862,14 @@ void DataManager::startTraversal(){
     descr.bucketEndIdx = myBuckets.length();
     int tpIndex = descr.owner->getIndex();
     descr.owner->prepare(root,localTPRoots[tpIndex],myBuckets.getVec(),descr.bucketStartIdx,descr.bucketEndIdx);
-    treePieceProxy[tpIndex].startTraversal();
+    treePieceProxy[tpIndex].tartTraversal();
   }
   else if(numLocalTreePieces > 0){
     for(int i = 0; i < numLocalTreePieces; i++){
       TreePieceDescriptor &descr = submittedParticles[i];
       descr.owner->prepare(root,NULL,myBuckets.getVec(),0,0);
       int tpIndex = descr.owner->getIndex();
-      treePieceProxy[tpIndex].startTraversal();
+      treePieceProxy[tpIndex].tartTraversal();
     }
   }
   else{
@@ -946,24 +957,35 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
 
 void DataManager::combineNodeRequest(int tpindex, Key k){
   int dest_pe = tpArray->lastKnown(CkArrayIndex1D(tpindex)); 
-  combiner->insertData(NodeRequest(tpindex,k,CkMyPe()),dest_pe);
+  CkPrintf("[COMBINE] send tp %d key %llu reply %d dest_pe %d\n", tpindex, k, CkMyPe(), dest_pe);
+  combiner->insertData(NodeRequest(tpindex,k,CkMyPe()), dest_pe);
 }
 
 void DataManager::process(NodeRequest req){
   int dest_pe = tpArray->lastKnown(CkArrayIndex1D(req.tp));
   // The target tree piece is on this PE: we must have its nodes
   if(dest_pe == CkMyPe()){
+    CkPrintf("[COMBINE] recv tp %d key %llu reply %d dest_pe %d\n", req.tp, req.key, req.replyTo, dest_pe);
     processNodeRequest(req.key, req.replyTo);
   }
+  else{
+    // The tree piece that this request was intended for has migrated,
+    // forward request to dest_pe
+    CkPrintf("[COMBINE] forward tp %d key %llu reply %d dest_pe %d\n", req.tp, req.key, req.replyTo, dest_pe);
+    combiner->insertData(req, dest_pe);
+  }
+#if 0
   else{
     RequestMsg *msg = new RequestMsg(req.key, req.replyTo);
     tpArray->deliver((CkArrayMessage*)msg, CkDeliver_queue);
   }
+#endif
 }
 
 void DataManager::doneRemoteRequests(){
   numTreePiecesDoneRemoteRequests++;
   if(numTreePiecesDoneRemoteRequests == numLocalUsefulTreePieces){
+    CkPrintf("[COMBINE] Turn off streaming on PE %d\n", CkMyPe());
     combiner->doneInserting();
   }
 }
