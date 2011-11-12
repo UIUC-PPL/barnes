@@ -64,7 +64,10 @@ mainmodule barnes {
 #endif
     entry [expedited] void requestMoments(Key k, int replyTo);
 
+#if 0
     entry [expedited] void startTraversal();
+#endif
+    entry void startTraversal();
     //entry void doLocalGravity();
     //entry void doRemoteGravity();
     entry void doLocalGravity(RescheduleMsg *);
