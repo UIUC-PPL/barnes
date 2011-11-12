@@ -9,8 +9,8 @@ barnes.decl.h \
 Descriptor.h \
 MultipoleMoments.h \
 Vector3D.h \
-Node.h \
 Particle.h \
+Node.h \
 util.h \
 TreePiece.h \
 Messages.h \
@@ -57,8 +57,8 @@ barnes.decl.h \
 Descriptor.h \
 MultipoleMoments.h \
 Vector3D.h \
-Node.h \
 Particle.h \
+Node.h \
 util.h \
 Messages.h \
 State.h \
@@ -122,7 +122,6 @@ Request.h \
 TreePiece.h \
 Messages.h \
 gravity.h \
-Space.h \
 Parameters.h \
 
 Request.o: \
@@ -151,15 +150,15 @@ Orb3dLB_notopo.cpp \
 Orb3dLB_notopo.h \
 Orb3dLB_notopo.decl.h \
 TaggedVector3D.h \
+OrientedBox.h \
 barnes.decl.h \
 Descriptor.h \
 defines.h \
 common.h \
-OrientedBox.h \
 MultipoleMoments.h \
 Vector3D.h \
-Node.h \
 Particle.h \
+Node.h \
 util.h \
 
 State.o: \

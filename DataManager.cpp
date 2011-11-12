@@ -564,7 +564,7 @@ void DataManager::processSubmittedParticles(){
 
   int offset = 0;
   numLocalUsefulTreePieces = 0;
-  for(int i = 0; i < localTreePieces.submittedParticles.length(); i++){
+  for(int i = 0; i < localTreePieces.count; i++){
     TreePieceDescriptor &descr = localTreePieces.submittedParticles[i];
     //CkPrintf("(%d) tree piece %d submitted %d particles:\n", CkMyPe(), descr.index, descr.numParticles);
     
@@ -573,7 +573,7 @@ void DataManager::processSubmittedParticles(){
     CkVec<ParticleMsg*> *vec = descr.vec;
     for(int j = 0; j < vec->length(); j++){
       ParticleMsg *msg = (*vec)[j];
-      memcpy(&myParticles[offset],msg->part,sizeof(Particle)*msg->numParticles);
+      if(msg->numParticles > 0) memcpy(&myParticles[offset],msg->part,sizeof(Particle)*msg->numParticles);
       /*
       for(int k = offset; k < offset+msg->numParticles; k++){
         CkPrintf("(%d) particle %d key %lu\n", CkMyPe(), k, myParticles[k].key);
@@ -588,7 +588,7 @@ void DataManager::processSubmittedParticles(){
   myParticles.quickSort();
 
   // The first local TreePiece will always have buckets numbered from 0
-  localTreePieces.submittedParticles[0].bucketStartIdx = 0;
+  if(localTreePieces.count > 0) localTreePieces.submittedParticles[0].bucketStartIdx = 0;
   buildTree(root,0,myNumParticles,0,numLocalUsefulTreePieces);
   // Set the set of buckets assigned to each non-useful tree piece to empty:
 #if 0
@@ -1365,10 +1365,12 @@ int DataManager::flushAndMark(Node<ForceData> *node, int leafNum){
 // This procedure only goes
 // down to the depths of TreePiece roots; after that,
 // the singleBuildTree function is invoked.
-// Returns the extent of this node's particles in the DM's array
 void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tpstart, int tpend){
   TB_DEBUG("(%d) pstart %d pend %d tpstart %d tpend %d node %lu\n", CkMyPe(), pstart, pend, tpstart, tpend, node->getKey());
+  
+  int np;
   nodeTable[node->getKey()] = node;
+
   if(tpend <= tpstart){
     // No local tree piece under this node
     // It is Remote/RemoteBucket/RemoteEmptyBucket
@@ -1397,7 +1399,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   }
   else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
     TreePieceDescriptor &currentTP = localTreePieces.submittedParticles[tpstart];
-    int np = currentTP.numParticles;
+    np = currentTP.numParticles;
     TB_DEBUG("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), currentTP.index, node->getKey());
     //CkPrintf("(%d) SINGLE TREE index %d np %d pstart %d pend %d\n", CkMyPe(), currentTP.index, np, pstart, pend);
     // This is the first node that has 
@@ -1409,7 +1411,10 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     CkAssert(node->getOwnerStart() == currentTP.index);
     // There must be these many particles under the root of this TreePiece
     CkAssert(np == pend-pstart);
-    node->setParticles(&myParticles[pstart],np);
+
+    if(np > 0) node->setParticles(&myParticles[pstart],np);
+    else node->setParticles(NULL,0);
+
     // Set the bucket indices for this TreePiece
     // If this is not the 0-th local TreePiece to have its bucket indices set,
     // it can use the last bucket (exclusive) of the one previous to it as its first bucket
@@ -1430,22 +1435,31 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   }
 
 
+  np = pend-pstart;
   Node<ForceData> *leftChild = node->getLeftChild();
   Node<ForceData> *rightChild = node->getRightChild();
-  node->setParticles(&myParticles[pstart],pend-pstart);
+
+  if(np > 0) node->setParticles(&myParticles[pstart],pend-pstart);
+  else node->setParticles(NULL,0);
+
+  // If we are here, this node has at least one local tree piece underneath it
+  CkAssert(tpend > tpstart);
 
   // Make sure that the range of tree pieces
   // is contained within this node; otherwise,
   // we shouldn't have made this call at all.
   CkAssert(localTreePieces.submittedParticles[tpstart].index >= node->getOwnerStart());
+
   // Find the first local TreePiece that has
   // an index beyond the left child's last
   // contained TreePiece, i.e. equal to or after
   // the right child's first contained TreePiece 
   int rightFirstOwner = rightChild->getOwnerStart(); 
-  int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner, &localTreePieces.submittedParticles[0], tpstart, tpend); 
+  int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner, localTreePieces.submittedParticles.getVec(), tpstart, tpend); 
+
   Key particleTestKey = Node<ForceData>::getParticleLevelKey(rightChild);
-  int firstParticleNotInLeft = binary_search_ge<Key,Particle>(particleTestKey,&myParticles[0],pstart,pend);
+  int firstParticleNotInLeft = binary_search_ge<Key,Particle>(particleTestKey, myParticles.getVec(), pstart, pend);
+
   buildTree(leftChild,pstart,firstParticleNotInLeft,tpstart,tp);
   buildTree(rightChild,firstParticleNotInLeft,pend,tp,tpend);
 
