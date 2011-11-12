@@ -794,7 +794,9 @@ bool CompareNodePtrToKey(void *a, Key k){
 void DataManager::startTraversal(){
   LBTurnInstrumentOn();
   Node<ForceData> **bucketPtrs = myBuckets.getVec();
+#if 0
   localTreePieces.submittedParticles[0].bucketStartIdx = 0;
+#endif
   int start = 0;
   int end = myBuckets.length();
 
