@@ -63,10 +63,15 @@ mainmodule barnes {
   array[1D] TreePiece {
     entry TreePiece();
     entry void receiveParticles(ParticleMsg *msg);
+#if 0
     entry void submitParticles();
-    entry void requestMoments(Key k, int replyTo);
+#endif
+    entry [expedited] void requestMoments(Key k, int replyTo);
 
+#if 0
     entry [expedited] void startTraversal();
+#endif
+    entry void startTraversal();
     //entry void doLocalGravity();
     //entry void doRemoteGravity();
     entry void doLocalGravity(RescheduleMsg *);
@@ -98,7 +103,8 @@ mainmodule barnes {
     entry void sendParticles(int numTreePieces);
     entry [expedited] void receiveMoments(MomentsExchangeStruct moments);
 
-    // FIXME - expedite these?
+    entry void processSubmittedParticles();
+
     entry void recvParticles(ParticleReplyMsg *msg);
     entry void recvNode(NodeReplyMsg *msg);
     entry void advance(CkReductionMsg *msg);

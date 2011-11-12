@@ -15,21 +15,25 @@
 
 
 class TreePiece;
+extern CProxy_TreePiece treePieceProxy;
 
 #include <map>
 using namespace std;
 
+class DataManager;
 class TreePieceCounter : public CkLocIterator {            
   public:
   int count;
-  CkHashtableT<CkArrayIndex, int> registered;               
-  TreePieceCounter() : count(0) { }                      
-  void addLocation(CkLocation &loc) {
-    registered.put(loc.getIndex()) = ++count;               
-  }
+  int numParticles;
+  CkVec<TreePieceDescriptor> submittedParticles;
+
+  TreePieceCounter() { }                      
+
+  void addLocation(CkLocation &loc);
   void reset() {                                            
+    numParticles = 0;
     count = 0;
-    registered.empty();                                     
+    submittedParticles.length() = 0;
   }                                                         
 };
 
@@ -62,9 +66,16 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 
   int numTreePieces;
   int numLocalUsefulTreePieces;
+#if 0
   int numLocalTreePieces;
+#endif
   TreePieceCounter localTreePieces;
-  CkVec<TreePieceDescriptor> submittedParticles;
+#if 0
+  //CkVec<TreePieceDescriptor> submittedParticles;
+#endif
+
+  int numMomentsRequested;
+  int numMomentsReceived;
 
   int iteration;
   int decompIterations;
@@ -76,7 +87,9 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 
   CkVec<Node<ForceData>*> myBuckets;
 
+#if 0
   bool doneFlushParticles; 
+#endif
   // I am done constructing the tree 
   // from particles present on this PE
   bool doneTreeBuild;
@@ -122,7 +135,6 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void sendHistogram();
   
   void senseTreePieces();
-  void processSubmittedParticles();
   void buildTree(Node<ForceData> *node, int pstart, int pend, int tpstart, int tpend);
   void singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &ownerTreePiece);
 
@@ -186,6 +198,10 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 
   void combineNodeRequest(int tpindex, Key k);
   void combineParticleRequest(Key k, int tpindex);
+
+  // after detecting quiescence, identify tree pieces on PE
+  // and get their particles
+  void processSubmittedParticles();
 
   // called by tree piece that is forwarding a remote request
   void requestNode(RequestMsg *);
