@@ -805,7 +805,7 @@ void DataManager::startTraversal(){
   if(numLocalUsefulTreePieces > 0){
     for(int i = 0; i < numLocalUsefulTreePieces; i++){
       TreePieceDescriptor &tp = localTreePieces.submittedParticles[i];
-      tp.owner->prepare(root,tp.root,&myBuckets[tp.bucketStartIdx],tp.bucketEndIdx-tp.bucketStartIdx);
+      tp.owner->prepare(root, tp.root, myBuckets.getVec()+tp.bucketStartIdx, tp.bucketEndIdx-tp.bucketStartIdx);
       treePieceProxy[tp.index].startTraversal();
     }
   }
@@ -1084,9 +1084,8 @@ void DataManager::advance(CkReductionMsg *msg){
   }
 
   iteration++;
-  CkCallback cb;
   if(iteration == globalParams.iterations){
-    cb = CkCallback(CkIndex_Main::niceExit(),mainProxy);
+    CkCallback cb = CkCallback(CkIndex_Main::niceExit(),mainProxy);
     contribute(0,0,CkReduction::sum_int,cb);
   }
   else if(iteration % globalParams.balancePeriod == 0){
@@ -1098,10 +1097,14 @@ void DataManager::advance(CkReductionMsg *msg){
   }
   else{
     init();
-    cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
+    for(int i = 0; i < localTreePieces.submittedParticles.length(); i++){
+      TreePiece *tp = localTreePieces.submittedParticles[i].owner;
+      tp->cleanup();
+    }
+    CkCallback cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
     contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
   }
-  
+
   delete msg;
 }
 

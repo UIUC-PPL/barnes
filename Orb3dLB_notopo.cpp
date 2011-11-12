@@ -65,18 +65,17 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
     tpEvents[YDIM].push_back(Event(data->vec.y,load,tag));
     tpEvents[ZDIM].push_back(Event(data->vec.z,load,tag));
 
-    tps[tag] = OrbObject(tag);
+    tps[tag] = OrbObject(tag,data->myNumParticles);
     tps[tag].centroid = data->vec;
     
-    /*
-    CkPrintf("[Orb3dLB_notopo] tree piece %d load %f centroid %f %f %f\n", 
+    CkPrintf("[Orb3dLB_notopo] tree piece %d particles %d load %f centroid %f %f %f\n", 
                                       data->tag,
+                                      data->myNumParticles,
                                       load,
                                       data->vec.x,
                                       data->vec.y,
                                       data->vec.z
                                       );
-    */
     /*
     if(step() == 1){
       CkPrintf("[tpinfo] %f %f %f %f %d %d\n",
@@ -131,7 +130,6 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
   minload = maxload = procload[0];
   avgload = 0.0;
   for(int i = 0; i < stats->count; i++){
-    /*
     CkPrintf("pe %d load %f box %f %f %f %f %f %f\n", i, procload[i], 
                                 procbox[i].lesser_corner.x,
                                 procbox[i].lesser_corner.y,
@@ -140,7 +138,6 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
                                 procbox[i].greater_corner.y,
                                 procbox[i].greater_corner.z
                                 );
-    */
     avgload += procload[i];
     if(minload > procload[i]) minload = procload[i];
     if(maxload < procload[i]) maxload = procload[i];
@@ -150,7 +147,6 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
 
   CkPrintf("Orb3dLB_notopo stats: min %f max %f avg %f max/avg %f\n", minload, maxload, avgload, maxload/avgload);
 
-  /*
   int migr = 0;
   float *objload = new float[stats->count];
   for(int i = 0; i < stats->count; i++){
@@ -175,9 +171,8 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
                                objload[i]);
   }
   CkPrintf("%d objects migrating\n", migr);
-  */
 
-  //delete[] objload;
+  delete[] objload;
 
 }
 
@@ -203,7 +198,7 @@ void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<float> &box,
     for(int i = 0; i < events[XDIM].length(); i++){
       Event &ev = events[XDIM][i];
       OrbObject &orb = tps[ev.owner];
-      if(ev.load > ZERO_THRESHOLD){
+      if(orb.numParticles > 0){
         (*mapping)[orb.lbindex] = nextProc;
         totalLoad += ev.load;
         procbox[nextProc].grow(orb.centroid);

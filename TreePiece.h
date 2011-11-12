@@ -77,6 +77,7 @@ class TreePiece : public CBase_TreePiece {
 
   void pup(PUP::er &p);
   void startlb();
+  void cleanup();
   void doAtSync(); 
   void ResumeFromSync();
 };

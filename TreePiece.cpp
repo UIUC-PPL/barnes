@@ -15,7 +15,6 @@ extern Parameters globalParams;
 TreePiece::TreePiece() {
   usesAtSync = CmiTrue;
   iteration = 0;
-  myRoot = NULL;
   findOrbLB();
   init();
 }
@@ -35,13 +34,14 @@ void TreePiece::findOrbLB(){
 }
 
 void TreePiece::init(){
-  myNumParticles = 0;
   decompMsgsRecvd.length() = 0;
   totalNumTraversals = 2;
   myDM = dataManagerProxy.ckLocalBranch();
   root = NULL;
   myBuckets = NULL;
   myNumBuckets = 0;
+  myNumParticles = 0;
+  myRoot = NULL;
 }
 
 void TreePiece::receiveParticles(ParticleMsg *msg){
@@ -156,9 +156,10 @@ void TreePiece::finishIteration(){
 
   localTraversalState.finishedIteration();
   remoteTraversalState.finishedIteration();
-  
-  init();
+}
 
+void TreePiece::cleanup(){
+  init();
   iteration++;
 }
 
@@ -207,7 +208,6 @@ void TreePiece::startlb(){
   LDObjHandle handle = myRec->getLdHandle();
   if(numLB == 0){
     ResumeFromSync();
-    return;
   }
   else if(haveOrbLB){
     Vector3D<float> centroid(0.0);
@@ -228,8 +228,13 @@ void TreePiece::startlb(){
     contribute(sizeof(TaggedVector3D), (char *)&tv, CkReduction::concat, lbcb);
   }
   else{
+    // must call init() before AtSync()
+    cleanup();
     AtSync();
+    return;
   }
+  
+  cleanup();
 }
 
 void TreePiece::doAtSync(){
@@ -238,6 +243,7 @@ void TreePiece::doAtSync(){
 
 void TreePiece::ResumeFromSync() {
   //if(thisIndex == 0) CkPrintf("tree piece %d ResumeFromSync\n", thisIndex);
+
   CkCallback cb(CkIndex_DataManager::resumeFromLB(),dataManagerProxy);
   contribute(0,0,CkReduction::sum_int,cb);
 }
