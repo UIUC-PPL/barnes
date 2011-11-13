@@ -42,6 +42,8 @@ void TreePiece::init(){
   myNumBuckets = 0;
   myNumParticles = 0;
   myRoot = NULL;
+  localTraversalState.finishedIteration();
+  remoteTraversalState.finishedIteration();
 }
 
 void TreePiece::receiveParticles(ParticleMsg *msg){
@@ -154,8 +156,6 @@ void TreePiece::finishIteration(){
   CmiUInt8 oc = localTraversalState.numInteractions[2]+remoteTraversalState.numInteractions[2];
   dataManagerProxy[CkMyPe()].traversalsDone(pn,pp,oc);
 
-  localTraversalState.finishedIteration();
-  remoteTraversalState.finishedIteration();
 }
 
 void TreePiece::cleanup(){
@@ -222,13 +222,18 @@ void TreePiece::startlb(){
                                         centroid.z
                                         );
 #endif
-    TaggedVector3D tv(centroid,handle,myNumParticles,myNumParticles,0,0);
+    unsigned int ni = localTraversalState.numInteractions[0]
+                     +localTraversalState.numInteractions[1]
+                     +remoteTraversalState.numInteractions[0]
+                     +remoteTraversalState.numInteractions[1];
+
+    TaggedVector3D tv(centroid,handle,ni,myNumParticles,0,0);
     tv.tag = thisIndex;
     CkCallback lbcb(CkIndex_Orb3dLB_notopo::receiveCentroids(NULL),0,orbLBProxy);
     contribute(sizeof(TaggedVector3D), (char *)&tv, CkReduction::concat, lbcb);
   }
   else{
-    // must call init() before AtSync()
+    // must call cleanup() before AtSync()
     cleanup();
     AtSync();
     return;

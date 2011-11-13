@@ -283,26 +283,27 @@ void DataManager::decompose(BoundingBox &universe){
     CkPrintf("(%d) prev time %g s\n", CkMyPe(), CmiWallTimer()-prevIterationStart);
     CkPrintf("(%d) mem %.2f MB\n", CkMyPe(), memMB);
     CkPrintf("(%d) iteration %d univ %f %f %f %f %f %f energy %f\n", 
-              CkMyPe(),
-              iteration,
-              universe.box.lesser_corner.x,
-              universe.box.lesser_corner.y,
-              universe.box.lesser_corner.z,
-              universe.box.greater_corner.x,
-              universe.box.greater_corner.y,
-              universe.box.greater_corner.z,
-              universe.energy);
- 
+        CkMyPe(),
+        iteration,
+        universe.box.lesser_corner.x,
+        universe.box.lesser_corner.y,
+        universe.box.lesser_corner.z,
+        universe.box.greater_corner.x,
+        universe.box.greater_corner.y,
+        universe.box.greater_corner.z,
+        universe.energy);
+
 
     prevIterationStart = CkWallTimer();
   }
 
   /* 
-    We increase the number of required tree pieces
-    as the decomposition iterations proceed. Begin
-    with a single tree piece holding all the particles.
-  */
+     We increase the number of required tree pieces
+     as the decomposition iterations proceed. Begin
+     with a single tree piece holding all the particles.
+     */
   numTreePieces = 1;
+
   // How many particles do I hold?
   initHistogramParticles();
   // Send this count to the master PE

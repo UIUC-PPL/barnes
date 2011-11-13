@@ -59,7 +59,8 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
     LDObjHandle &handle = data->handle;
     int tag = stats->getHash(handle.id,handle.omhandle.id);
 
-    float load = stats->objData[tag].wallTime;
+    //float load = stats->objData[tag].wallTime;
+    float load = (float) data->numActiveParticles;
 
     tpEvents[XDIM].push_back(Event(data->vec.x,load,tag));
     tpEvents[YDIM].push_back(Event(data->vec.y,load,tag));
