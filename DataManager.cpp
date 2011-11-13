@@ -717,7 +717,10 @@ void DataManager::respondToMomentsRequest(Node<ForceData> *node, CkVec<int> &rep
   MomentsExchangeStruct moments = *node;
   for(int i = 0; i < replyTo.length(); i++){
     TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), replyTo[i], node->getKey());
-    thisProxy[replyTo[i]].receiveMoments(moments);
+    CkEntryOptions opts;
+    opts.setQueueing(CK_QUEUEING_IFIFO);
+    opts.setPriority(RECV_MOMENTS_PRIORITY);
+    thisProxy[replyTo[i]].receiveMoments(moments, &opts);
   }
   replyTo.length() = 0;
 }
@@ -871,7 +874,10 @@ void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData
 
     CkAssert(leaf->getOwnerStart()+1 == leaf->getOwnerEnd());
     int owner = leaf->getOwnerStart();
-    treePieceProxy[owner].requestParticles( std::make_pair(key, CkMyPe()) );
+    CkEntryOptions opts;
+    opts.setQueueing(CK_QUEUEING_IFIFO);
+    opts.setPriority(REQUEST_PARTICLES_PRIORITY);
+    treePieceProxy[owner].requestParticles( std::make_pair(key, CkMyPe()), &opts);
     request.sent = true;
     
     request.parent = leaf;
@@ -924,8 +930,11 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
 
     int numOwners = leaf->getOwnerEnd()-leaf->getOwnerStart();
     int requestOwner = leaf->getOwnerStart()+(rand()%numOwners);
-    RRDEBUG("(%d) REQUEST node %lu from tp %d\n", CkMyPe(), key, requestOwner);
-    treePieceProxy[requestOwner].requestNode( std::make_pair(key, CkMyPe()) );
+    RRDEBUG("(%d) REQUEST node %lu_ from tp %d\n", CkMyPe(), key, requestOwner);
+    CkEntryOptions opts;
+    opts.setQueueing(CK_QUEUEING_IFIFO);
+    opts.setPriority(REQUEST_NODE_PRIORITY);
+    treePieceProxy[requestOwner].requestNode(std::make_pair(key, CkMyPe()), &opts);
     request.sent = true;
     request.parent = leaf;
   }
