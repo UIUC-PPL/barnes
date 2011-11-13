@@ -73,7 +73,7 @@ mainmodule barnes {
     entry void doLocalGravity(RescheduleMsg *);
     entry void doRemoteGravity(RescheduleMsg *);
 
-    entry [expedited] void requestParticles(std::pair<Key, int> request);
+    entry void requestParticles(std::pair<Key, int> request);
     entry [expedited] void requestNode(std::pair<Key, int> request);
     entry void quiescence();
     entry void doAtSync();
@@ -102,7 +102,7 @@ mainmodule barnes {
     entry void processSubmittedParticles();
 
     entry void recvParticles(ParticleReplyMsg *msg);
-    entry void recvNode(NodeReplyMsg *msg);
+    entry [expedited] void recvNode(NodeReplyMsg *msg);
     entry void advance(CkReductionMsg *msg);
     entry void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit);
 

@@ -125,6 +125,24 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
 
   orbPartition(tpEvents,box,stats->count);
 
+  CkPrintf("***************************\n");
+  CkPrintf("Before LB step %d\n", step());
+  CkPrintf("***************************\n");
+  CkPrintf("i pe wall idle bg_wall objload\n");
+  for(int i = 0; i < stats->count; i++){
+      double wallTime = stats->procs[i].total_walltime;
+      double idleTime = stats->procs[i].idletime;
+      double bgTime = stats->procs[i].bg_walltime;
+      double objTime = wallTime-(idleTime+bgTime);
+    CkPrintf("[pestats] %d %d %f %f %f %f\n", 
+                               i,
+                               stats->procs[i].pe, 
+                               wallTime,
+                               idleTime,
+                               bgTime,
+                               objTime);
+                               
+  }
 
   float minload, maxload, avgload;
   minload = maxload = procload[0];
@@ -148,32 +166,11 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
   CkPrintf("Orb3dLB_notopo stats: min %f max %f avg %f max/avg %f\n", minload, maxload, avgload, maxload/avgload);
 
   int migr = 0;
-  float *objload = new float[stats->count];
-  for(int i = 0; i < stats->count; i++){
-    objload[i] = 0.0;
-  }
   for(int i = 0; i < numobjs; i++){
-    objload[stats->from_proc[i]] += stats->objData[i].wallTime;
     if(stats->to_proc[i] != stats->from_proc[i]) migr++;
   }
   
-  CkPrintf("***************************\n");
-  CkPrintf("Before LB step %d\n", step());
-  CkPrintf("***************************\n");
-  CkPrintf("i pe wall cpu idle bg_wall bg_cpu objload\n");
-  for(int i = 0; i < stats->count; i++){
-    CkPrintf("[pestats] %d %d %f %f %f %f\n", 
-                               i,
-                               stats->procs[i].pe, 
-                               stats->procs[i].total_walltime, 
-                               stats->procs[i].idletime,
-                               stats->procs[i].bg_walltime,
-                               objload[i]);
-  }
   CkPrintf("%d objects migrating\n", migr);
-
-  delete[] objload;
-
 }
 
 #define ZERO_THRESHOLD 0.001

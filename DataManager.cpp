@@ -792,7 +792,7 @@ bool CompareNodePtrToKey(void *a, Key k){
 }
 
 void DataManager::startTraversal(){
-  LBTurnInstrumentOn();
+  //LBTurnInstrumentOn();
   Node<ForceData> **bucketPtrs = myBuckets.getVec();
 #if 0
   localTreePieces.submittedParticles[0].bucketStartIdx = 0;
@@ -1084,6 +1084,13 @@ void DataManager::advance(CkReductionMsg *msg){
   }
 
   iteration++;
+  if(iteration == 13){
+      traceBegin();
+  }
+  else{
+      traceEnd();
+  }
+
   if(iteration == globalParams.iterations){
     CkCallback cb = CkCallback(CkIndex_Main::niceExit(),mainProxy);
     contribute(0,0,CkReduction::sum_int,cb);
@@ -1268,7 +1275,7 @@ void DataManager::markNaNBuckets(){
 #endif
 
 void DataManager::init(){
-  LBTurnInstrumentOff();
+  //LBTurnInstrumentOff();
   CkAssert(pendingMoments.empty());
   // safe to reset here, since all tree pieces 
   // must have finished iteration
