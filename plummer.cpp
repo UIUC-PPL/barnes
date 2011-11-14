@@ -20,76 +20,119 @@ using namespace std;
 Real xrand(Real,Real);
 void pickshell(Vector3D<Real> &vec, Real rad);
 
-Particle *testdata(int nbody)
-{
-   Real rsc, vsc, rsq, r, v, x, y;
-   Vector3D<Real> cmr, cmv;
-   Particle *p;
-   int rejects = 0;
-   int k;
-   int halfnbody, i;
-   Real offset;
-   Particle *cp;
-   Real tmp;
+void writeToDisk(ofstream &ofs, Particle *p, int nbody);
+void readFromDisk(ifstream &in, Particle *p, int nbody);
 
-   Particle *bodytab = new Particle[nbody];
-   assert(bodytab != NULL);
+void testdata(ofstream &out, ifstream &in, int nbody, int preambleSize){
+  Real rsc, vsc, rsq, r, v, x, y;
+  Vector3D<Real> cmr, cmv;
+  Particle *p;
+  int rejects = 0;
+  int k;
+  int halfnbody, i;
+  Real offset;
+  Particle *cp;
+  Real tmp;
 
-   rsc = 9 * PI / 16;
-   vsc = sqrt(1.0 / rsc);
+  int curSize;
 
-   cmr = Vector3D<Real>(0.0);
-   cmv = Vector3D<Real>(0.0);
+  int bufSize = (1<<20)/sizeof(Particle);
 
-   halfnbody = nbody / 2;
-   if (nbody % 2 != 0) halfnbody++;
-   for (p = bodytab; p < bodytab+halfnbody; p++) {
+  //cout << "bufsize " << bufSize << endl;
+  
+  halfnbody = nbody / 2;
+  if (nbody % 2 != 0) halfnbody++;
+
+  
+  Particle *bodytab = new Particle[bufSize];
+  assert(bodytab != NULL);
+
+  rsc = 9 * PI / 16;
+  vsc = sqrt(1.0 / rsc);
+
+  cmr = Vector3D<Real>(0.0);
+  cmv = Vector3D<Real>(0.0);
+
+  int remaining = halfnbody;
+  while(remaining > 0){
+    if(remaining > bufSize) curSize = bufSize;
+    else curSize = remaining;
+
+    remaining -= curSize;
+  
+    for(p = bodytab; p < bodytab+curSize; p++){
       p->mass = 1.0/nbody;
       r = 1 / sqrt(std::pow((double)xrand(0.0, MFRAC), (double)-2.0/3.0) - 1);
       /*   reject radii greater than 10 */
       while (r > 9.0) {
-	 rejects++;
-	 r = 1 / sqrt(std::pow((double)xrand(0.0, MFRAC), (double)-2.0/3.0) - 1);
+        rejects++;
+        r = 1 / sqrt(std::pow((double)xrand(0.0, MFRAC), (double)-2.0/3.0) - 1);
 
       }        
       pickshell(p->position, rsc * r);
-      
+
       cmr += p->position;
       do {
-	 x = xrand(0.0, 1.0);
-	 y = xrand(0.0, 0.1);
+        x = xrand(0.0, 1.0);
+        y = xrand(0.0, 0.1);
 
       } while (y > x*x * std::pow((double)(1 - x*x), (double)3.5));
 
       v = sqrt(2.0) * x / std::pow((double)(1 + r*r), (double)0.25);
       pickshell(p->velocity, vsc * v);
       cmv += p->velocity;
-      
-      //cout << "particle generated" << endl;
-   }
+    }
+    writeToDisk(out,bodytab,curSize);
+  }
 
-   //cout << "done first loop" << endl;
+  offset = 4.0;
 
-   offset = 4.0;
+  remaining = nbody-halfnbody;
+  in.seekg(preambleSize,ios::beg);
 
-   for (p = bodytab + halfnbody; p < bodytab+nbody; p++) {
-      p->mass = 1.0 / nbody;
-      cp = p - halfnbody;
-      p->position = cp->position+offset;
-      p->velocity = cp->velocity;
+  //cout << "TELLG " << in.tellg() << endl;
+  
+  while(remaining > 0){
+    if(remaining > bufSize) curSize = bufSize;
+    else curSize = remaining;
+
+    remaining -= curSize;
+
+    readFromDisk(in,bodytab,curSize);
+
+    for(p = bodytab; p < bodytab+curSize; p++){
+      p->position += offset;
       cmr += p->position;
       cmv += p->position;
-   }
+    }
 
-   cmr /= nbody;
-   cmv /= nbody;
+    writeToDisk(out,bodytab,curSize);
+  }
 
-   for (p = bodytab; p < bodytab+nbody; p++) {
-     p->position -= cmr;
-     p->velocity -= cmv;
-   }
+  cmr /= nbody;
+  cmv /= nbody;
 
-   return bodytab;
+  in.seekg(preambleSize,ios::beg);
+  out.seekp(preambleSize,ios::beg);
+
+  remaining = nbody;
+  while(remaining > 0){
+    if(remaining > bufSize) curSize = bufSize;
+    else curSize = remaining;
+
+    remaining -= curSize;
+
+    readFromDisk(in,bodytab,curSize);
+
+    for(p = bodytab; p < bodytab+curSize; p++){
+      p->position -= cmr;
+      p->velocity -= cmv;
+    }
+
+    writeToDisk(out,bodytab,curSize);
+  }
+
+  delete[] bodytab;
 }
 
 /*
@@ -136,16 +179,26 @@ int main(int argc, char **argv){
   int ndims = 3;
   Real tnow = 0.0;
   ofstream out(argv[2], ios::out|ios::binary);
-  
-  Particle *p = testdata(nbody);
+  ifstream in(argv[2], ios::in|ios::binary);
   
   out.write((char *)&nbody, sizeof(int));
   out.write((char *)&ndims, sizeof(int));
   out.write((char *)&tnow, sizeof(Real));
 
+  int preambleSize = 2*sizeof(int)+sizeof(Real);
+
+  testdata(out,in,nbody,preambleSize);
+
+  out.close();
+  in.close();
+
+  return 0;
+}
+
+void writeToDisk(ofstream &out, Particle *p, int nbody){
   Real tmp[REALS_PER_PARTICLE];
   Real soft = 0.001;
-  
+
   for(int i = 0; i < nbody; i++){
     tmp[0] = p->position.x;
     tmp[1] = p->position.y;
@@ -156,20 +209,34 @@ int main(int argc, char **argv){
     tmp[6] = p->mass;
     tmp[7] = soft;
 
-    /*
-    cout << p->position.x << " "
-         << p->position.y << " "
-         << p->position.z << endl;
-    */
-
     out.write((char*)tmp, REALS_PER_PARTICLE*sizeof(Real));
+    //cout << "WRITE " << p->position.x << " " << p->position.y << " " << p->position.z << endl;
 
     p++;
   }
 
-  out.close();
+  out.flush();
+}
 
-  return 0;
+void readFromDisk(ifstream &in, Particle *p, int nbody){
+  Real tmp[REALS_PER_PARTICLE];
+  Real soft = 0.001;
+
+  for(int i = 0; i < nbody; i++){
+    in.read((char*)tmp, REALS_PER_PARTICLE*sizeof(Real));
+
+    p->position.x = tmp[0];
+    p->position.y = tmp[1];
+    p->position.z = tmp[2];
+    p->velocity.x = tmp[3];
+    p->velocity.y = tmp[4];
+    p->velocity.z = tmp[5];
+    p->mass       = tmp[6];
+    soft          = tmp[7];
+
+    //cout << "READ " << p->position.x << " " << p->position.y << " " << p->position.z << endl;
+    p++;
+  }
 }
 
 
