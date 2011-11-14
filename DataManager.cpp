@@ -831,7 +831,7 @@ bool CompareNodePtrToKey(void *a, Key k){
 }
 
 void DataManager::startTraversal(){
-  //LBTurnInstrumentOn();
+  LBTurnInstrumentOn();
   Node<ForceData> **bucketPtrs = myBuckets.getVec();
 #if 0
   localTreePieces.submittedParticles[0].bucketStartIdx = 0;
@@ -1336,7 +1336,7 @@ void DataManager::markNaNBuckets(){
 #endif
 
 void DataManager::init(){
-  //LBTurnInstrumentOff();
+  LBTurnInstrumentOff();
   CkAssert(pendingMoments.empty());
   // safe to reset here, since all tree pieces 
   // must have finished iteration
