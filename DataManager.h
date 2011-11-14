@@ -60,8 +60,6 @@ class DataManager : public CBase_DataManager {
   int myNumParticles;
   BoundingBox myBox;
 
-  bool firstSplitterRound;
-
   int numTreePieces;
   int numLocalUsefulTreePieces;
 #if 0
@@ -106,6 +104,10 @@ class DataManager : public CBase_DataManager {
   map<Key,Request> nodeRequestTable;
   map<Key,Request> particleRequestTable;
 
+  // needed for skipping decomposition
+  CkVec<Key> treePieceRoots;
+  int numSkippedDecomposition;
+  bool doSkipDecomposition;
 
   Traversal<ForceData> fillTrav;
   int numTreePiecesDoneTraversals;
@@ -129,6 +131,11 @@ class DataManager : public CBase_DataManager {
 
   void flushParticles();
   int flushAndMark(Node<ForceData> *node, int mark); 
+  // for skipping decomposition
+  void skipFlushParticles();
+
+  // helper function
+  void sendParticleMsg(int tp, Particle *p, int numParticles);
 
 #if 0
   void makeMoments();
@@ -148,7 +155,11 @@ class DataManager : public CBase_DataManager {
   void flushBufferedRemoteDataRequests();
 
   void freeCachedData();
+  // to free the local tree at the end of the iteration, when not skipping decomposition
   void freeTree();
+  // if skipping decomposition, we can reuse tree that already exists: reset its data 
+  // (particles,type,moments,numChildrenMomentsReady
+  void reuseTree();
   void finishIteration();
 
 #if 0

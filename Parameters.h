@@ -46,6 +46,8 @@ struct Parameters {
 
   bool doPrintAccel;
 
+  int decompPeriod;
+
   //int branchFactor;
 
   /*
@@ -75,6 +77,8 @@ struct Parameters {
     p | iterations;
     p | balancePeriod;
     p | doPrintAccel;
+
+    p | decompPeriod;
   }
 
   /*

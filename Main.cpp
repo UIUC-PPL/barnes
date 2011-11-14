@@ -145,6 +145,10 @@ void Main::setParameters(CkArgMsg *m){
   if(table.find("output") != table.end()) globalParams.doPrintAccel = true;
   CkPrintf("doPrintAccel: %d\n", globalParams.doPrintAccel);
 
+  /* Number of steps between decompositions */
+  globalParams.decompPeriod = params.getiparam("decompPeriod", DEFAULT_DECOMP_PERIOD, table); 
+  CkPrintf("decompPeriod: %d\n", globalParams.decompPeriod);
+
 
   /*
     Use the filename obtained previously to read just the 

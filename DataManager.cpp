@@ -62,6 +62,7 @@ DataManager::DataManager() :
   prevIterationStart(0.0),
   root(NULL)
 {
+  doSkipDecomposition = false;
   init();
 }
 
@@ -297,17 +298,22 @@ void DataManager::decompose(BoundingBox &universe){
     prevIterationStart = CkWallTimer();
   }
 
-  /* 
-     We increase the number of required tree pieces
-     as the decomposition iterations proceed. Begin
-     with a single tree piece holding all the particles.
+  if(doSkipDecomposition){
+    skipFlushParticles();
+  }
+  else{
+    /* 
+       We increase the number of required tree pieces
+       as the decomposition iterations proceed. Begin
+       with a single tree piece holding all the particles.
      */
-  numTreePieces = 1;
+    numTreePieces = 1;
 
-  // How many particles do I hold?
-  initHistogramParticles();
-  // Send this count to the master PE
-  sendHistogram();
+    // How many particles do I hold?
+    initHistogramParticles();
+    // Send this count to the master PE
+    sendHistogram();
+  }
 }
 
 /*
@@ -412,6 +418,24 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   delete msg;
 }
 
+void DataManager::skipFlushParticles(){
+  //CkPrintf("[%d] skip decomposition, flush particles %d treepieces %d\n", CkMyPe(), myNumParticles, numTreePieces);
+  int pstart = 0;
+  int pend = myNumParticles;
+  //CkPrintf("(%d) SKIP TP 0 node %llu\n", CkMyPe(), treePieceRoots[0]);
+  for(int i = 1; i < numTreePieces; i++){
+    Key check = treePieceRoots[i];
+    //CkPrintf("(%d) SKIP TP %d node %llu\n", CkMyPe(), i, treePieceRoots[i]);
+    int prev_start = pstart;
+    pstart = binary_search_ge<Key,Particle>(check,myParticles.getVec(),pstart,pend); 
+
+    int prev_np = pstart-prev_start;
+
+    sendParticleMsg(i-1, myParticles.getVec()+prev_start, prev_np);
+  }
+  sendParticleMsg(numTreePieces-1,myParticles.getVec()+pstart,pend-pstart);
+}
+
 /*
   As a result of the decomposition procedure, the
   particles held by each PE have been partitioned 
@@ -423,6 +447,8 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   activeBins data structure.
 */
 void DataManager::flushParticles(){
+  treePieceRoots.length() = 0;
+  treePieceRoots.resize(numTreePieces);
   int numUsefulTreePieces = flushAndMark(root,0);
 #if 0
   doneFlushParticles = true;
@@ -454,10 +480,16 @@ void DataManager::receiveSplitters(CkVec<int> splitBins) {
 void DataManager::sendParticlesToTreePiece(Node<ForceData> *nd, int tp) {
   CkAssert(nd->getNumChildren() == 0);
   int np = nd->getNumParticles();
+  treePieceRoots[tp] = Node<ForceData>::getParticleLevelKey(nd);
+  //CkPrintf("(%d) DECOMP TP %d node %llu\n", CkMyPe(), tp, nd->getKey());
 
+  sendParticleMsg(tp,nd->getParticles(),np);
+}
+
+void DataManager::sendParticleMsg(int tp, Particle *p, int np){
   if(np > 0){
     ParticleMsg *msg = new (np,0) ParticleMsg;
-    memcpy(msg->part, nd->getParticles(), sizeof(Particle)*np);
+    memcpy(msg->part, p, sizeof(Particle)*np);
     msg->numParticles = np;
     treePieceProxy[tp].receiveParticles(msg);
   }
@@ -561,6 +593,7 @@ void DataManager::processSubmittedParticles(){
   localTreePieces.submittedParticles.quickSort();
   myNumParticles = localTreePieces.numParticles;
   
+  myParticles.length() = 0;
   myParticles.resize(myNumParticles);
 
   int offset = 0;
@@ -574,7 +607,7 @@ void DataManager::processSubmittedParticles(){
     CkVec<ParticleMsg*> *vec = descr.vec;
     for(int j = 0; j < vec->length(); j++){
       ParticleMsg *msg = (*vec)[j];
-      if(msg->numParticles > 0) memcpy(&myParticles[offset],msg->part,sizeof(Particle)*msg->numParticles);
+      if(msg->numParticles > 0) memcpy(myParticles.getVec()+offset,msg->part,sizeof(Particle)*msg->numParticles);
       /*
       for(int k = offset; k < offset+msg->numParticles; k++){
         CkPrintf("(%d) particle %d key %lu\n", CkMyPe(), k, myParticles[k].key);
@@ -590,7 +623,9 @@ void DataManager::processSubmittedParticles(){
 
   // The first local TreePiece will always have buckets numbered from 0
   if(localTreePieces.count > 0) localTreePieces.submittedParticles[0].bucketStartIdx = 0;
+
   buildTree(root,0,myNumParticles,0,numLocalUsefulTreePieces);
+
   // Set the set of buckets assigned to each non-useful tree piece to empty:
 #if 0
   for(int i = numLocalUsefulTreePieces; i < numLocalTreePieces; i++){
@@ -1101,6 +1136,13 @@ void DataManager::advance(CkReductionMsg *msg){
       traceEnd();
   }
 
+  if(iteration % globalParams.decompPeriod != 0){ 
+    doSkipDecomposition = true;
+  }
+  else{
+    doSkipDecomposition = false;
+  }
+
   if(iteration == globalParams.iterations){
     CkCallback cb = CkCallback(CkIndex_Main::niceExit(),mainProxy);
     contribute(0,0,CkReduction::sum_int,cb);
@@ -1111,6 +1153,8 @@ void DataManager::advance(CkReductionMsg *msg){
       TreePiece *tp = localTreePieces.submittedParticles[i].owner;
       tp->startlb();
     }
+    // must do decomposition after a load balancing step
+    doSkipDecomposition = false;
   }
   else{
     init();
@@ -1190,6 +1234,7 @@ void DataManager::quiescence(){
 }
 
 void DataManager::freeTree(){
+  //CkPrintf("(%d) FREE tree\n", CkMyPe());
   if(root != NULL) {
     root->deleteBeneath();
     delete root;
@@ -1197,11 +1242,17 @@ void DataManager::freeTree(){
   }
 }
 
+void DataManager::reuseTree(){
+  if(root != NULL){
+    root->reuseTree();
+  }
+}
+
 void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
   Vector3D<Real> dv;
 
-  Particle *pstart = &myParticles[0];
-  Particle *pend = &myParticles[myNumParticles-1];
+  Particle *pstart = myParticles.getVec();
+  Particle *pend = pstart+(myNumParticles-1);
 
   Real particleEnergy;
   Real particleKinetic;
@@ -1304,9 +1355,13 @@ void DataManager::init(){
   treeMomentsReady = false;
   numTreePiecesDoneTraversals = 0;
 
-  firstSplitterRound = true;
-  freeTree();
-  nodeTable.clear();
+  if(doSkipDecomposition){
+    reuseTree();
+  }
+  else{
+    freeTree();
+    nodeTable.clear();
+  }
 
   CkAssert(activeBins.getNumCounts() == 0);
 
@@ -1411,12 +1466,11 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     CkAssert(pstart == pend);
     node->setParticles(NULL,0);
     // Delete subtree beneath this node
+    //if(node->getNumChildren() > 0) CkPrintf("(%d) REMOTE deleteBeneath %llu\n", CkMyPe(), node->getKey());
     node->deleteBeneath();
-    node->setChildren(NULL,0);
     // Set type when requested moments are received
     // Don't tell parent that I'm done
 
-    // Since this node didn't "consume" any particles,
     return;
   }
   else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
@@ -1434,7 +1488,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     // There must be these many particles under the root of this TreePiece
     CkAssert(np == pend-pstart);
 
-    if(np > 0) node->setParticles(&myParticles[pstart],np);
+    if(np > 0) node->setParticles(myParticles.getVec()+pstart,np);
     else node->setParticles(NULL,0);
 
     // Set the bucket indices for this TreePiece
@@ -1461,7 +1515,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   Node<ForceData> *leftChild = node->getLeftChild();
   Node<ForceData> *rightChild = node->getRightChild();
 
-  if(np > 0) node->setParticles(&myParticles[pstart],pend-pstart);
+  if(np > 0) node->setParticles(myParticles.getVec()+pstart,pend-pstart);
   else node->setParticles(NULL,0);
 
   // If we are here, this node has at least one local tree piece underneath it
@@ -1536,18 +1590,27 @@ void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp
     myBuckets.push_back(node);
     // Record the fact that current tree piece has another bucket
     tp.bucketEndIdx++;
+
+    // since we might be reusing the tree, it could happen
+    // that this node was internal (not a leaf) in the previous 
+    // iteration. delete descendants, if there are any
+    //if(node->getNumChildren() > 0) CkPrintf("(%d) BUCKET deleteBeneath %llu\n", CkMyPe(), node->getKey());
+    node->deleteBeneath();
   }
   else{
     node->setType(Internal);
     // Shouldn't not have allocated any children yet.
-    CkAssert(node->getNumChildren() == 0);
+    // !doSkipDecomposition => node->getNumChildren() == 0
+    CkAssert(doSkipDecomposition || (node->getNumChildren() == 0));
     // Partition the particles under this
     // node among the two children. To do this,
     // find the first particle that does not belong
     // underneath the left child, which is the same
     // as the first child that does belong under the
     // right child.
-    node->refine();
+    if(node->getNumChildren() == 0) node->refine();
+    else node->reuseRefine();
+
     singleBuildTree(node->getLeftChild(),tp);
     singleBuildTree(node->getRightChild(),tp);
     node->getMomentsFromChildren();

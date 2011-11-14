@@ -276,7 +276,7 @@ class Node {
 
     int start = 0;
     int end = getNumParticles();
-    Particle *particles = getParticles();
+    Particle *p = getParticles();
     int splitters[BRANCH_FACTOR+1];
     //splitters.resize(BRANCH_FACTOR+1);
 
@@ -292,7 +292,7 @@ class Node {
      * child. We are able to do this in-place partitioning because 
      * particles are assumed to have been sorted beforehand.
      */
-    findSplitters(particles,start,end,splitters,childKey,childDepth);
+    findSplitters(p,start,end,splitters,childKey,childDepth);
 
     for(int i = 0; i < BRANCH_FACTOR; i++){
       initChild(i,splitters,childKey,childDepth);
@@ -300,9 +300,29 @@ class Node {
     }
   }
 
+  void reuseRefine(){
+    int start = 0;
+    int end = getNumParticles();
+    Particle *p = getParticles();
+
+    int numRankBits = LOG_BRANCH_FACTOR;
+    Key childKey = (getKey() << numRankBits);
+    int childDepth = getDepth()+1;
+
+    int splitters[BRANCH_FACTOR+1];
+    findSplitters(p,start,end,splitters,childKey,childDepth);
+    Node<T> *child = getChildren();
+    for(int i = 0; i < BRANCH_FACTOR; i++){
+      start = splitters[i];
+      end = splitters[i+1];
+      child->setParticles(p+start,end-start);
+      child++; 
+    }
+  }
+
   // Initialize various fields of child based on those of parent.
   void initChild(int i, int *splitters, Key childKey, int childDepth){
-    Node<T> *child = children+i;
+    Node<T> *child = getChildren()+i;
     // The splitters array was filled in by findSplitters()
     int childPartStart = splitters[i]; 
     int childPartEnd = splitters[i+1]; 
@@ -315,9 +335,8 @@ class Node {
 
     // findSplitters distributed particles over
     // different children
-    child->core.particleStart = core.particleStart+childPartStart;
-    child->core.numParticles = childNumParticles;
-    child->core.numChildren = 0;
+    child->setParticles(getParticles()+childPartStart,childNumParticles);
+    child->setChildren(NULL,0);
   }
 
   /* 
@@ -535,6 +554,24 @@ class Node {
       child++;
     }
     delete[] getChildren();
+    setChildren(NULL,0);
+  }
+
+  void reuseTree(){
+    reset();
+    if(getNumChildren() == 0) return;
+    Node<T> *child = getChildren(); 
+    for(int i = 0; i < getNumChildren(); i++){
+      child->reuseTree();
+      child++;
+    }
+  }
+
+  void reset(){
+    setType(Invalid);
+    setParticles(NULL,0);
+    numChildrenMomentsReady = 0;
+    data = T();
   }
 
 };

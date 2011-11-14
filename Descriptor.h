@@ -156,7 +156,7 @@ struct ForceData {
   OrientedBox<Real> box;
   MultipoleMoments moments;
 
-  ForceData() 
+  ForceData() : box(), moments() 
   {
   }
 };
