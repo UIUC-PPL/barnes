@@ -64,7 +64,7 @@ private:
 
   CkVec<OrbObject> tps;
   CkVec<float> procload;
-  CkVec<OrientedBox<float> > procbox;
+  CkVec<OrientedBox<double> > procbox;
 
   // things are stored in here before work
   // is ever called.
@@ -77,7 +77,7 @@ private:
 
   CmiBool QueryBalanceNow(int step);
   void printData(BaseLB::LDStats &stats, int phase, int *revObjMap);
-  void orbPartition(CkVec<Event> *events, OrientedBox<float> &box, int procs);
+  void orbPartition(CkVec<Event> *events, OrientedBox<double> &box, int procs);
   int partitionRatioLoad(CkVec<Event> &events, float ratio);
 
 public:

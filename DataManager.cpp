@@ -188,7 +188,7 @@ void DataManager::loadParticles(CkCallback &cb){
   and by interleaving the bits of the three integers, we can tell the position
   of the particle in the Barnes-Hut tree.
 */
-void DataManager::hashParticleCoordinates(OrientedBox<Real> &universe){
+void DataManager::hashParticleCoordinates(OrientedBox<double> &universe){
   Key prepend;
   prepend = 1L;
   prepend <<= (TREE_KEY_BITS-1);
@@ -1248,7 +1248,7 @@ void DataManager::reuseTree(){
   }
 }
 
-void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
+void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
   Vector3D<Real> dv;
 
   Particle *pstart = myParticles.getVec();

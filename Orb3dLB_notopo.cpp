@@ -51,7 +51,7 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
   }
   tps.resize(numobjs);
 
-  OrientedBox<float> box;
+  OrientedBox<double> box;
 
   int numProcessed = 0;
 
@@ -226,7 +226,7 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
 
 #define ZERO_THRESHOLD 0.001
 
-void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<float> &box, int nprocs){
+void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<double> &box, int nprocs){
 
   ORB3DLB_NOTOPO_DEBUG("partition events %d %d %d nprocs %d\n", 
             events[XDIM].length(),
@@ -293,8 +293,8 @@ void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<float> &box,
   int nleft = splitIndex;
   int nright = numEvents-nleft;
 
-  OrientedBox<float> leftBox;
-  OrientedBox<float> rightBox;
+  OrientedBox<double> leftBox;
+  OrientedBox<double> rightBox;
 
   leftBox = rightBox = box;
   float splitPosition = events[longestDim][splitIndex].position;

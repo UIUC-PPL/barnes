@@ -185,7 +185,7 @@ class Node {
     return core.numChildren;
   }
 
-  int setChildren(Node<T> *ch, int n) {
+  void setChildren(Node<T> *ch, int n) {
     children = ch;
     core.numChildren = n;
   }
@@ -477,6 +477,7 @@ class Node {
 
       default: CkAbort("bad type!\n");
     }
+    return Invalid;
   }
 
   /*
@@ -484,7 +485,7 @@ class Node {
    * from the moments of its children. 
    */
   void getMomentsFromChildren(){
-    OrientedBox<Real> &bb = data.box;
+    OrientedBox<double> &bb = data.box;
     Real &mass = data.moments.totalMass;
     Vector3D<Real> &cm = data.moments.cm;
 
@@ -515,7 +516,7 @@ class Node {
    * the particles that it encloses.
    */
   void getMomentsFromParticles(){
-    OrientedBox<Real> &bb = data.box;
+    OrientedBox<double> &bb = data.box;
     Real &mass = data.moments.totalMass;
     Vector3D<Real> &cm = data.moments.cm;
 
@@ -582,7 +583,7 @@ class Node {
  */
 struct MomentsExchangeStruct {
   MultipoleMoments moments;
-  OrientedBox<Real> box;
+  OrientedBox<double> box;
   Key key;
   NodeType type;
 

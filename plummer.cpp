@@ -36,7 +36,7 @@ void testdata(ofstream &out, ifstream &in, int nbody, int preambleSize){
 
   int curSize;
 
-  int bufSize = (1<<20)/sizeof(Particle);
+  int bufSize = 10*(1<<20)/sizeof(Particle);
 
   //cout << "bufsize " << bufSize << endl;
   

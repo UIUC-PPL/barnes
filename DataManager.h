@@ -119,9 +119,9 @@ class DataManager : public CBase_DataManager {
 
   CmiUInt8 numInteractions[3];
 
-  void kickDriftKick(OrientedBox<Real> &box, Real &energy);
+  void kickDriftKick(OrientedBox<double> &box, Real &energy);
 
-  void hashParticleCoordinates(OrientedBox<Real> &universe);
+  void hashParticleCoordinates(OrientedBox<double> &universe);
   void initHistogramParticles();
   void sendHistogram();
   
