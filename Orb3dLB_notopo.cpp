@@ -167,6 +167,7 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
     double idleTime = stats->procs[i].idletime;
     double bgTime = stats->procs[i].bg_walltime;
     double objTime = wallTime-(idleTime+bgTime);
+    /*
     CkPrintf("[pestats] %d %d %f %f %f %f\n", 
         i,
         stats->procs[i].pe, 
@@ -174,6 +175,7 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
         idleTime,
         bgTime,
         objTime);
+        */
 
     avgWall += wallTime; 
     avgObj += objTime; 

@@ -86,7 +86,7 @@ void DataManager::loadParticles(CkCallback &cb){
     where you are to begin reading.
   */
 
-  int offset = 0; 
+  streamoff offset = 0; 
   int myid = CkMyPe();
   int npes = CkNumPes();
 
