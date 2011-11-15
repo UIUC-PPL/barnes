@@ -152,6 +152,7 @@ void Main::setParameters(CkArgMsg *m){
   /* To prevent sending of very large messages after decomposition */
   globalParams.particleMsgMaxSize = params.getiparam("particleMsgMaxSize", DEFAULT_PARTICLE_MSG_MAX_SIZE, table); 
   CkPrintf("particleMsgMaxSize: %d\n", globalParams.particleMsgMaxSize);
+  CkAssert(particleMsgMaxSize > sizeof(Particle));
 
 
   /*
