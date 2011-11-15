@@ -487,12 +487,33 @@ void DataManager::sendParticlesToTreePiece(Node<ForceData> *nd, int tp) {
 }
 
 void DataManager::sendParticleMsg(int tp, Particle *p, int np){
-  if(np > 0){
-    ParticleMsg *msg = new (np,0) ParticleMsg;
-    memcpy(msg->part, p, sizeof(Particle)*np);
-    msg->numParticles = np;
+  int bytesToSend = np*sizeof(Particle);
+  int curoffset = 0;
+  int curnum;
+  int cursize;
+
+  while(bytesToSend > 0){
+    if(bytesToSend > globalParams.particleMsgMaxSize){
+      cursize = globalParams.particleMsgMaxSize;
+    }
+    else{
+      cursize = bytesToSend;
+    }
+    curnum = cursize/sizeof(Particle);
+    cursize = curnum*sizeof(Particle);
+
+    //CkPrintf("particlemsg num %d size %d\n", curnum, cursize);
+
+    ParticleMsg *msg = new (curnum,0) ParticleMsg;
+    memcpy(msg->part, p+curoffset, cursize);
+    msg->numParticles = curnum;
     treePieceProxy[tp].receiveParticles(msg);
+
+    bytesToSend -= cursize;
+    curoffset += curnum;
   }
+
+  CkAssert(bytesToSend == 0);
 }
 
 /*
