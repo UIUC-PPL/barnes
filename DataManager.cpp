@@ -894,10 +894,14 @@ void DataManager::startTraversal(){
   //doPrintTree();
 
   if(numLocalUsefulTreePieces > 0){
+    int dummy=0;
     for(int i = 0; i < numLocalUsefulTreePieces; i++){
       TreePieceDescriptor &tp = localTreePieces.submittedParticles[i];
       tp.owner->prepare(root, tp.root, myBuckets.getVec()+tp.bucketStartIdx, tp.bucketEndIdx-tp.bucketStartIdx);
-      treePieceProxy[tp.index].startTraversal();
+      CkEntryOptions opts;
+      opts.setPriority(START_TRAVERSAL_PRIORITY);
+      opts.setQueueing(CK_QUEUEING_IFIFO);
+      treePieceProxy[tp.index].startTraversal(dummy,&opts);
     }
   }
   else{

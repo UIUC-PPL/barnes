@@ -66,7 +66,7 @@ void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<F
   myNumBuckets = _numBuckets;
 }
 
-void TreePiece::startTraversal(){
+void TreePiece::startTraversal(int dummy){
   trav.setDataManager(myDM);
   
   if(myNumBuckets == 0){

@@ -62,7 +62,7 @@ class TreePiece : public CBase_TreePiece {
   CkVec<ParticleMsg*> *getBufferedParticleMsgs() {return &decompMsgsRecvd;}
 
   void prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int numBuckets);
-  void startTraversal();
+  void startTraversal(int dummy);
 
   void doLocalGravity(RescheduleMsg *);
   void doRemoteGravity(RescheduleMsg *);
