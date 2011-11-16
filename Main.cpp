@@ -160,6 +160,15 @@ void Main::setParameters(CkArgMsg *m){
   globalParams.combineFlushPeriod = params.getrparam("combineFlushPeriod", DEFAULT_COMBINE_FLUSH_PERIOD, table);
   CkPrintf("combineFlushPeriod: %f\n", globalParams.combineFlushPeriod);
 
+  /* Number of steps between decompositions */
+  globalParams.decompPeriod = params.getiparam("decompPeriod", DEFAULT_DECOMP_PERIOD, table); 
+  CkPrintf("decompPeriod: %d\n", globalParams.decompPeriod);
+
+  /* To prevent sending of very large messages after decomposition */
+  globalParams.particleMsgMaxSize = params.getiparam("particleMsgMaxSize", DEFAULT_PARTICLE_MSG_MAX_SIZE, table); 
+  CkPrintf("particleMsgMaxSize: %d\n", globalParams.particleMsgMaxSize);
+  CkAssert(globalParams.particleMsgMaxSize > sizeof(Particle));
+
 
   /*
     Use the filename obtained previously to read just the 

@@ -20,7 +20,7 @@
  * through the simulation.
  */
 struct BoundingBox {
-  OrientedBox<Real> box;
+  OrientedBox<double> box;
   int numParticles;
   Real energy;
 
@@ -153,10 +153,10 @@ struct TreePieceDescriptor {
  * center of mass, total mass and radius of node.
  */
 struct ForceData {
-  OrientedBox<Real> box;
+  OrientedBox<double> box;
   MultipoleMoments moments;
 
-  ForceData() 
+  ForceData() : box(), moments() 
   {
   }
 };

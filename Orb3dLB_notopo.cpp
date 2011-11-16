@@ -1,6 +1,7 @@
 #include <charm++.h>
 #include "Orb3dLB_notopo.h"
 #include "MeshStreamer.h"
+#include "Refiner.h"
 #include "barnes.decl.h"
 #include "Vector3D.h"
 
@@ -51,7 +52,7 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
   }
   tps.resize(numobjs);
 
-  OrientedBox<float> box;
+  OrientedBox<double> box;
 
   int numProcessed = 0;
 
@@ -61,17 +62,19 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
     int tag = stats->getHash(handle.id,handle.omhandle.id);
 
     float load = stats->objData[tag].wallTime;
+    //float load = (float) data->numActiveParticles;
 
     tpEvents[XDIM].push_back(Event(data->vec.x,load,tag));
     tpEvents[YDIM].push_back(Event(data->vec.y,load,tag));
     tpEvents[ZDIM].push_back(Event(data->vec.z,load,tag));
 
-    tps[tag] = OrbObject(tag);
+    tps[tag] = OrbObject(tag,data->myNumParticles);
     tps[tag].centroid = data->vec;
     
-    /*
-    CkPrintf("[Orb3dLB_notopo] tree piece %d load %f centroid %f %f %f\n", 
+      /*
+    CkPrintf("[Orb3dLB_notopo] tree piece %d particles %d load %f centroid %f %f %f\n", 
                                       data->tag,
+                                      data->myNumParticles,
                                       load,
                                       data->vec.x,
                                       data->vec.y,
@@ -127,12 +130,73 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
 
   orbPartition(tpEvents,box,stats->count);
 
+  int *from_procs = Refiner::AllocProcs(stats->count, stats);
+  int migr = 0;
+  for(int i = 0; i < numobjs; i++){
+    if(stats->to_proc[i] != stats->from_proc[i]) migr++;
+    int pe = stats->to_proc[i];
+    from_procs[i] = pe;
+  }
 
+  int *to_procs = Refiner::AllocProcs(stats->count, stats);
+
+  Refiner refiner(1.010);
+
+  refiner.Refine(stats->count,stats,from_procs,to_procs);
+
+  int numRefineMigrated = 0;
+  for(int i = 0; i < numobjs; i++){
+    if(to_procs[i] != from_procs[i]) numRefineMigrated++;
+    stats->to_proc[i] = to_procs[i];
+  }
+
+
+  double minWall = 0.0;
+  double maxWall = 0.0;
+  double avgWall = 0.0;
+
+  double minObj = 0.0;
+  double maxObj = 0.0;
+  double avgObj = 0.0;
+
+  CkPrintf("***************************\n");
+  CkPrintf("Before LB step %d\n", step());
+  CkPrintf("***************************\n");
+  CkPrintf("i pe wall idle bg_wall objload\n");
+  for(int i = 0; i < stats->count; i++){
+    double wallTime = stats->procs[i].total_walltime;
+    double idleTime = stats->procs[i].idletime;
+    double bgTime = stats->procs[i].bg_walltime;
+    double objTime = wallTime-(idleTime+bgTime);
+    /*
+    CkPrintf("[pestats] %d %d %f %f %f %f\n", 
+        i,
+        stats->procs[i].pe, 
+        wallTime,
+        idleTime,
+        bgTime,
+        objTime);
+        */
+
+    avgWall += wallTime; 
+    avgObj += objTime; 
+
+    if(i==0 || minWall > wallTime) minWall = wallTime;
+    if(i==0 || maxWall < wallTime) maxWall = wallTime;
+
+    if(i==0 || minObj > objTime) minObj = objTime;
+    if(i==0 || maxObj < objTime) maxObj = objTime;
+
+  }
+
+  avgWall /= stats->count;
+  avgObj /= stats->count;
+
+#if 0
   float minload, maxload, avgload;
   minload = maxload = procload[0];
   avgload = 0.0;
   for(int i = 0; i < stats->count; i++){
-    /*
     CkPrintf("pe %d load %f box %f %f %f %f %f %f\n", i, procload[i], 
                                 procbox[i].lesser_corner.x,
                                 procbox[i].lesser_corner.y,
@@ -141,7 +205,6 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
                                 procbox[i].greater_corner.y,
                                 procbox[i].greater_corner.z
                                 );
-    */
     avgload += procload[i];
     if(minload > procload[i]) minload = procload[i];
     if(maxload < procload[i]) maxload = procload[i];
@@ -150,41 +213,21 @@ void Orb3dLB_notopo::work(BaseLB::LDStats* stats)
   avgload /= stats->count;
 
   CkPrintf("Orb3dLB_notopo stats: min %f max %f avg %f max/avg %f\n", minload, maxload, avgload, maxload/avgload);
+#endif
 
-  /*
-  int migr = 0;
-  float *objload = new float[stats->count];
-  for(int i = 0; i < stats->count; i++){
-    objload[i] = 0.0;
-  }
-  for(int i = 0; i < numobjs; i++){
-    objload[stats->from_proc[i]] += stats->objData[i].wallTime;
-    if(stats->to_proc[i] != stats->from_proc[i]) migr++;
-  }
-  
-  CkPrintf("***************************\n");
-  CkPrintf("Before LB step %d\n", step());
-  CkPrintf("***************************\n");
-  CkPrintf("i pe wall cpu idle bg_wall bg_cpu objload\n");
-  for(int i = 0; i < stats->count; i++){
-    CkPrintf("[pestats] %d %d %f %f %f %f\n", 
-                               i,
-                               stats->procs[i].pe, 
-                               stats->procs[i].total_walltime, 
-                               stats->procs[i].idletime,
-                               stats->procs[i].bg_walltime,
-                               objload[i]);
-  }
-  CkPrintf("%d objects migrating\n", migr);
-  */
+ 
+  CkPrintf("Orb3dLB_notopo stats: minWall %f maxWall %f avgWall %f maxWall/avgWall %f\n", minWall, maxWall, avgWall, maxWall/avgWall);
+  CkPrintf("Orb3dLB_notopo stats: minObj %f maxObj %f avgObj %f maxObj/avgObj %f\n", minObj, maxObj, avgObj, maxObj/avgObj);
+  CkPrintf("Orb3dLB_notopo stats: orb migrated %d refine migrated %d objects\n", migr, numRefineMigrated);
 
-  //delete[] objload;
-
+  // Free the refine buffers
+  Refiner::FreeProcs(from_procs);
+  Refiner::FreeProcs(to_procs);
 }
 
 #define ZERO_THRESHOLD 0.001
 
-void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<float> &box, int nprocs){
+void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<double> &box, int nprocs){
 
   ORB3DLB_NOTOPO_DEBUG("partition events %d %d %d nprocs %d\n", 
             events[XDIM].length(),
@@ -204,7 +247,7 @@ void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<float> &box,
     for(int i = 0; i < events[XDIM].length(); i++){
       Event &ev = events[XDIM][i];
       OrbObject &orb = tps[ev.owner];
-      if(ev.load > ZERO_THRESHOLD){
+      if(orb.numParticles > 0){
         (*mapping)[orb.lbindex] = nextProc;
         totalLoad += ev.load;
         procbox[nextProc].grow(orb.centroid);
@@ -251,8 +294,8 @@ void Orb3dLB_notopo::orbPartition(CkVec<Event> *events, OrientedBox<float> &box,
   int nleft = splitIndex;
   int nright = numEvents-nleft;
 
-  OrientedBox<float> leftBox;
-  OrientedBox<float> rightBox;
+  OrientedBox<double> leftBox;
+  OrientedBox<double> rightBox;
 
   leftBox = rightBox = box;
   float splitPosition = events[longestDim][splitIndex].position;

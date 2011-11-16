@@ -49,6 +49,9 @@ struct Parameters {
 
   bool doPrintAccel;
 
+  int decompPeriod;
+  int particleMsgMaxSize;
+
   //int branchFactor;
 
   /*
@@ -81,6 +84,8 @@ struct Parameters {
 
     p | combineFlushCount;
     p | combineFlushPeriod;
+    p | decompPeriod;
+    p | particleMsgMaxSize;
   }
 
   /*

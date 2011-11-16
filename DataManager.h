@@ -62,8 +62,6 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   int myNumParticles;
   BoundingBox myBox;
 
-  bool firstSplitterRound;
-
   int numTreePieces;
   int numLocalUsefulTreePieces;
 #if 0
@@ -109,6 +107,10 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   map<Key,Request> nodeRequestTable;
   map<Key,Request> particleRequestTable;
 
+  // needed for skipping decomposition
+  CkVec<Key> treePieceRoots;
+  int numSkippedDecomposition;
+  bool doSkipDecomposition;
 
   Traversal<ForceData> fillTrav;
   int numTreePiecesDoneTraversals;
@@ -128,9 +130,9 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   // Called by requestNode() and process() (when streaming-combining)
   void processNodeRequest(Key key, int replyTo);
 
-  void kickDriftKick(OrientedBox<Real> &box, Real &energy);
+  void kickDriftKick(OrientedBox<double> &box, Real &energy);
 
-  void hashParticleCoordinates(OrientedBox<Real> &universe);
+  void hashParticleCoordinates(OrientedBox<double> &universe);
   void initHistogramParticles();
   void sendHistogram();
   
@@ -140,6 +142,11 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 
   void flushParticles();
   int flushAndMark(Node<ForceData> *node, int mark); 
+  // for skipping decomposition
+  void skipFlushParticles();
+
+  // helper function
+  void sendParticleMsg(int tp, Particle *p, int numParticles);
 
 #if 0
   void makeMoments();
@@ -158,7 +165,11 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void flushBufferedRemoteDataRequests();
 
   void freeCachedData();
+  // to free the local tree at the end of the iteration, when not skipping decomposition
   void freeTree();
+  // if skipping decomposition, we can reuse tree that already exists: reset its data 
+  // (particles,type,moments,numChildrenMomentsReady
+  void reuseTree();
   void finishIteration();
 
 #if 0
@@ -207,7 +218,7 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   // called by tree piece that is forwarding a remote request
   void requestNode(RequestMsg *);
   //void requestNode(std::pair<Key, int> request);
-  void requestParticles(std::pair<Key, int> request);
+  void requestParticles(std::pair<Key, int> &request);
   
   void recvParticles(ParticleReplyMsg *msg);
   void recvNode(NodeReplyMsg *msg);
@@ -221,7 +232,7 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 
   void resumeFromLB();
 
-  void process(NodeRequest);
+  void process(NodeRequest &);
 };
 
 #endif

@@ -64,6 +64,7 @@ DataManager::DataManager() :
   prevIterationStart(0.0),
   root(NULL)
 {
+  doSkipDecomposition = false;
   init();
 
   //tpArray = CkArrayID::CkLocalBranch(treePieceProxy.ckGetArrayID());
@@ -95,7 +96,7 @@ void DataManager::loadParticles(CkCallback &cb){
     where you are to begin reading.
   */
 
-  int offset = 0; 
+  streamoff offset = 0; 
   int myid = CkMyPe();
   int npes = CkNumPes();
 
@@ -197,7 +198,7 @@ void DataManager::loadParticles(CkCallback &cb){
   and by interleaving the bits of the three integers, we can tell the position
   of the particle in the Barnes-Hut tree.
 */
-void DataManager::hashParticleCoordinates(OrientedBox<Real> &universe){
+void DataManager::hashParticleCoordinates(OrientedBox<double> &universe){
   Key prepend;
   prepend = 1L;
   prepend <<= (TREE_KEY_BITS-1);
@@ -293,31 +294,36 @@ void DataManager::decompose(BoundingBox &universe){
     CkPrintf("(%d) prev time %g s\n", CkMyPe(), CmiWallTimer()-prevIterationStart);
     CkPrintf("(%d) mem %.2f MB\n", CkMyPe(), memMB);
     CkPrintf("(%d) iteration %d univ %f %f %f %f %f %f energy %f\n", 
-              CkMyPe(),
-              iteration,
-              universe.box.lesser_corner.x,
-              universe.box.lesser_corner.y,
-              universe.box.lesser_corner.z,
-              universe.box.greater_corner.x,
-              universe.box.greater_corner.y,
-              universe.box.greater_corner.z,
-              universe.energy);
- 
+        CkMyPe(),
+        iteration,
+        universe.box.lesser_corner.x,
+        universe.box.lesser_corner.y,
+        universe.box.lesser_corner.z,
+        universe.box.greater_corner.x,
+        universe.box.greater_corner.y,
+        universe.box.greater_corner.z,
+        universe.energy);
+
 
     prevIterationStart = CkWallTimer();
   }
 
-  /* 
-    We increase the number of required tree pieces
-    as the decomposition iterations proceed. Begin
-    with a single tree piece holding all the particles.
-  */
-  numTreePieces = 1;
-  // How many particles do I hold?
-  initHistogramParticles();
-  // Send this count to the master PE
-  sendHistogram();
+  if(doSkipDecomposition){
+    skipFlushParticles();
+  }
+  else{
+    /* 
+       We increase the number of required tree pieces
+       as the decomposition iterations proceed. Begin
+       with a single tree piece holding all the particles.
+     */
+    numTreePieces = 1;
 
+    // How many particles do I hold?
+    initHistogramParticles();
+    // Send this count to the master PE
+    sendHistogram();
+  }
 }
 
 /*
@@ -422,6 +428,24 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   delete msg;
 }
 
+void DataManager::skipFlushParticles(){
+  //CkPrintf("[%d] skip decomposition, flush particles %d treepieces %d\n", CkMyPe(), myNumParticles, numTreePieces);
+  int pstart = 0;
+  int pend = myNumParticles;
+  //CkPrintf("(%d) SKIP TP 0 node %llu\n", CkMyPe(), treePieceRoots[0]);
+  for(int i = 1; i < numTreePieces; i++){
+    Key check = treePieceRoots[i];
+    //CkPrintf("(%d) SKIP TP %d node %llu\n", CkMyPe(), i, treePieceRoots[i]);
+    int prev_start = pstart;
+    pstart = binary_search_ge<Key,Particle>(check,myParticles.getVec(),pstart,pend); 
+
+    int prev_np = pstart-prev_start;
+
+    sendParticleMsg(i-1, myParticles.getVec()+prev_start, prev_np);
+  }
+  sendParticleMsg(numTreePieces-1,myParticles.getVec()+pstart,pend-pstart);
+}
+
 /*
   As a result of the decomposition procedure, the
   particles held by each PE have been partitioned 
@@ -433,6 +457,8 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   activeBins data structure.
 */
 void DataManager::flushParticles(){
+  treePieceRoots.length() = 0;
+  treePieceRoots.resize(numTreePieces);
   int numUsefulTreePieces = flushAndMark(root,0);
 #if 0
   doneFlushParticles = true;
@@ -464,13 +490,40 @@ void DataManager::receiveSplitters(CkVec<int> splitBins) {
 void DataManager::sendParticlesToTreePiece(Node<ForceData> *nd, int tp) {
   CkAssert(nd->getNumChildren() == 0);
   int np = nd->getNumParticles();
+  treePieceRoots[tp] = Node<ForceData>::getParticleLevelKey(nd);
+  //CkPrintf("(%d) DECOMP TP %d node %llu\n", CkMyPe(), tp, nd->getKey());
 
-  if(np > 0){
-    ParticleMsg *msg = new (np,0) ParticleMsg;
-    memcpy(msg->part, nd->getParticles(), sizeof(Particle)*np);
-    msg->numParticles = np;
+  sendParticleMsg(tp,nd->getParticles(),np);
+}
+
+void DataManager::sendParticleMsg(int tp, Particle *p, int np){
+  int bytesToSend = np*sizeof(Particle);
+  int curoffset = 0;
+  int curnum;
+  int cursize;
+
+  while(bytesToSend > 0){
+    if(bytesToSend > globalParams.particleMsgMaxSize){
+      cursize = globalParams.particleMsgMaxSize;
+    }
+    else{
+      cursize = bytesToSend;
+    }
+    curnum = cursize/sizeof(Particle);
+    cursize = curnum*sizeof(Particle);
+
+    //CkPrintf("particlemsg num %d size %d\n", curnum, cursize);
+
+    ParticleMsg *msg = new (curnum,0) ParticleMsg;
+    memcpy(msg->part, p+curoffset, cursize);
+    msg->numParticles = curnum;
     treePieceProxy[tp].receiveParticles(msg);
+
+    bytesToSend -= cursize;
+    curoffset += curnum;
   }
+
+  CkAssert(bytesToSend == 0);
 }
 
 /*
@@ -562,7 +615,7 @@ void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, Tr
 */
 void DataManager::processSubmittedParticles(){
 
-  CkPrintf("(%d) processSubmittedParticles\n", CkMyPe());
+  //CkPrintf("(%d) processSubmittedParticles\n", CkMyPe());
   /*
   CkPrintf("(%d) memcheck before processSubmittedParticles\n", CkMyPe());
   CmiMemoryCheck();
@@ -575,6 +628,7 @@ void DataManager::processSubmittedParticles(){
   localTreePieces.submittedParticles.quickSort();
   myNumParticles = localTreePieces.numParticles;
   
+  myParticles.length() = 0;
   myParticles.resize(myNumParticles);
 
   int offset = 0;
@@ -588,7 +642,7 @@ void DataManager::processSubmittedParticles(){
     CkVec<ParticleMsg*> *vec = descr.vec;
     for(int j = 0; j < vec->length(); j++){
       ParticleMsg *msg = (*vec)[j];
-      if(msg->numParticles > 0) memcpy(&myParticles[offset],msg->part,sizeof(Particle)*msg->numParticles);
+      if(msg->numParticles > 0) memcpy(myParticles.getVec()+offset,msg->part,sizeof(Particle)*msg->numParticles);
       /*
       for(int k = offset; k < offset+msg->numParticles; k++){
         CkPrintf("(%d) particle %d key %lu\n", CkMyPe(), k, myParticles[k].key);
@@ -604,7 +658,9 @@ void DataManager::processSubmittedParticles(){
 
   // The first local TreePiece will always have buckets numbered from 0
   if(localTreePieces.count > 0) localTreePieces.submittedParticles[0].bucketStartIdx = 0;
+
   buildTree(root,0,myNumParticles,0,numLocalUsefulTreePieces);
+
   // Set the set of buckets assigned to each non-useful tree piece to empty:
 #if 0
   for(int i = numLocalUsefulTreePieces; i < numLocalTreePieces; i++){
@@ -636,6 +692,7 @@ void DataManager::processSubmittedParticles(){
     CkCallback cb(CkIndex_DataManager::processSubmittedParticles(),myProxy);
     combiner->associateCallback(cb,false);
   }
+  combiner->enablePeriodicFlushing();
 }
 
 #if 0
@@ -741,7 +798,10 @@ void DataManager::respondToMomentsRequest(Node<ForceData> *node, CkVec<int> &rep
   MomentsExchangeStruct moments = *node;
   for(int i = 0; i < replyTo.length(); i++){
     TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), replyTo[i], node->getKey());
-    myProxy[replyTo[i]].receiveMoments(moments);
+    CkEntryOptions opts;
+    opts.setQueueing(CK_QUEUEING_IFIFO);
+    opts.setPriority(RECV_MOMENTS_PRIORITY);
+    myProxy[replyTo[i]].receiveMoments(moments, &opts);
   }
   replyTo.length() = 0;
 }
@@ -795,8 +855,8 @@ void DataManager::treeReady(){
   treeMomentsReady = true;
   CkAssert(numMomentsRequested == numMomentsReceived);
   flushBufferedRemoteDataRequests();
-  //startTraversal();
-  contribute(0,0,CkReduction::sum_int,CkCallback(CkIndex_DataManager::startTraversal(),myProxy));
+  startTraversal();
+  //contribute(0,0,CkReduction::sum_int,CkCallback(CkIndex_DataManager::startTraversal(),myProxy));
 }
 
 void DataManager::flushBufferedRemoteDataRequests(){
@@ -836,7 +896,7 @@ void DataManager::startTraversal(){
   if(numLocalUsefulTreePieces > 0){
     for(int i = 0; i < numLocalUsefulTreePieces; i++){
       TreePieceDescriptor &tp = localTreePieces.submittedParticles[i];
-      tp.owner->prepare(root,tp.root,&myBuckets[tp.bucketStartIdx],tp.bucketEndIdx-tp.bucketStartIdx);
+      tp.owner->prepare(root, tp.root, myBuckets.getVec()+tp.bucketStartIdx, tp.bucketEndIdx-tp.bucketStartIdx);
       treePieceProxy[tp.index].startTraversal();
     }
   }
@@ -902,7 +962,10 @@ void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData
 
     CkAssert(leaf->getOwnerStart()+1 == leaf->getOwnerEnd());
     int owner = leaf->getOwnerStart();
-    treePieceProxy[owner].requestParticles( std::make_pair(key, CkMyPe()) );
+    CkEntryOptions opts;
+    opts.setQueueing(CK_QUEUEING_IFIFO);
+    opts.setPriority(REQUEST_PARTICLES_PRIORITY);
+    treePieceProxy[owner].requestParticles( std::make_pair(key, CkMyPe()), &opts);
     request.sent = true;
     
     request.parent = leaf;
@@ -912,7 +975,7 @@ void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData
   partReqs.incrDeliveries();
 }
 
-void DataManager::requestParticles(std::pair<Key, int> request) {
+void DataManager::requestParticles(std::pair<Key, int> &request) {
   if(!treeMomentsReady){
     bufferedParticleRequests.push_back(request);
     return;
@@ -956,8 +1019,16 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
     int numOwners = leaf->getOwnerEnd()-leaf->getOwnerStart();
     int requestOwner = leaf->getOwnerStart()+(rand()%numOwners);
     RRDEBUG("(%d) REQUEST node %lu from tp %d\n", CkMyPe(), key, requestOwner);
+#ifdef COMBINE_NODE_REQUESTS
     //treePieceProxy[requestOwner].requestNode( std::make_pair(key, CkMyPe()) );
     combineNodeRequest(requestOwner,key);
+#else
+    CkEntryOptions opts;
+    RequestMsg *msg = new (NUM_PRIORITY_BITS) RequestMsg(key,CkMyPe());
+    CkSetQueueing(msg,CK_QUEUEING_IFIFO);
+    *((int *)CkPriorityPtr(msg)) = REQUEST_NODE_PRIORITY; 
+    treePieceProxy[requestOwner].requestNode(msg);
+#endif
     request.sent = true;
     request.parent = leaf;
   }
@@ -967,21 +1038,22 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
 
 void DataManager::combineNodeRequest(int tpindex, Key k){
   int dest_pe = tpArray->lastKnown(CkArrayIndex1D(tpindex)); 
-  CkPrintf("[COMBINE] send tp %d key %llu reply %d dest_pe %d\n", tpindex, k, CkMyPe(), dest_pe);
-  combiner->insertData(NodeRequest(tpindex,k,CkMyPe()), dest_pe);
+  //CkPrintf("[COMBINE] send tp %d key %llu reply %d dest_pe %d\n", tpindex, k, CkMyPe(), dest_pe);
+  NodeRequest req(tpindex,k,CkMyPe());
+  combiner->insertData(req, dest_pe);
 }
 
-void DataManager::process(NodeRequest req){
+void DataManager::process(NodeRequest &req){
   int dest_pe = tpArray->lastKnown(CkArrayIndex1D(req.tp));
   // The target tree piece is on this PE: we must have its nodes
   if(dest_pe == CkMyPe()){
-    CkPrintf("[COMBINE] recv tp %d key %llu reply %d dest_pe %d\n", req.tp, req.key, req.replyTo, dest_pe);
+    //CkPrintf("[COMBINE] recv tp %d key %llu reply %d dest_pe %d\n", req.tp, req.key, req.replyTo, dest_pe);
     processNodeRequest(req.key, req.replyTo);
   }
   else{
     // The tree piece that this request was intended for has migrated,
     // forward request to dest_pe
-    CkPrintf("[COMBINE] forward tp %d key %llu reply %d dest_pe %d\n", req.tp, req.key, req.replyTo, dest_pe);
+    //CkPrintf("[COMBINE] forward tp %d key %llu reply %d dest_pe %d\n", req.tp, req.key, req.replyTo, dest_pe);
     combiner->insertData(req, dest_pe);
   }
 #if 0
@@ -995,7 +1067,7 @@ void DataManager::process(NodeRequest req){
 void DataManager::doneRemoteRequests(){
   numTreePiecesDoneRemoteRequests++;
   if(numTreePiecesDoneRemoteRequests == numLocalUsefulTreePieces){
-    CkPrintf("[COMBINE] Turn off streaming on PE %d\n", CkMyPe());
+    //CkPrintf("[COMBINE] Turn off streaming on PE %d\n", CkMyPe());
     combiner->doneInserting();
   }
 }
@@ -1150,9 +1222,22 @@ void DataManager::advance(CkReductionMsg *msg){
   }
 
   iteration++;
-  CkCallback cb;
+  if(iteration == 13){
+      traceBegin();
+  }
+  else{
+      traceEnd();
+  }
+
+  if(iteration % globalParams.decompPeriod != 0){ 
+    doSkipDecomposition = true;
+  }
+  else{
+    doSkipDecomposition = false;
+  }
+
   if(iteration == globalParams.iterations){
-    cb = CkCallback(CkIndex_Main::niceExit(),mainProxy);
+    CkCallback cb = CkCallback(CkIndex_Main::niceExit(),mainProxy);
     contribute(0,0,CkReduction::sum_int,cb);
   }
   else if(iteration % globalParams.balancePeriod == 0){
@@ -1161,13 +1246,19 @@ void DataManager::advance(CkReductionMsg *msg){
       TreePiece *tp = localTreePieces.submittedParticles[i].owner;
       tp->startlb();
     }
+    // must do decomposition after a load balancing step
+    doSkipDecomposition = false;
   }
   else{
     init();
-    cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),myProxy);
+    for(int i = 0; i < localTreePieces.submittedParticles.length(); i++){
+      TreePiece *tp = localTreePieces.submittedParticles[i].owner;
+      tp->cleanup();
+    }
+    CkCallback cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),myProxy);
     contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
   }
-  
+
   delete msg;
 }
 
@@ -1236,6 +1327,7 @@ void DataManager::quiescence(){
 }
 
 void DataManager::freeTree(){
+  //CkPrintf("(%d) FREE tree\n", CkMyPe());
   if(root != NULL) {
     root->deleteBeneath();
     delete root;
@@ -1243,11 +1335,17 @@ void DataManager::freeTree(){
   }
 }
 
-void DataManager::kickDriftKick(OrientedBox<Real> &box, Real &energy){
+void DataManager::reuseTree(){
+  if(root != NULL){
+    root->reuseTree();
+  }
+}
+
+void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
   Vector3D<Real> dv;
 
-  Particle *pstart = &myParticles[0];
-  Particle *pend = &myParticles[myNumParticles-1];
+  Particle *pstart = myParticles.getVec();
+  Particle *pend = pstart+(myNumParticles-1);
 
   Real particleEnergy;
   Real particleKinetic;
@@ -1351,9 +1449,13 @@ void DataManager::init(){
   numTreePiecesDoneTraversals = 0;
   numTreePiecesDoneRemoteRequests = 0;
 
-  firstSplitterRound = true;
-  freeTree();
-  nodeTable.clear();
+  if(doSkipDecomposition){
+    reuseTree();
+  }
+  else{
+    freeTree();
+    nodeTable.clear();
+  }
 
   CkAssert(activeBins.getNumCounts() == 0);
 
@@ -1458,12 +1560,11 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     CkAssert(pstart == pend);
     node->setParticles(NULL,0);
     // Delete subtree beneath this node
+    //if(node->getNumChildren() > 0) CkPrintf("(%d) REMOTE deleteBeneath %llu\n", CkMyPe(), node->getKey());
     node->deleteBeneath();
-    node->setChildren(NULL,0);
     // Set type when requested moments are received
     // Don't tell parent that I'm done
 
-    // Since this node didn't "consume" any particles,
     return;
   }
   else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
@@ -1481,7 +1582,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     // There must be these many particles under the root of this TreePiece
     CkAssert(np == pend-pstart);
 
-    if(np > 0) node->setParticles(&myParticles[pstart],np);
+    if(np > 0) node->setParticles(myParticles.getVec()+pstart,np);
     else node->setParticles(NULL,0);
 
     // Set the bucket indices for this TreePiece
@@ -1508,7 +1609,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   Node<ForceData> *leftChild = node->getLeftChild();
   Node<ForceData> *rightChild = node->getRightChild();
 
-  if(np > 0) node->setParticles(&myParticles[pstart],pend-pstart);
+  if(np > 0) node->setParticles(myParticles.getVec()+pstart,pend-pstart);
   else node->setParticles(NULL,0);
 
   // If we are here, this node has at least one local tree piece underneath it
@@ -1583,18 +1684,27 @@ void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp
     myBuckets.push_back(node);
     // Record the fact that current tree piece has another bucket
     tp.bucketEndIdx++;
+
+    // since we might be reusing the tree, it could happen
+    // that this node was internal (not a leaf) in the previous 
+    // iteration. delete descendants, if there are any
+    //if(node->getNumChildren() > 0) CkPrintf("(%d) BUCKET deleteBeneath %llu\n", CkMyPe(), node->getKey());
+    node->deleteBeneath();
   }
   else{
     node->setType(Internal);
     // Shouldn't not have allocated any children yet.
-    CkAssert(node->getNumChildren() == 0);
+    // !doSkipDecomposition => node->getNumChildren() == 0
+    CkAssert(doSkipDecomposition || (node->getNumChildren() == 0));
     // Partition the particles under this
     // node among the two children. To do this,
     // find the first particle that does not belong
     // underneath the left child, which is the same
     // as the first child that does belong under the
     // right child.
-    node->refine();
+    if(node->getNumChildren() == 0) node->refine();
+    else node->reuseRefine();
+
     singleBuildTree(node->getLeftChild(),tp);
     singleBuildTree(node->getRightChild(),tp);
     node->getMomentsFromChildren();
