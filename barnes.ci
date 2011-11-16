@@ -72,7 +72,8 @@ mainmodule barnes {
     entry void doRemoteGravity(RescheduleMsg *);
 
     entry void requestParticles(std::pair<Key, int> &request);
-    entry void requestNode(RequestMsg *);
+    entry void requestNode(std::pair<Key,int> &request);
+    //entry void requestNode(RequestMsg *);
     entry void quiescence();
     entry void doAtSync();
   };

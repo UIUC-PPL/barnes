@@ -1024,14 +1024,19 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
     int requestOwner = leaf->getOwnerStart()+(rand()%numOwners);
     RRDEBUG("(%d) REQUEST node %lu from tp %d\n", CkMyPe(), key, requestOwner);
 #ifdef COMBINE_NODE_REQUESTS
-    //treePieceProxy[requestOwner].requestNode( std::make_pair(key, CkMyPe()) );
     combineNodeRequest(requestOwner,key);
 #else
     CkEntryOptions opts;
+    opts.setPriority(REQUEST_NODE_PRIORITY);
+    opts.setQueueing(CK_QUEUEING_IFIFO);
+    std::pair<Key,int> pr(key,CkMyPe());
+    treePieceProxy[requestOwner].requestNode(pr,&opts);
+    /*
     RequestMsg *msg = new (NUM_PRIORITY_BITS) RequestMsg(key,CkMyPe());
     CkSetQueueing(msg,CK_QUEUEING_IFIFO);
     *((int *)CkPriorityPtr(msg)) = REQUEST_NODE_PRIORITY; 
     treePieceProxy[requestOwner].requestNode(msg);
+    */
 #endif
     request.sent = true;
     request.parent = leaf;
@@ -1052,7 +1057,8 @@ void DataManager::process(NodeRequest &req){
   // The target tree piece is on this PE: we must have its nodes
   if(dest_pe == CkMyPe()){
     //CkPrintf("[COMBINE] recv tp %d key %llu reply %d dest_pe %d\n", req.tp, req.key, req.replyTo, dest_pe);
-    processNodeRequest(req.key, req.replyTo);
+    std::pair<Key,int> pr(req.key, req.replyTo);
+    requestNode(pr);
   }
   else{
     // The tree piece that this request was intended for has migrated,
@@ -1076,17 +1082,17 @@ void DataManager::doneRemoteRequests(){
   }
 }
 
-void DataManager::requestNode(RequestMsg *msg){
+void DataManager::requestNode(std::pair<Key,int> &request){
   if(!treeMomentsReady){
-    bufferedNodeRequests.push_back(msg);
+    bufferedNodeRequests.push_back(request);
     return;
   }
 
-  processNodeRequest(msg->key,msg->replyTo);
-  delete msg;
+  processNodeRequest(request.first,request.second);
 }
 
 void DataManager::processNodeRequest(Key key, int replyTo){
+  CkAssert(treeMomentsReady);
   RRDEBUG("(%d) REPLY node %lu to %d\n", CkMyPe(), key, replyTo);
 
   map<Key,Node<ForceData>*>::iterator it = nodeTable.find(key);

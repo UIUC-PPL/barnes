@@ -195,8 +195,8 @@ void TreePiece::requestParticles(std::pair<Key, int> request) {
   myDM->requestParticles(request);
 }
 
-void TreePiece::requestNode(RequestMsg *request){
-//void TreePiece::requestNode(std::pair<Key, int> request) {
+//void TreePiece::requestNode(RequestMsg *request){
+void TreePiece::requestNode(std::pair<Key, int> &request) {
   myDM->requestNode(request);
 }
 

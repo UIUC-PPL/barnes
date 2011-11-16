@@ -100,8 +100,8 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   // the tree on this PE is now ready for 
   // traversal
   bool treeMomentsReady;
-  CkVec<RequestMsg*> bufferedNodeRequests;
-  //CkVec< std::pair<Key, int> > bufferedNodeRequests;
+  //CkVec<RequestMsg*> bufferedNodeRequests;
+  CkVec< std::pair<Key, int> > bufferedNodeRequests;
   CkVec< std::pair<Key, int> > bufferedParticleRequests;
 
   map<Key,Request> nodeRequestTable;
@@ -216,8 +216,8 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void startTraversal();
 
   // called by tree piece that is forwarding a remote request
-  void requestNode(RequestMsg *);
-  //void requestNode(std::pair<Key, int> request);
+  //void requestNode(RequestMsg *);
+  void requestNode(std::pair<Key, int> &request);
   void requestParticles(std::pair<Key, int> &request);
   
   void recvParticles(ParticleReplyMsg *msg);
