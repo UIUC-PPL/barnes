@@ -196,47 +196,49 @@ int main(int argc, char **argv){
 }
 
 void writeToDisk(ofstream &out, Particle *p, int nbody){
-  Real tmp[REALS_PER_PARTICLE];
+  Real *tmp = new Real[nbody*REALS_PER_PARTICLE];
   Real soft = 0.001;
 
-  for(int i = 0; i < nbody; i++){
-    tmp[0] = p->position.x;
-    tmp[1] = p->position.y;
-    tmp[2] = p->position.z;
-    tmp[3] = p->velocity.x;
-    tmp[4] = p->velocity.y;
-    tmp[5] = p->velocity.z;
-    tmp[6] = p->mass;
-    tmp[7] = soft;
+  for(int i = 0; i < nbody*REALS_PER_PARTICLE; i += REALS_PER_PARTICLE){
+    tmp[i+0] = p->position.x;
+    tmp[i+1] = p->position.y;
+    tmp[i+2] = p->position.z;
+    tmp[i+3] = p->velocity.x;
+    tmp[i+4] = p->velocity.y;
+    tmp[i+5] = p->velocity.z;
+    tmp[i+6] = p->mass;
+    tmp[i+7] = soft;
 
-    out.write((char*)tmp, REALS_PER_PARTICLE*sizeof(Real));
     //cout << "WRITE " << p->position.x << " " << p->position.y << " " << p->position.z << endl;
 
     p++;
   }
 
+  out.write((char*)tmp, nbody*REALS_PER_PARTICLE*sizeof(Real));
   out.flush();
+  delete[] tmp;
 }
 
 void readFromDisk(ifstream &in, Particle *p, int nbody){
-  Real tmp[REALS_PER_PARTICLE];
+  Real *tmp = new Real[nbody*REALS_PER_PARTICLE];
   Real soft = 0.001;
 
-  for(int i = 0; i < nbody; i++){
-    in.read((char*)tmp, REALS_PER_PARTICLE*sizeof(Real));
-
-    p->position.x = tmp[0];
-    p->position.y = tmp[1];
-    p->position.z = tmp[2];
-    p->velocity.x = tmp[3];
-    p->velocity.y = tmp[4];
-    p->velocity.z = tmp[5];
-    p->mass       = tmp[6];
-    soft          = tmp[7];
+  in.read((char*)tmp, nbody*REALS_PER_PARTICLE*sizeof(Real));
+  for(int i = 0; i < nbody*REALS_PER_PARTICLE; i += REALS_PER_PARTICLE){
+    p->position.x = tmp[i+0];
+    p->position.y = tmp[i+1];
+    p->position.z = tmp[i+2];
+    p->velocity.x = tmp[i+3];
+    p->velocity.y = tmp[i+4];
+    p->velocity.z = tmp[i+5];
+    p->mass       = tmp[i+6];
+    soft          = tmp[i+7];
 
     //cout << "READ " << p->position.x << " " << p->position.y << " " << p->position.z << endl;
     p++;
   }
+
+  delete[] tmp;
 }
 
 
