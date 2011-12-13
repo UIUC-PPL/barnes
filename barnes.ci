@@ -89,7 +89,7 @@ mainmodule barnes {
     5. Maintain a per-PE cache of data fetched from remote sources for TreePieces on the PE
     6. Update particle positions and velocities once traversals have completed.
   */
-  group DataManager : MeshStreamerClient<NodeRequest> {
+  group [migratable] DataManager : MeshStreamerClient<NodeRequest> {
     entry DataManager();
     entry void loadParticles(CkCallback &cb);
     entry void decompose(BoundingBox &universe);
