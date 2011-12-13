@@ -109,7 +109,6 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 
   // needed for skipping decomposition
   CkVec<Key> treePieceRoots;
-  int numSkippedDecomposition;
   bool doSkipDecomposition;
 
   Traversal<ForceData> fillTrav;
@@ -233,6 +232,7 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void resumeFromLB();
 
   void process(NodeRequest &);
+  void pup(PUP::er &p);
 };
 
 #endif

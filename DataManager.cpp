@@ -1730,6 +1730,30 @@ void TreePieceCounter::addLocation(CkLocation &loc) {
   count++;
 }
 
+void DataManager::pup(PUP::er &p){
+  CBase_DataManager::pup(p);
+  p|numRankBits;
+  p|prevIterationStart;
+
+  p|myParticles;
+  p|myNumParticles;
+  p|myBox;
+
+  p|numTreePieces;
+  p|iteration;
+
+  p|numSkippedDecomposition;
+  p|compareEnergy;
+
+  p|myProxy;
+  if(p.isUnpacking()){
+    combiner = ((MeshStreamer<NodeRequest> *)CkLocalBranch(combinerProxy));
+    tpArray = treePieceProxy.ckGetArrayID().ckLocalBranch();
+  }
+
+
+}
+
 
 #include "Traversal_defs.h"
 
