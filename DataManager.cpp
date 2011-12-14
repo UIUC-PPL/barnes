@@ -1735,7 +1735,7 @@ void DataManager::pup(PUP::er &p){
   p|numRankBits;
   p|prevIterationStart;
 
-  p|myParticles;
+  myParticles.pup(p);
   p|myNumParticles;
   p|myBox;
 
