@@ -1731,18 +1731,16 @@ void TreePieceCounter::addLocation(CkLocation &loc) {
 }
 
 void DataManager::pup(PUP::er &p){
-  CBase_DataManager::pup(p);
   p|numRankBits;
   p|prevIterationStart;
 
-  myParticles.pup(p);
+  p|myParticles;
   p|myNumParticles;
   p|myBox;
 
   p|numTreePieces;
   p|iteration;
 
-  p|numSkippedDecomposition;
   p|compareEnergy;
 
   p|myProxy;

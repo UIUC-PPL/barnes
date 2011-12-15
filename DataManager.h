@@ -183,6 +183,7 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 
   public:
   DataManager();
+  DataManager(CkMigrateMessage *m) {}
 
   void loadParticles(CkCallback &cb);
 
