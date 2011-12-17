@@ -5,6 +5,7 @@ mainmodule barnes {
   */
   readonly CProxy_TreePiece treePieceProxy;
   readonly CProxy_DataManager dataManagerProxy;
+  readonly CProxy_TreeMerger treeMergerProxy;
   readonly CProxy_Main mainProxy;
   readonly Parameters globalParams;
 
@@ -101,6 +102,8 @@ mainmodule barnes {
     entry void processSubmittedParticles();
     entry void startTraversal();
 
+    entry void doneNodeLevelMerge(PointerContainer);
+
     entry void recvParticles(ParticleReplyMsg *msg);
     entry void recvNode(NodeReplyMsg *msg);
     entry void advance(CkReductionMsg *msg);
@@ -112,6 +115,10 @@ mainmodule barnes {
     entry void resumeFromLB();
 
     entry void doneRemoteRequests();
+  };
+
+  nodegroup TreeMerger {
+    entry TreeMerger();
   };
 
   message MeshStreamerMessage<NodeRequest>;

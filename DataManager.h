@@ -56,6 +56,7 @@ struct CacheStats {
 
 class DataManager : public MeshStreamerClient<NodeRequest> {
   int numRankBits;
+  int numPesPerNode;
   double prevIterationStart;
 
   CkVec<Particle> myParticles;
@@ -177,9 +178,12 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 #endif
   
   void printTree(Node<ForceData>*, ostream &);
-  void doPrintTree();
+  void doPrintTree(string name);
 
   void init();
+
+  void nodeLevelMerge();
+  void registerTopLevelNodes(Node<ForceData> *node, int tpstart, int tpend);
 
   public:
   DataManager();
@@ -214,6 +218,7 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void processSubmittedParticles();
 
   void startTraversal();
+  void doneNodeLevelMerge(PointerContainer);
 
   // called by tree piece that is forwarding a remote request
   //void requestNode(RequestMsg *);

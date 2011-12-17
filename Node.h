@@ -199,6 +199,9 @@ class Node {
   int getOwnerStart() const { return core.ownerStart; }
   int getOwnerEnd() const { return core.ownerEnd; }
   NodeType getType() const { return core.type; }
+  bool isInternal() const {
+    return (core.type == EmptyBucket || core.type == Bucket || core.type == Internal);
+  }
   Node<T> *getParent() const { return parent; }
   void setKey(Key &k){ core.key = k; }
   void setDepth(int d){ core.depth = d; }
@@ -215,6 +218,10 @@ class Node {
 
   void setParticles(Particle *p, int n){
     core.particleStart = p;
+    core.numParticles = n;
+  }
+
+  void setNumParticles(int n){
     core.numParticles = n;
   }
 
@@ -554,11 +561,13 @@ class Node {
       child->deleteBeneath();
       child++;
     }
+    //CkPrintf("delete children of %llu\n", getKey());
     delete[] getChildren();
     setChildren(NULL,0);
   }
 
   void reuseTree(){
+    if(getType() == Invalid) return;
     reset();
     if(getNumChildren() == 0) return;
     Node<T> *child = getChildren(); 

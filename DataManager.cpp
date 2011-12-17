@@ -31,12 +31,15 @@
 #include "Request.h"
 #include "defaults.h"
 
+#include "TreeMerger.h"
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
 
 using namespace std;
 extern CProxy_TreePiece treePieceProxy;
+extern CProxy_TreeMerger treeMergerProxy;
 extern CProxy_Main mainProxy;
 extern Parameters globalParams;
 
@@ -64,6 +67,8 @@ DataManager::DataManager() :
   prevIterationStart(0.0),
   root(NULL)
 {
+  numPesPerNode = CkNumPes()/CkNumNodes();
+  numLocalUsefulTreePieces = 0;
   doSkipDecomposition = false;
   init();
 
@@ -618,7 +623,6 @@ void DataManager::processSubmittedParticles(){
   //CkPrintf("(%d) processSubmittedParticles\n", CkMyPe());
   /*
   CkPrintf("(%d) memcheck before processSubmittedParticles\n", CkMyPe());
-  CmiMemoryCheck();
   */
 
   // get the tree pieces (and their particles) on this PE
@@ -685,7 +689,6 @@ void DataManager::processSubmittedParticles(){
   */
   /*
   CkPrintf("(%d) memcheck after processSubmittedParticles\n", CkMyPe());
-  CmiMemoryCheck();
   */
 
   if(CkMyPe() == 0){
@@ -852,11 +855,87 @@ void DataManager::passMomentsUpward(Node<ForceData> *node){
 }
 
 void DataManager::treeReady(){
-  treeMomentsReady = true;
+#ifdef NODE_LEVEL_MERGE
+  nodeLevelMerge();
+#else
   CkAssert(numMomentsRequested == numMomentsReceived);
+  treeMomentsReady = true;
   flushBufferedRemoteDataRequests();
   startTraversal();
-  //contribute(0,0,CkReduction::sum_int,CkCallback(CkIndex_DataManager::startTraversal(),myProxy));
+#endif
+}
+
+void DataManager::nodeLevelMerge(){
+  string name("unmerged");
+  //doPrintTree(name);
+  treeMergerProxy.ckLocalBranch()->submit(CkMyPe(),root);
+}
+
+void DataManager::doneNodeLevelMerge(PointerContainer container){
+  Node<ForceData> *mergedRoot = (Node<ForceData> *) container.ptr;
+  // register (i.e. fill into nodeTable)
+  // nodes that are on paths to your useful 
+  // tree pieces
+  if(mergedRoot != root){
+    delete root;
+    root = mergedRoot;
+  }
+
+  registerTopLevelNodes(root,0,numLocalUsefulTreePieces);
+  treeMomentsReady = true;
+  flushBufferedRemoteDataRequests();
+
+
+  startTraversal();
+
+  if(CkMyPe()%numPesPerNode == 0){
+    string name("merged");
+    //doPrintTree(name);
+  }
+  //CkCallback cb(CkCallback::ckExit);
+  //contribute(0,0,CkReduction::sum_int,cb);
+}
+
+void DataManager::registerTopLevelNodes(Node<ForceData> *node, int tpstart, int tpend){
+  nodeTable[node->getKey()] = node;
+  if(tpend <= tpstart){
+    //CkPrintf("%d REGISTER %llu external\n", CkMyPe(), node->getKey());
+    return;
+  }
+  else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
+    ostringstream buckets;
+    TreePieceDescriptor &tp = localTreePieces.submittedParticles[tpstart];
+    
+    // if this node was a bucket and is being registered here,
+    // it could be the merged replacement for a previous node.
+    // therefore we must correct the pointer to this bucket in
+    // myBuckets
+    if(node->getType() == Bucket || node->getType() == EmptyBucket){
+      // since this is the root of a tree piece (because registerTopLevelNodes
+      // does not descend lower than the roots of tree pieces) and a bucket
+      // it must be the only bucket assigned to the tree piece
+      int bucketIdx = tp.bucketStartIdx;
+      CkAssert(tp.bucketStartIdx+1 == tp.bucketEndIdx);
+      //CkPrintf("%d REGISTER %llu bucket idx %d\n", CkMyPe(), node->getKey(), bucketIdx);
+      myBuckets[bucketIdx] = node;
+    }
+
+    for(int j = tp.bucketStartIdx; j < tp.bucketEndIdx; j++){
+      buckets << myBuckets[j]->getKey() << ","; 
+    }
+
+    tp.root = node;
+    //CkPrintf("%d REGISTER tree piece %d root %llu buckets %s\n", CkMyPe(), tp.index, tp.root->getKey(), buckets.str().c_str());
+  }
+  else{
+    Node<ForceData> *rightChild = node->getRightChild();
+    Node<ForceData> *leftChild = node->getLeftChild();
+    int rightFirstOwner = rightChild->getOwnerStart(); 
+    int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner,localTreePieces.submittedParticles.getVec(),tpstart,tpend);
+
+    registerTopLevelNodes(leftChild,tpstart,tp);
+    registerTopLevelNodes(rightChild,tp,tpend);
+  }
 }
 
 void DataManager::flushBufferedRemoteDataRequests(){
@@ -881,7 +960,6 @@ void DataManager::startTraversal(){
 
   /*
   CkPrintf("(%d) memcheck before traversal\n", CkMyPe());
-  CmiMemoryCheck();
   */
 
   Node<ForceData> **bucketPtrs = myBuckets.getVec();
@@ -897,6 +975,11 @@ void DataManager::startTraversal(){
     int dummy=0;
     for(int i = 0; i < numLocalUsefulTreePieces; i++){
       TreePieceDescriptor &tp = localTreePieces.submittedParticles[i];
+      ostringstream buckets;
+      for(int j = tp.bucketStartIdx; j < tp.bucketEndIdx; j++){
+        buckets << myBuckets[j]->getKey() << ","; 
+      }
+      //CkPrintf("DM %d tree piece %d root %llu buckets %s\n", CkMyPe(), tp.index, tp.root->getKey(), buckets.str().c_str());
       tp.owner->prepare(root, tp.root, myBuckets.getVec()+tp.bucketStartIdx, tp.bucketEndIdx-tp.bucketStartIdx);
       CkEntryOptions opts;
       opts.setPriority(START_TRAVERSAL_PRIORITY);
@@ -1101,7 +1184,6 @@ void DataManager::processNodeRequest(Key key, int replyTo){
 
   CkAssert(node->getNumChildren() > 0);
 
-  // FIXME - make this a recursive function
   TreeSizeWorker tsz(node->getDepth()+globalParams.cacheLineSize);
   fillTrav.topDownTraversal_local(node,&tsz);
 
@@ -1246,6 +1328,7 @@ void DataManager::advance(CkReductionMsg *msg){
     doSkipDecomposition = false;
   }
 
+
   if(iteration == globalParams.iterations){
     CkCallback cb = CkCallback(CkIndex_Main::niceExit(),mainProxy);
     contribute(0,0,CkReduction::sum_int,cb);
@@ -1337,17 +1420,47 @@ void DataManager::quiescence(){
 }
 
 void DataManager::freeTree(){
-  //CkPrintf("(%d) FREE tree\n", CkMyPe());
-  if(root != NULL) {
+#ifdef NODE_LEVEL_MERGE
+  // delete the trees underneath your tree pieces
+  // this can be done in parallel by all PEs on node
+  Node<ForceData> *treePieceRoot;
+  for(int i = 0; i < numLocalUsefulTreePieces; i++){
+    treePieceRoot = localTreePieces.submittedParticles[i].root;
+    CkAssert(treePieceRoot != NULL);
+    treePieceRoot->deleteBeneath();
+  }
+#endif
+
+
+  if(root != NULL){
+#ifdef NODE_LEVEL_MERGE
+    treeMergerProxy.ckLocalBranch()->freeMergedTree();
+#else
     root->deleteBeneath();
     delete root;
     root = NULL;
+#endif
   }
+
 }
 
 void DataManager::reuseTree(){
+  //CkAssert(false);
+#ifdef NODE_LEVEL_MERGE
+  Node<ForceData> *tproot;
+  for(int i = 0; i < numLocalUsefulTreePieces; i++){
+    tproot = localTreePieces.submittedParticles[i].root;
+    CkAssert(tproot != NULL);
+    tproot->reuseTree();
+  }
+#endif
+
   if(root != NULL){
+#ifdef NODE_LEVEL_MERGE
+    treeMergerProxy.ckLocalBranch()->reuseMergedTree();
+#else
     root->reuseTree();
+#endif
   }
 }
 
@@ -1459,6 +1572,8 @@ void DataManager::init(){
   numTreePiecesDoneTraversals = 0;
   numTreePiecesDoneRemoteRequests = 0;
 
+  // FIXME - remove this
+  //doSkipDecomposition = false;
   if(doSkipDecomposition){
     reuseTree();
   }
@@ -1500,7 +1615,7 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
      << "style=\"filled\""
      << "color=\"" << NodeTypeColor[nd->getType()] << "\""
      << "]" << endl;
-  //if(nd->getOwnerStart() == nd->getOwnerEnd()) return;
+  if(nd->getOwnerEnd()-1 == nd->getOwnerStart()) return;
   for(int i = 0; i < nd->getNumChildren(); i++){
     Node<ForceData> *child = nd->getChildren()+i;
     if(child != NULL){
@@ -1512,9 +1627,9 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
 #if 0
 #endif
 
-void DataManager::doPrintTree(){
+void DataManager::doPrintTree(string name){
   ostringstream oss;
-  oss << "new." << CkMyPe() << "." << iteration << ".dot";
+  oss << name << "." << CkMyPe() << "." << iteration << ".dot";
   ofstream ofs(oss.str().c_str());
   ofs << "digraph newPE" << CkMyPe() << "{" << endl;
   if(root != NULL) printTree(root,ofs);
@@ -1683,7 +1798,7 @@ void DataManager::notifyParentMomentsDone(Node<ForceData> *node){
 // given an array of particles
 void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp){
   node->setOwners(tp.index,tp.index+1);
-  nodeTable[node->getKey()] = node;
+  //nodeTable[node->getKey()] = node;
 
   int np = node->getNumParticles();
   if(np <= ((Real)globalParams.ppb*BUCKET_TOLERANCE)){
@@ -1715,8 +1830,12 @@ void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp
     if(node->getNumChildren() == 0) node->refine();
     else node->reuseRefine();
 
-    singleBuildTree(node->getLeftChild(),tp);
-    singleBuildTree(node->getRightChild(),tp);
+    Node<ForceData> *left = node->getLeftChild();
+    Node<ForceData> *right = node->getRightChild();
+    singleBuildTree(left,tp);
+    singleBuildTree(right,tp);
+    nodeTable[left->getKey()] = left;
+    nodeTable[right->getKey()] = right;
     node->getMomentsFromChildren();
   }
 }

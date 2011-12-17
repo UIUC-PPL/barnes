@@ -110,7 +110,7 @@ struct Parameters {
         key = arg.substr(mpos+1,len-mpos-1); 
         val = "";
       }
-      CkPrintf("arg %s mpos %d pos %d len %d key %s val %s\n", arg.c_str(), mpos, pos, len, key.c_str(), val.c_str());
+      //CkPrintf("arg %s mpos %d pos %d len %d key %s val %s\n", arg.c_str(), mpos, pos, len, key.c_str(), val.c_str());
 
       tab[key] = val;
     }

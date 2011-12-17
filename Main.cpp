@@ -12,6 +12,7 @@
 
 #include "TreePiece.h"
 #include "DataManager.h"
+#include "TreeMerger.h"
 #include "Reduction.h"
 #include "Messages.h"
 
@@ -25,6 +26,7 @@ using namespace std;
 /* Proxies for tree piece array and data manager group */
 CProxy_TreePiece treePieceProxy;
 CProxy_DataManager dataManagerProxy;
+CProxy_TreeMerger treeMergerProxy;
 CProxy_Main mainProxy;
 
 CProxy_MeshStreamer<NodeRequest> combinerProxy;
@@ -40,6 +42,7 @@ Main::Main(CkArgMsg *msg){
   /* Create the DataManager group; there is one representative/member
      of the group on each PE.
   */
+  treeMergerProxy = CProxy_TreeMerger::ckNew();
   dataManagerProxy = CProxy_DataManager::ckNew();
   TopoManager tmgr;
   int meshNumRows = tmgr.getDimNX()*tmgr.getDimNT();

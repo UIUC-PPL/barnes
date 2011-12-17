@@ -185,5 +185,12 @@ struct DtReductionStruct {
   }
 };
 
+struct PointerContainer {
+  void *ptr;
+  PointerContainer() : ptr(NULL) {}
+  PointerContainer(void *p) : ptr(p) {}
+};
+
+PUPbytes(PointerContainer);
 
 #endif
