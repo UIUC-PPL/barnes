@@ -21,7 +21,7 @@ void State::nodeDiscarded(Key bucketKey, Node<ForceData> *node){
   CkPrintf("(%d,%d) bucket %lu node %lu 2 discarding %s\n", ownerTreePiece->getIndex(), ownerTreePiece->getIteration(), bucketKey, node->getKey(), getDescription().c_str());
 #endif
 
-  insert(bucketKey,node->getKey());
+  //insert(bucketKey,node->getKey());
 }
 
 void State::beforeForces(Node<ForceData> *bucket, Key k){

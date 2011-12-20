@@ -44,7 +44,40 @@ void TreePiece::init(){
   myRoot = NULL;
   localTraversalState.finishedIteration();
   remoteTraversalState.finishedIteration();
+
+#ifdef DEBUG_TRAVERSALS
+  localTraversalState.setBucketKeys(&bucketKeys);
+  remoteTraversalState.setBucketKeys(&bucketKeys);
+#endif
 }
+
+void TreePiece::checkTraversals(){
+#ifdef DEBUG_TRAVERSALS
+  map<Key,set<Key> >::iterator it = bucketKeys.begin();
+  for(; it != bucketKeys.end(); ++it){
+    set<Key>::iterator jt = it->second.find(Key(0));
+    CkAssert(jt != it->second.end());
+    CkAssert(it->second.size() == 1);
+    ostringstream oss;
+    for(jt = it->second.begin(); jt != it->second.end(); ++jt){
+      oss << (*jt) << ","; 
+    }
+    CkPrintf("tp %d bucket %llu rem: %s\n", thisIndex, it->first, oss.str().c_str());
+  }
+#endif
+}
+
+void TreePiece::clearBucketsDebug(){
+#ifdef DEBUG_TRAVERSALS
+  map<Key,set<Key> >::iterator it = bucketKeys.begin();
+  for(; it != bucketKeys.end(); it++){
+    it->second.clear();
+  }
+  bucketKeys.clear();
+#endif
+}
+
+
 
 void TreePiece::receiveParticles(ParticleMsg *msg){
   int msgNumParticles = msg->numParticles;
@@ -108,7 +141,10 @@ void TreePiece::doLocalGravity(RescheduleMsg *msg){
   }
   else{
     delete msg;
-    if(localTraversalState.complete()) traversalDone();
+    if(localTraversalState.complete()){
+      //CkPrintf("tree piece %d traversal done local\n", thisIndex);
+      traversalDone();
+    }
   }
 }
 
@@ -132,6 +168,7 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
     delete msg;
     if(remoteTraversalState.complete()){
       doneRemoteRequests();
+      //CkPrintf("tree piece %d traversal done remote\n", thisIndex);
       traversalDone();
     }
   }
@@ -159,9 +196,15 @@ void TreePiece::finishIteration(){
     CkPrintf("(%d,%d) bucket %d xfinal acc : %s\n", thisIndex, iteration, (*bucketptr)->getKey(), oss.str().c_str());
   }
 #endif
+
+  checkTraversals();
+  clearBucketsDebug();
+
   CmiUInt8 pn = localTraversalState.numInteractions[0]+remoteTraversalState.numInteractions[0];
   CmiUInt8 pp = localTraversalState.numInteractions[1]+remoteTraversalState.numInteractions[1];
   CmiUInt8 oc = localTraversalState.numInteractions[2]+remoteTraversalState.numInteractions[2];
+
+  //CkPrintf("tree piece %d traversal done\n", thisIndex);
   dataManagerProxy[CkMyPe()].traversalsDone(pn,pp,oc);
 
 }

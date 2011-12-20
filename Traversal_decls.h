@@ -16,7 +16,7 @@ class Traversal {
   // to request particles/nodes from
   DataManager *dm;
 
-  void processLeaf(Node<T> *node, CutoffWorker<T> *worker, State *state);
+  Node<T> *processLeaf(Node<T> *node, CutoffWorker<T> *worker, State *state);
 
   public:
 

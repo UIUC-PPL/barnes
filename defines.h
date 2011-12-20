@@ -47,8 +47,6 @@
 #define BRANCH_FACTOR 2
 #define LOG_BRANCH_FACTOR 1
 
-#define RRDEBUG /* empty */
-
 /*
  * To assign priorities to different tasks.
  */

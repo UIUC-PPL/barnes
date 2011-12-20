@@ -29,6 +29,10 @@ class TreePiece : public CBase_TreePiece {
   Node<ForceData> *root;
   Node<ForceData> *myRoot;
 
+#ifdef DEBUG_TRAVERSALS
+  map<Key,set<Key> > bucketKeys;
+#endif
+
   LocalState localTraversalState;
   RemoteState remoteTraversalState;
 
@@ -48,6 +52,9 @@ class TreePiece : public CBase_TreePiece {
   void finishIteration();
   void init();
   void findOrbLB();
+
+  void checkTraversals();
+  void clearBucketsDebug();
 
   public:
   TreePiece();

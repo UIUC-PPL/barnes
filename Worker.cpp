@@ -201,6 +201,7 @@ bool RemoteTraversalWorker::getKeep(NodeType type){
 
 void RemoteTraversalWorker::done(){
   ownerTreePiece->doneRemoteRequests();
+  //CkPrintf("tree piece %d traversal done remote resume\n", ownerTreePiece->getIndex());
   ownerTreePiece->traversalDone();
 }
 

@@ -207,8 +207,8 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void doneRemoteRequests();
 
   // called by tree piece that is making a request
-  void requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
-  void requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
+  Node<ForceData> *requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
+  ExternalParticle * requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
 
   void combineNodeRequest(int tpindex, Key k);
   void combineParticleRequest(Key k, int tpindex);

@@ -75,8 +75,9 @@ void Traversal<T>::topDownTraversal(Node<T> *root, CutoffWorker<T> *worker, Stat
 
     numChildrenToExpand = 0;
     if(t_numChildren == 0){
-      processLeaf(t_parent,worker,state);
-      continue;
+      t_children = processLeaf(t_parent,worker,state);
+      if(t_children == NULL) continue;
+      else t_numChildren = BRANCH_FACTOR;
     }
 
     for(int i = 0; i < t_numChildren; i++){
@@ -94,13 +95,13 @@ void Traversal<T>::topDownTraversal(Node<T> *root, CutoffWorker<T> *worker, Stat
 }
 
 template<typename T>
-void Traversal<T>::processLeaf(Node<T> *leaf, CutoffWorker<T> *worker, State *state){
+Node<T> *Traversal<T>::processLeaf(Node<T> *leaf, CutoffWorker<T> *worker, State *state){
   NodeType type = leaf->getType();
 
   CkAssert(type != Internal);
   CkAssert(type != Boundary);
 
-  if(type == EmptyBucket || type == RemoteEmptyBucket) return;
+  if(type == EmptyBucket || type == RemoteEmptyBucket) return NULL;
 
   if(type == Bucket){
     Particle *particles = leaf->getParticles();
@@ -113,25 +114,28 @@ void Traversal<T>::processLeaf(Node<T> *leaf, CutoffWorker<T> *worker, State *st
       worker->work(particles+i);
     }
     worker->bucketDone(leaf->getKey());
+    return NULL;
   }
   else if(type == RemoteBucket){
-    ExternalParticle *particles = (ExternalParticle *)leaf->getParticles();
+    CkAssert(leaf->getParticles() == NULL);
     int np = leaf->getNumParticles();
-    if(np == 0){
+    ExternalParticle *cached = dm->requestParticles(leaf,worker,state,this);
+    if(cached != NULL){ 
+      worker->beforeParticleForces(leaf->getKey());
+      for(int i = 0; i < np; i++){
+        worker->work(cached+i);
+      }
+      worker->bucketDone(leaf->getKey());
+    }
+    else{
       state->incrPending();
-      dm->requestParticles(leaf,worker,state,this);
-      return;
     }
-
-    worker->beforeParticleForces(leaf->getKey());
-    for(int i = 0; i < np; i++){
-      worker->work(particles+i);
-    }
-    worker->bucketDone(leaf->getKey());
+    return NULL;
   }
   else if(type == Remote){
-    state->incrPending();
-    dm->requestNode(leaf,worker,state,this);
+    Node<T> *cached = dm->requestNode(leaf,worker,state,this);
+    if(cached == NULL) state->incrPending();
+    return cached;
   }
 }
 

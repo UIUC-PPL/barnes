@@ -45,6 +45,10 @@ extern Parameters globalParams;
 
 extern CProxy_MeshStreamer<NodeRequest> combinerProxy;
 
+#define RRDEBUG 
+//#define RRDEBUG if(CkMyPe() == 1) CkPrintf
+//#define RRDEBUG CkPrintf
+
 /*
   This function is called during tree building. When a 
   PE requests the data for a remote node, it receives only
@@ -881,17 +885,15 @@ void DataManager::doneNodeLevelMerge(PointerContainer container){
     root = mergedRoot;
   }
 
+  //CkPrintf("DM %d register\n", CkMyPe());
   registerTopLevelNodes(root,0,numLocalUsefulTreePieces);
   treeMomentsReady = true;
   flushBufferedRemoteDataRequests();
 
 
+  //CkPrintf("DM %d starttraversal\n", CkMyPe());
   startTraversal();
 
-  if(CkMyPe()%numPesPerNode == 0){
-    string name("merged");
-    //doPrintTree(name);
-  }
   //CkCallback cb(CkCallback::ckExit);
   //contribute(0,0,CkReduction::sum_int,cb);
 }
@@ -970,7 +972,7 @@ void DataManager::startTraversal(){
   int end = myBuckets.length();
 
   //doPrintTree();
-
+  //
   if(numLocalUsefulTreePieces > 0){
     int dummy=0;
     for(int i = 0; i < numLocalUsefulTreePieces; i++){
@@ -1035,17 +1037,27 @@ void DataManager::startTraversal(){
 #endif
 }
 
-void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
+ExternalParticle *DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
   Key key = leaf->getKey();
   Request &request = particleRequestTable[key];
 #ifdef TRACE_REMOTE_DATA_REQUESTS
   traceUserEvent(REMOTE_PARTICLE_REQUEST);
 #endif
-  if(!request.sent){
+  if(request.data != NULL){
+    return (ExternalParticle *)request.data;
+  }
+  else if(!request.sent){
     partReqs.incrRequests();
 
-    if(leaf->isCached()) request.parentCached = true;
-    else request.parentCached = false;
+    request.sent = true;
+    request.parentCached = leaf->isCached();
+    if(leaf->isCached()){
+      request.parent = leaf;
+    }
+    else{
+      request.parent = new Node<ForceData>(*leaf);
+      CkAssert(!request.parent->isCached());
+    }
 
     CkAssert(leaf->getOwnerStart()+1 == leaf->getOwnerEnd());
     int owner = leaf->getOwnerStart();
@@ -1053,13 +1065,12 @@ void DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData
     opts.setQueueing(CK_QUEUEING_IFIFO);
     opts.setPriority(REQUEST_PARTICLES_PRIORITY);
     treePieceProxy[owner].requestParticles( std::make_pair(key, CkMyPe()), &opts);
-    request.sent = true;
     
-    request.parent = leaf;
-    RRDEBUG("(%d) REQUEST particles %lu from tp %d\n", CkMyPe(), key, owner);
+    RRDEBUG("(%d) REQUEST particles %lu leafCached %d from tp %d\n", CkMyPe(), key, leaf->isCached(), owner);
   }
   request.requestors.push_back(Requestor(worker,state,traversal,worker->getContext()));
   partReqs.incrDeliveries();
+  return NULL;
 }
 
 void DataManager::requestParticles(std::pair<Key, int> &request) {
@@ -1091,21 +1102,35 @@ void DataManager::requestParticles(std::pair<Key, int> &request) {
   myProxy[request.second].recvParticles(pmsg);
 }
 
-void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
+Node<ForceData>* DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
   Key key = leaf->getKey();
   Request &request = nodeRequestTable[key];
 #ifdef TRACE_REMOTE_DATA_REQUESTS
   traceUserEvent(REMOTE_NODE_REQUEST);
 #endif
-  if(!request.sent){
+  if(request.data != NULL){
+    RRDEBUG("(%d) REQUEST node %lu have data!\n", CkMyPe(), key);
+    return (Node<ForceData> *)request.data;
+  }
+  else if(!request.sent){
     nodeReqs.incrRequests();
 
-    if(leaf->isCached()) request.parentCached = true;
-    else request.parentCached = false;
+    request.sent = true;
+    request.parentCached = leaf->isCached();
+    if(leaf->isCached()){
+      request.parent = leaf;
+    }
+    else{
+      // in order to keep cached tree separate from 
+      // local tree, since we can share trees across 
+      // processors on an SMP node
+      // by default, request.parentCached should be false
+      request.parent = new Node<ForceData>(*leaf);
+    }
 
     int numOwners = leaf->getOwnerEnd()-leaf->getOwnerStart();
     int requestOwner = leaf->getOwnerStart()+(rand()%numOwners);
-    RRDEBUG("(%d) REQUEST node %lu from tp %d\n", CkMyPe(), key, requestOwner);
+    RRDEBUG("(%d) REQUEST node %lu leafCached %d from tp %d\n", CkMyPe(), key, leaf->isCached(), requestOwner);
 #ifdef COMBINE_NODE_REQUESTS
     combineNodeRequest(requestOwner,key);
 #else
@@ -1121,11 +1146,10 @@ void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *wo
     treePieceProxy[requestOwner].requestNode(msg);
     */
 #endif
-    request.sent = true;
-    request.parent = leaf;
   }
   request.requestors.push_back(Requestor(worker,state,traversal,worker->getContext()));
   nodeReqs.incrDeliveries();
+  return NULL;
 }
 
 void DataManager::combineNodeRequest(int tpindex, Key k){
@@ -1232,7 +1256,6 @@ void DataManager::recvNode(NodeReplyMsg *msg){
   map<Key,Request>::iterator it = nodeRequestTable.find(msg->key);
   CkAssert(it != nodeRequestTable.end());
 
-  RRDEBUG("(%d) RECVD node REPLY for key %lu\n", CkMyPe(), msg->key);
 
   Request &req = it->second;
   CkAssert(req.requestors.length() > 0);
@@ -1243,22 +1266,24 @@ void DataManager::recvNode(NodeReplyMsg *msg){
   req.data = msg->data;
   
   // attach recvd subtree to appropriate point in local tree
+
   Node<ForceData> *node = req.parent;
   CkAssert(node != NULL);
+
+  RRDEBUG("(%d) RECVD node REPLY for key %llu parent %llu cached %d\n", CkMyPe(), msg->key, node->getKey(), node->isCached());
   
   node->deserialize(msg->data, msg->nn);
 
   nodeReqs.decrRequests();
   nodeReqs.decrDeliveries(req.requestors.length());
-  RRDEBUG("(%d) DELIVERING key %lu\n", CkMyPe(), msg->key);
 
   req.deliverNode();
-  RRDEBUG("(%d) DELIVERED key %lu\n", CkMyPe(), msg->key);
 }
 
 void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit)
 {
   numTreePiecesDoneTraversals++;
+  //CkPrintf("DM %d traversalsDone %d\n", CkMyPe(), numTreePiecesDoneTraversals);
   numInteractions[0] += pnInter;
   numInteractions[1] += ppInter;
   numInteractions[2] += openCrit;
@@ -1268,6 +1293,14 @@ void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 op
 }
 
 void DataManager::finishIteration(){
+
+  if(CkMyPe()%numPesPerNode == 0){
+    string name("merged");
+    //doPrintTree(name);
+  }
+
+
+  //CkPrintf("DM %d finishIteration\n", CkMyPe());
   // can't advance particles here, because other PEs 
   // might not have finished their traversals yet, 
   // and therefore might need my particles
@@ -1314,12 +1347,14 @@ void DataManager::advance(CkReductionMsg *msg){
   }
 
   iteration++;
+  /*
   if(iteration == 13){
-      traceBegin();
+    traceBegin();
   }
   else{
-      traceEnd();
+    traceEnd();
   }
+  */
 
   if(iteration % globalParams.decompPeriod != 0){ 
     doSkipDecomposition = true;
@@ -1361,6 +1396,8 @@ void DataManager::recvUnivBoundingBox(CkReductionMsg *msg){
   delete msg;
 }
 
+extern string NodeTypeString[];
+
 void DataManager::freeCachedData(){
   map<Key,Request>::iterator it;
 
@@ -1371,12 +1408,12 @@ void DataManager::freeCachedData(){
     CkAssert(request.data != NULL);
     CkAssert(request.requestors.length() == 0);
     CkAssert(request.msg != NULL);
+
+    CkAssert(request.parentCached == request.parent->isCached());
     
-    // no need to set the particles of a cached
-    // bucket to NULL: we will delete the bucket
-    // anyway
     if(!request.parentCached){
-      request.parent->setParticles(NULL,0);
+      //CkPrintf("[%d] delete uncached bucket %llu type %s cached %d\n", CkMyPe(), request.parent->getKey(), NodeTypeString[request.parent->getType()].c_str(), request.parent->isCached());
+      delete request.parent;
     }
 
     delete (ParticleReplyMsg *)(request.msg);
@@ -1389,14 +1426,11 @@ void DataManager::freeCachedData(){
     CkAssert(request.requestors.length() == 0);
     CkAssert(request.msg != NULL);
 
-    // tell the root of the nodes in this 
-    // fetched entry that its children don't
-    // exist anymore
-    // cached parents may be deleted before
-    // their children, so we don't set their
-    // children
+    CkAssert(request.parentCached == request.parent->isCached());
+
     if(!request.parentCached){
-      request.parent->setChildren(NULL,0);
+      //CkPrintf("[%d] delete uncached node %llu type %d cached %d %d\n", CkMyPe(), request.parent->getKey(), request.parent->getType(), request.parentCached, request.parent->isCached());
+      delete request.parent;
     }
 
     delete (NodeReplyMsg *)(request.msg);
@@ -1434,6 +1468,7 @@ void DataManager::freeTree(){
 
   if(root != NULL){
 #ifdef NODE_LEVEL_MERGE
+    //CkPrintf("DM %d freeMergedTree\n", CkMyPe());
     treeMergerProxy.ckLocalBranch()->freeMergedTree();
 #else
     root->deleteBeneath();
@@ -1445,8 +1480,8 @@ void DataManager::freeTree(){
 }
 
 void DataManager::reuseTree(){
-  //CkAssert(false);
 #ifdef NODE_LEVEL_MERGE
+  CkAbort("Don't reuse decomposition tree: needs to be fixed for NODE_LEVEL_MERGE");
   Node<ForceData> *tproot;
   for(int i = 0; i < numLocalUsefulTreePieces; i++){
     tproot = localTreePieces.submittedParticles[i].root;
@@ -1497,8 +1532,10 @@ void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
 
     // kick
     p->velocity += globalParams.dthf*p->acceleration;
+#ifndef NO_DRIFT
     // drift
     p->position += globalParams.dtime*p->velocity;
+#endif
     // kick
     p->velocity += globalParams.dthf*p->acceleration;
     
@@ -1572,8 +1609,6 @@ void DataManager::init(){
   numTreePiecesDoneTraversals = 0;
   numTreePiecesDoneRemoteRequests = 0;
 
-  // FIXME - remove this
-  //doSkipDecomposition = false;
   if(doSkipDecomposition){
     reuseTree();
   }
@@ -1615,7 +1650,7 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
      << "style=\"filled\""
      << "color=\"" << NodeTypeColor[nd->getType()] << "\""
      << "]" << endl;
-  if(nd->getOwnerEnd()-1 == nd->getOwnerStart()) return;
+  //if(nd->getOwnerEnd()-1 == nd->getOwnerStart()) return;
   for(int i = 0; i < nd->getNumChildren(); i++){
     Node<ForceData> *child = nd->getChildren()+i;
     if(child != NULL){
@@ -1631,7 +1666,7 @@ void DataManager::doPrintTree(string name){
   ostringstream oss;
   oss << name << "." << CkMyPe() << "." << iteration << ".dot";
   ofstream ofs(oss.str().c_str());
-  ofs << "digraph newPE" << CkMyPe() << "{" << endl;
+  ofs << "digraph " << name << "_" << CkMyPe() << "_" << iteration << " {" << endl;
   if(root != NULL) printTree(root,ofs);
   ofs << "}" << endl;
   ofs.close();

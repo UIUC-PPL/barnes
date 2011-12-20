@@ -44,7 +44,7 @@ struct State {
   TreePiece *ownerTreePiece;
 
 #ifdef DEBUG_TRAVERSALS
-  map<Key,set<Key> > bucketKeys;
+  map<Key,set<Key> > *bucketKeys;
 #endif
 
   // Number of interactions and opening tests performed during the traversal
@@ -97,16 +97,23 @@ struct State {
     numInteractions[2] = 0;
   }
 
+  void setBucketKeys(map<Key,set<Key> > *bks){
+#ifdef DEBUG_TRAVERSALS
+    bucketKeys = bks;
+#endif
+  }
+
   void insert(Key bucketKey, Key k){
 #ifdef DEBUG_TRAVERSALS
+    //CkPrintf("%s interact bucket %llu node %llu\n", getDescription().c_str(), bucketKey, k);
     Key parentKey = (k>>1);
-    set<Key>::iterator it = bucketKeys[bucketKey].find(parentKey);
-    while(it != bucketKeys[bucketKey].end()){
-      bucketKeys[bucketKey].erase(it);
+    set<Key>::iterator it = (*bucketKeys)[bucketKey].find(parentKey);
+    while(it != (*bucketKeys)[bucketKey].end()){
+      (*bucketKeys)[bucketKey].erase(it);
       parentKey >>= 1;
-      it = bucketKeys[bucketKey].find(parentKey);
+      it = (*bucketKeys)[bucketKey].find(parentKey);
     }
-    bucketKeys[bucketKey].insert(parentKey);
+    (*bucketKeys)[bucketKey].insert(parentKey);
 #endif
   }
 
