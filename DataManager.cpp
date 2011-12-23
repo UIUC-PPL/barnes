@@ -1347,14 +1347,13 @@ void DataManager::advance(CkReductionMsg *msg){
   }
 
   iteration++;
-  /*
+  
   if(iteration == 13){
     traceBegin();
   }
-  else{
+  else if(iteration == 17){
     traceEnd();
   }
-  */
 
   if(iteration % globalParams.decompPeriod != 0){ 
     doSkipDecomposition = true;
@@ -1481,7 +1480,7 @@ void DataManager::freeTree(){
 
 void DataManager::reuseTree(){
 #ifdef NODE_LEVEL_MERGE
-  CkAbort("Don't reuse decomposition tree: needs to be fixed for NODE_LEVEL_MERGE");
+  //CkAbort("Don't reuse decomposition tree: needs to be fixed for NODE_LEVEL_MERGE");
   Node<ForceData> *tproot;
   for(int i = 0; i < numLocalUsefulTreePieces; i++){
     tproot = localTreePieces.submittedParticles[i].root;
