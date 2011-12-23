@@ -158,7 +158,7 @@ void TreeMerger::reuseMergedTree(){
   CmiLock(__nodelock);
   numSyncd++;
   if(numSyncd == numPesPerNode){
-    CkPrintf("Merger %d reuseing\n", CkMyNode());
+    CkPrintf("Merger %d reusing\n", CkMyNode());
     numSyncd = 0;
     mergedRoot->reuseTree();
     CkPrintf("Merger %d reuse DONE\n", CkMyNode());

@@ -4,7 +4,9 @@
 #include "common.h"
 #include "Vector3D.h"
 
+#ifdef __CHARMC__
 #include "pup.h"
+#endif
 
 struct Particle;
 struct ExternalParticle {
@@ -12,10 +14,12 @@ struct ExternalParticle {
   Real mass;
   ExternalParticle &operator=(const Particle &p);
 
+#ifdef __CHARMC__
   void pup(PUP::er &p){
     p|position;
     p|mass;
   }
+#endif
 };
 
 struct Particle : public ExternalParticle {
@@ -30,12 +34,14 @@ struct Particle : public ExternalParticle {
   bool operator>=(const Particle &other) const { return key >= other.key; }
   bool operator>=(const Key &k) const {return key >= k; }
 
+#ifdef __CHARMC__
   void pup(PUP::er &p){
     ExternalParticle::pup(p);
     p|velocity;
     p|key;
     p|potential;
   }
+#endif
 };
 
 

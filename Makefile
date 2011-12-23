@@ -29,7 +29,7 @@ SRC = Main.cpp DataManager.cpp TreePiece.cpp \
       State.cpp gen_util.cpp plummer.cpp
 
 TARGET = barnes 
-all: $(TARGET) 
+all: $(TARGET) plummer 
 
 $(TARGET): $(OBJECTS) Makefile.dep libmoduleOrb3dLB_notopo.a 
 	$(CHARMC) -o $(TARGET) $(LDFLAGS) $(OBJECTS)
