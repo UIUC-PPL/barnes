@@ -59,6 +59,8 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   int numPesPerNode;
   double prevIterationStart;
 
+  double phaseTime;
+
   CkVec<Particle> myParticles;
   int myNumParticles;
   BoundingBox myBox;
@@ -239,6 +241,14 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 
   void process(NodeRequest &);
   void pup(PUP::er &p);
+
+  // phase timing measurements
+  void doneParticleFlush();
+  void resumeProcessSubmittedParticles();
+  void doneTreeBuilds();
+  void resumeDoneNodeLevelMerge();
+  void doneForces();
+  void resumeFinishIteration();
 };
 
 #endif

@@ -276,6 +276,10 @@ void DataManager::hashParticleCoordinates(OrientedBox<double> &universe){
 */
 void DataManager::decompose(BoundingBox &universe){
 
+  if(CkMyPe() == 0){
+    phaseTime = CmiWallTimer();
+  }
+
   // Obtain key for each particle given the extents of the universe.
   hashParticleCoordinates(universe.box);
   // Sort particles so that decomposition can be done in-place.
@@ -423,7 +427,11 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   }
   else{
     // No more leaves to refine; send out particles to tree pieces
-    CkPrintf("[0] decomp done after %d iterations used treepieces %d\n", decompIterations, numTreePieces);
+    double t = CmiWallTimer();
+    CkPrintf("[0] Decomposition took %f s\n", t-phaseTime);
+    phaseTime = t;
+
+    CkPrintf("[0] Iterations %d used treepieces %d\n", decompIterations, numTreePieces);
     decompIterations = 0;
     /*
       Tell all PEs that there are no remaining active leaves,
@@ -629,6 +637,23 @@ void DataManager::processSubmittedParticles(){
   CkPrintf("(%d) memcheck before processSubmittedParticles\n", CkMyPe());
   */
 
+#ifdef PHASE_BARRIERS
+  CkCallback cb(CkIndex_DataManager::doneParticleFlush(),0,dataManagerProxy);
+  contribute(0,0,CkReduction::sum_int,cb);
+#else
+  resumeProcessSubmittedParticles();
+#endif
+}
+
+void DataManager::doneParticleFlush(){
+  double t = CmiWallTimer();
+  CkPrintf("[0] Flush took %f s\n", t-phaseTime);
+  phaseTime = t;
+
+  myProxy.resumeProcessSubmittedParticles();
+}
+
+void DataManager::resumeProcessSubmittedParticles(){
   // get the tree pieces (and their particles) on this PE
   senseTreePieces();
 
@@ -890,6 +915,23 @@ void DataManager::doneNodeLevelMerge(PointerContainer container){
   treeMomentsReady = true;
   flushBufferedRemoteDataRequests();
 
+#ifdef PHASE_BARRIERS
+  CkCallback cb(CkIndex_DataManager::doneTreeBuilds(),0,myProxy);
+  contribute(0,0,CkReduction::sum_int,cb);
+#else
+  resumeDoneNodeLevelMerge();
+#endif
+}
+
+void DataManager::doneTreeBuilds(){
+  double t = CmiWallTimer();
+  CkPrintf("[0] Tree build took %f s\n", t-phaseTime);
+  phaseTime = t;
+
+  myProxy.resumeDoneNodeLevelMerge();
+}
+
+void DataManager::resumeDoneNodeLevelMerge(){
 
   //CkPrintf("DM %d starttraversal\n", CkMyPe());
   startTraversal();
@@ -1293,6 +1335,24 @@ void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 op
 }
 
 void DataManager::finishIteration(){
+
+#ifdef PHASE_BARRIERS
+  CkCallback cb(CkIndex_DataManager::doneForces(),0,myProxy);
+  contribute(0,0,CkReduction::sum_int,cb);
+#else
+  resumeFinishIteration();
+#endif
+}
+
+void DataManager::doneForces(){
+  double t = CmiWallTimer();
+  CkPrintf("[0] Traversal took %f s\n", t-phaseTime);
+  phaseTime = t;
+
+  myProxy.resumeFinishIteration();
+}
+
+void DataManager::resumeFinishIteration(){
 
   if(CkMyPe()%numPesPerNode == 0){
     string name("merged");

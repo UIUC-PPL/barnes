@@ -18,7 +18,7 @@ void TreeMerger::submit(int pe, Node<ForceData>* root){
   CkAssert(root != NULL);
   myDataManagers.push_back(make_pair(pe,root));
   if(myDataManagers.length() == numPesPerNode){
-    CkPrintf("Merger %d merging\n", CkMyNode());
+    //CkPrintf("Merger %d merging\n", CkMyNode());
     CkVec<pair<Node<ForceData>*,Node<ForceData>*> > toMerge;
     for(int i = 0; i < myDataManagers.length(); i++){
       root = myDataManagers[i].second;
@@ -44,7 +44,7 @@ void TreeMerger::submit(int pe, Node<ForceData>* root){
       // leave it to data managers to delete their previous roots
       dataManagerProxy[myDataManagers[i].first].doneNodeLevelMerge(PointerContainer(root));
     }
-    CkPrintf("Merger %d merge DONE\n", CkMyNode());
+    //CkPrintf("Merger %d merge DONE\n", CkMyNode());
     init();
   }
   CmiUnlock(__nodelock);
@@ -144,12 +144,12 @@ void TreeMerger::freeMergedTree(){
   CmiLock(__nodelock);
   numSyncd++;
   if(numSyncd == numPesPerNode){
-    CkPrintf("Merger %d freeing\n", CkMyNode());
+    //CkPrintf("Merger %d freeing\n", CkMyNode());
     numSyncd = 0;
     mergedRoot->deleteBeneath();
     delete mergedRoot;
     mergedRoot = NULL;
-    CkPrintf("Merger %d free DONE\n", CkMyNode());
+    //CkPrintf("Merger %d free DONE\n", CkMyNode());
   }
   CmiUnlock(__nodelock);
 }
@@ -158,10 +158,10 @@ void TreeMerger::reuseMergedTree(){
   CmiLock(__nodelock);
   numSyncd++;
   if(numSyncd == numPesPerNode){
-    CkPrintf("Merger %d reusing\n", CkMyNode());
+    //CkPrintf("Merger %d reusing\n", CkMyNode());
     numSyncd = 0;
     mergedRoot->reuseTree();
-    CkPrintf("Merger %d reuse DONE\n", CkMyNode());
+    //CkPrintf("Merger %d reuse DONE\n", CkMyNode());
   }
   CmiUnlock(__nodelock);
 }

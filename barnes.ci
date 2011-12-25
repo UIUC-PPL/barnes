@@ -115,6 +115,15 @@ mainmodule barnes {
     entry void resumeFromLB();
 
     entry void doneRemoteRequests();
+
+    // phase timing measurements
+    entry void doneParticleFlush();
+    entry void resumeProcessSubmittedParticles();
+    entry void doneTreeBuilds();
+    entry void resumeDoneNodeLevelMerge();
+    entry void doneForces();
+    entry void resumeFinishIteration();
+
   };
 
   nodegroup TreeMerger {
