@@ -375,6 +375,13 @@ void DataManager::initHistogramParticles(){
   of active leaves that are being partitioned) 
 */
 void DataManager::sendHistogram(){
+  /*
+  int *counts = activeBins.getCounts();
+  for(int i = 0; i < activeBins.getNumCounts(); i++){
+    CkPrintf("[%d] Send bin %d num %d\n", CkMyPe(), i, counts[i]);
+  }
+  */
+
   CkCallback cb(CkIndex_DataManager::receiveHistogram(NULL),0,this->thisgroup);
   contribute(sizeof(int)*activeBins.getNumCounts(),activeBins.getCounts(),CkReduction::sum_int,cb);
   activeBins.reset();
@@ -401,14 +408,16 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   CkVec<pair<Node<ForceData>*,bool> > *active = activeBins.getActive();
   CkAssert(numRecvdBins == active->length());
 
+  Real thresh = (DECOMP_TOLERANCE*(Real)(globalParams.ppc));
   // Check which new active leaves need to be partitioned
   for(int i = 0; i < numRecvdBins; i++){
-    if(descriptors[i] > (Real)(DECOMP_TOLERANCE*globalParams.ppc)){
+    if((Real)descriptors[i] > thresh){
       // Need to refine this leaf (partition)
       binsToRefine.push_back(i);
       // By refining this node, we will remove one tree piece
       // and add BRANCH_FACTOR in its place.
-      numTreePieces += (BRANCH_FACTOR-1);
+      numTreePieces += Node<ForceData>::numLeaves(globalParams.decompBits)-1;
+      //CkPrintf("[%d] Split bin %d num %d thresh %.1f\n", CkMyPe(), i, descriptors[i], thresh);
     }
 
     particlesHistogrammed += descriptors[i];

@@ -177,6 +177,13 @@ class Node {
     return (nUsedBits/LOG_BRANCH_FACTOR);
   }
 
+  static int completeTreeSize(int levels){
+    return numLeaves(levels+1)-1;
+  }
+
+  static int numLeaves(int levels){
+    return (1<<(levels));
+  }
   /*
    * Various get/set methods.
    */
