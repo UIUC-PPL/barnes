@@ -172,6 +172,10 @@ void Main::setParameters(CkArgMsg *m){
   CkPrintf("particleMsgMaxSize: %d\n", globalParams.particleMsgMaxSize);
   CkAssert(globalParams.particleMsgMaxSize > sizeof(Particle));
 
+  /* Decide several bits in one iteration when decomposing */
+  globalParams.decompBits = params.getiparam("decompBits", DEFAULT_DECOMP_BITS, table); 
+  CkPrintf("decompBits: %d\n", globalParams.decompBits);
+
 
   /*
     Use the filename obtained previously to read just the 

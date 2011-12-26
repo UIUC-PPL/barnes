@@ -268,7 +268,9 @@ class Node {
    * distributed among the children, as decided by the keys
    * of the children. 
    */
-  void refine(){
+  void refine(int levels=1){
+    if(levels == 0) return;
+
     CkAssert(core.numChildren == 0);
     int numRankBits = LOG_BRANCH_FACTOR;
     int depth = getDepth();
@@ -303,9 +305,63 @@ class Node {
 
     for(int i = 0; i < BRANCH_FACTOR; i++){
       initChild(i,splitters,childKey,childDepth);
+      getChild(i)->refine(levels-1);
       childKey++;
     }
+    
   }
+
+  // this version is used during decomposition, 
+  // in order to maintain a list of "active" nodes
+  // for the next iteration of histogramming
+  void refine(CkVec<int> &counts, CkVec<std::pair<Node<T>*,bool> > *active, int levels=1){
+    if(levels == 0){
+      active->push_back(make_pair(this,false));
+      counts.push_back(getNumParticles());
+      return;
+    }
+
+    CkAssert(core.numChildren == 0);
+    int numRankBits = LOG_BRANCH_FACTOR;
+    int depth = getDepth();
+    CkAssert(depth >= 0);
+    CkAssert(depth < ((TREE_KEY_BITS-1)/numRankBits));
+
+    // Allocate children
+    core.numChildren = BRANCH_FACTOR;
+    children = new Node<T>[BRANCH_FACTOR];
+
+    Key myKey = getKey();
+
+    int start = 0;
+    int end = getNumParticles();
+    Particle *p = getParticles();
+    int splitters[BRANCH_FACTOR+1];
+    //splitters.resize(BRANCH_FACTOR+1);
+
+    Key childKey = (myKey << numRankBits);
+    int childDepth = depth+1;
+
+    /*
+     * findSplitters() distributes the parent's particles among the 
+     * children. This is done by considering the Key of each child
+     * and finding the first of the parent's particles whose Key is
+     * geq to that of the child. This gives the starting point for the
+     * particles of the child. The end is given by the start of the next
+     * child. We are able to do this in-place partitioning because 
+     * particles are assumed to have been sorted beforehand.
+     */
+    findSplitters(p,start,end,splitters,childKey,childDepth);
+
+    for(int i = 0; i < BRANCH_FACTOR; i++){
+      initChild(i,splitters,childKey,childDepth);
+      getChild(i)->refine(counts,active,levels-1);
+      childKey++;
+    }
+    
+  }
+
+
 
   void reuseRefine(){
     int start = 0;

@@ -409,18 +409,13 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
       // By refining this node, we will remove one tree piece
       // and add BRANCH_FACTOR in its place.
       numTreePieces += (BRANCH_FACTOR-1);
-      // Fail if not enough tree pieces are provided
-      if(numTreePieces > globalParams.numTreePieces){
-        CkPrintf("have %d treepieces need %d\n",globalParams.numTreePieces,numTreePieces);
-        CkAbort("Need more tree pieces!\n");
-      }
     }
 
     particlesHistogrammed += descriptors[i];
   }
 
   // Do any active leaves need to be partitioned?
-  if(binsToRefine.size()) {
+  if(binsToRefine.size() > 0) {
     // Yes, tell workers which ones  
     myProxy.receiveSplitters(binsToRefine);
     decompIterations++;
@@ -439,6 +434,13 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
       tree pieces such that each tree piece gets no more than 
       a threshold (ppc) number of particles.
     */
+    // Fail if not enough tree pieces are provided
+    if(numTreePieces > globalParams.numTreePieces){
+      CkPrintf("have %d treepieces need %d\n",globalParams.numTreePieces,numTreePieces);
+      CkAbort("Need more tree pieces!\n");
+      return;
+    }
+
     myProxy.sendParticles(numTreePieces);
   }
 

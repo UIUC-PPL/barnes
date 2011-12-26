@@ -1,6 +1,9 @@
 #ifndef __ACTIVE_BIN_INFO_H__
 #define __ACTIVE_BIN_INFO_H__
 
+#include "Parameters.h"
+extern Parameters globalParams;
+
 /*
  * CharmBH - ActiveBinInfo
  * This class is used to create a partition tree over a set of particles.
@@ -86,28 +89,13 @@ struct ActiveBinInfo{
    * process with the root of the tree.
    */
   void addNewNode(Node<T> *node){
+    /*
     std::pair<Node<T>*,bool> pr;
     pr.first = node;
     pr.second = false;
-
-    Key kfirst, klast;
-
-    newvec->push_back(pr);
-    int np = node->getNumParticles();
-    Particle *particles = node->getParticles();
-    /*
-      Record the smallest and largest keys from
-      particles on this PE that are under the root.
-      Also put the number of such particles into
-      counts.
     */
-    if(np > 0){
-      kfirst = particles[0].key;
-      klast = particles[np-1].key;
-    }else{
-      kfirst = klast = Node<T>::getParticleLevelKey(node);
-    }
-    counts.push_back(np);
+    newvec->push_back(make_pair(node,false));
+    counts.push_back(node->getNumParticles());
   }
 
   /*
@@ -131,8 +119,7 @@ struct ActiveBinInfo{
       */
       refine(node);
 
-      Key kfirst, klast;
-
+#if 0
       std::pair<Node<T>*,bool> pr;
       pr.second = false;
       /*
@@ -148,22 +135,15 @@ struct ActiveBinInfo{
         newvec->push_back(pr);
         int np = child->getNumParticles();
         Particle *particles = child->getParticles();
-        // record smallest and largest keys on this
-        // PE for each child
-        if(np > 0){
-          kfirst = particles[0].key;
-          klast = particles[np-1].key;
-        }else{
-          kfirst = klast = Node<T>::getParticleLevelKey(child);
-        }
         counts.push_back(np);
       }
+#endif
     }
 
   }
 
   virtual void refine(Node<T> *node){
-    node->refine();
+    node->refine(counts,newvec,globalParams.decompBits);
   }
 
 #if 0
