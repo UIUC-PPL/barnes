@@ -182,7 +182,7 @@ class Node {
   }
 
   static int numLeaves(int levels){
-    return (1<<(levels));
+    return (1<<(LOG_BRANCH_FACTOR*levels));
   }
   /*
    * Various get/set methods.
@@ -234,7 +234,7 @@ class Node {
 
   void childMomentsReady(){ numChildrenMomentsReady++; }
   int getNumChildrenMomentsReady() const { return numChildrenMomentsReady; }
-  bool allChildrenMomentsReady() const { return numChildrenMomentsReady == core.numChildren; }
+  bool allChildrenMomentsReady() const { return numChildrenMomentsReady == getNumChildren(); }
   void setChildrenMomentsReady() { numChildrenMomentsReady = getNumChildren(); }
 
 #if 0
@@ -278,7 +278,7 @@ class Node {
   void refine(int levels=1){
     if(levels == 0) return;
 
-    CkAssert(core.numChildren == 0);
+    CkAssert(getNumChildren() == 0);
     int numRankBits = LOG_BRANCH_FACTOR;
     int depth = getDepth();
     CkAssert(depth >= 0);
@@ -328,7 +328,7 @@ class Node {
       return;
     }
 
-    CkAssert(core.numChildren == 0);
+    CkAssert(getNumChildren() == 0);
     int numRankBits = LOG_BRANCH_FACTOR;
     int depth = getDepth();
     CkAssert(depth >= 0);
@@ -609,6 +609,7 @@ class Node {
 
   }
 
+#if 0
   Node<T> *getLeftChild(){
     return getChildren();
   }
@@ -616,6 +617,7 @@ class Node {
   Node<T> *getRightChild(){
     return getChildren()+1;
   }
+#endif
 
   void deleteBeneath(){
     if(getNumChildren() == 0) return;

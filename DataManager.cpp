@@ -975,14 +975,21 @@ void DataManager::registerTopLevelNodes(Node<ForceData> *node, int tpstart, int 
       myBuckets[bucketIdx] = node;
     }
 
-    for(int j = tp.bucketStartIdx; j < tp.bucketEndIdx; j++){
-      buckets << myBuckets[j]->getKey() << ","; 
-    }
-
     tp.root = node;
     //CkPrintf("%d REGISTER tree piece %d root %llu buckets %s\n", CkMyPe(), tp.index, tp.root->getKey(), buckets.str().c_str());
   }
   else{
+    Node<ForceData> *child = NULL;
+    for(int i = 1; i < node->getNumChildren(); i++){
+      child = node->getChild(i);
+      int childFirstOwner = child->getOwnerStart();
+      int tp = binary_search_ge<int,TreePieceDescriptor>(childFirstOwner,localTreePieces.submittedParticles.getVec(),tpstart,tpend);
+      registerTopLevelNodes(node->getChild(i-1),tpstart,tp);
+      tpstart = tp;
+    }
+    registerTopLevelNodes(node->getChild(BRANCH_FACTOR-1),tpstart,tpend);
+
+#if 0
     Node<ForceData> *rightChild = node->getRightChild();
     Node<ForceData> *leftChild = node->getLeftChild();
     int rightFirstOwner = rightChild->getOwnerStart(); 
@@ -990,6 +997,7 @@ void DataManager::registerTopLevelNodes(Node<ForceData> *node, int tpstart, int 
 
     registerTopLevelNodes(leftChild,tpstart,tp);
     registerTopLevelNodes(rightChild,tp,tpend);
+#endif
   }
 }
 
@@ -1030,11 +1038,13 @@ void DataManager::startTraversal(){
     int dummy=0;
     for(int i = 0; i < numLocalUsefulTreePieces; i++){
       TreePieceDescriptor &tp = localTreePieces.submittedParticles[i];
+#if 0
       ostringstream buckets;
       for(int j = tp.bucketStartIdx; j < tp.bucketEndIdx; j++){
         buckets << myBuckets[j]->getKey() << ","; 
       }
       //CkPrintf("DM %d tree piece %d root %llu buckets %s\n", CkMyPe(), tp.index, tp.root->getKey(), buckets.str().c_str());
+#endif
       tp.owner->prepare(root, tp.root, myBuckets.getVec()+tp.bucketStartIdx, tp.bucketEndIdx-tp.bucketStartIdx);
       CkEntryOptions opts;
       opts.setPriority(START_TRAVERSAL_PRIORITY);
@@ -1723,10 +1733,9 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
   //if(nd->getOwnerEnd()-1 == nd->getOwnerStart()) return;
   for(int i = 0; i < nd->getNumChildren(); i++){
     Node<ForceData> *child = nd->getChildren()+i;
-    if(child != NULL){
-      os << nd->getKey() << " -> " << child->getKey() << endl;
-      printTree(child,os);
-    }
+    CkAssert(child != NULL);
+    os << nd->getKey() << " -> " << child->getKey() << endl;
+    printTree(child,os);
   }
 }
 #if 0
@@ -1744,18 +1753,31 @@ void DataManager::doPrintTree(string name){
 
 int DataManager::flushAndMark(Node<ForceData> *node, int leafNum){
   node->setOwnerStart(leafNum);
+#if 0
   int firstNotInLeft, firstNotInNode;
+#endif
   if(node->getNumChildren() > 0){
+    for(int i = 0; i < node->getNumChildren(); i++){
+      leafNum = flushAndMark(node->getChild(i),leafNum);
+    }
+#if 0
     firstNotInLeft = flushAndMark(node->getLeftChild(),leafNum);
     firstNotInNode = flushAndMark(node->getRightChild(),firstNotInLeft);
+#endif
   }
   else{
     // sendParticlesToTreePiece whose root is 'node'
     sendParticlesToTreePiece(node,leafNum);
+    leafNum++;
+#if 0
     firstNotInNode = leafNum+1;
+#endif
   }
+  node->setOwnerEnd(leafNum);
+#if 0
   node->setOwnerEnd(firstNotInNode);
-  return firstNotInNode;
+#endif
+  return leafNum;
 }
 
 // Each node should have been marked with the 
@@ -1836,8 +1858,10 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
 
 
   np = pend-pstart;
+#if 0
   Node<ForceData> *leftChild = node->getLeftChild();
   Node<ForceData> *rightChild = node->getRightChild();
+#endif
 
   if(np > 0) node->setParticles(myParticles.getVec()+pstart,pend-pstart);
   else node->setParticles(NULL,0);
@@ -1854,6 +1878,23 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
   // an index beyond the left child's last
   // contained TreePiece, i.e. equal to or after
   // the right child's first contained TreePiece 
+  Node<ForceData> *child = NULL;
+  for(int i = 1; i < node->getNumChildren(); i++){
+    child = node->getChild(i);
+    int firstTreePiece = child->getOwnerStart(); 
+    Key particleTestKey = Node<ForceData>::getParticleLevelKey(child);
+
+    int tp = binary_search_ge<int,TreePieceDescriptor>(firstTreePiece,localTreePieces.submittedParticles.getVec(),tpstart,tpend);
+    int pp = binary_search_ge<Key,Particle>(particleTestKey,myParticles.getVec(),pstart,pend); 
+
+    buildTree(node->getChild(i-1),pstart,pp,tpstart,tp);
+
+    tpstart = tp;
+    pstart = pp;
+  }
+  buildTree(node->getChild(BRANCH_FACTOR-1),pstart,pend,tpstart,tpend);
+
+#if 0
   int rightFirstOwner = rightChild->getOwnerStart(); 
   int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner, localTreePieces.submittedParticles.getVec(), tpstart, tpend); 
 
@@ -1862,6 +1903,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
 
   buildTree(leftChild,pstart,firstParticleNotInLeft,tpstart,tp);
   buildTree(rightChild,firstParticleNotInLeft,pend,tp,tpend);
+#endif
 
   if(node->allChildrenMomentsReady()){
     // All descendants were able to construct their subtrees
@@ -1935,12 +1977,21 @@ void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp
     if(node->getNumChildren() == 0) node->refine();
     else node->reuseRefine();
 
+    Node<ForceData> *child = NULL;
+    for(int i = 0; i < node->getNumChildren(); i++){
+      child = node->getChild(i);
+      singleBuildTree(child,tp);
+      nodeTable[child->getKey()] = child;
+    }
+
+#if 0
     Node<ForceData> *left = node->getLeftChild();
     Node<ForceData> *right = node->getRightChild();
     singleBuildTree(left,tp);
     singleBuildTree(right,tp);
     nodeTable[left->getKey()] = left;
     nodeTable[right->getKey()] = right;
+#endif
     node->getMomentsFromChildren();
   }
 }

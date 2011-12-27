@@ -44,8 +44,8 @@
 /*
  * When constructing a tree, each node is either a leaf or has BRANCH_FACTOR children.
  */
-#define BRANCH_FACTOR 2
-#define LOG_BRANCH_FACTOR 1
+#define BRANCH_FACTOR 8
+#define LOG_BRANCH_FACTOR 3
 
 /*
  * To assign priorities to different tasks.
