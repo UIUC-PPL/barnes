@@ -416,7 +416,7 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
       binsToRefine.push_back(i);
       // By refining this node, we will remove one tree piece
       // and add BRANCH_FACTOR in its place.
-      numTreePieces += Node<ForceData>::numLeaves(globalParams.decompBits)-1;
+      numTreePieces += Node<ForceData>::numLeaves(globalParams.decompLevels)-1;
       //CkPrintf("[%d] Split bin %d num %d thresh %.1f\n", CkMyPe(), i, descriptors[i], thresh);
     }
 

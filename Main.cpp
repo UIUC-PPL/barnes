@@ -173,8 +173,8 @@ void Main::setParameters(CkArgMsg *m){
   CkAssert(globalParams.particleMsgMaxSize > sizeof(Particle));
 
   /* Decide several bits in one iteration when decomposing */
-  globalParams.decompBits = params.getiparam("decompBits", DEFAULT_DECOMP_BITS, table); 
-  CkPrintf("decompBits: %d\n", globalParams.decompBits);
+  globalParams.decompLevels = params.getiparam("decompLevels", DEFAULT_DECOMP_BITS, table); 
+  CkPrintf("decompLevels: %d\n", globalParams.decompLevels);
 
 
   /*

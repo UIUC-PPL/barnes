@@ -143,7 +143,7 @@ struct ActiveBinInfo{
   }
 
   virtual void refine(Node<T> *node){
-    node->refine(counts,newvec,globalParams.decompBits);
+    node->refine(counts,newvec,globalParams.decompLevels);
   }
 
 #if 0
