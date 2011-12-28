@@ -237,12 +237,14 @@ void Main::commence(){
     of all particles in the simulated "universe" is obtained.
   */
   BoundingBox &universe = *((BoundingBox *)redMsg->getData());
+#ifndef SPLASH_COMPATIBLE
   Real pad = 0.00001;
   /*
     Provide a little padding so that the particles closest to
     the extremities of the universe get correct keys.
   */
   universe.expand(pad);
+#endif
   /*
     Tell all PEs to begin Oct decomposition of read particles.
   */

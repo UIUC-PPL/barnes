@@ -31,7 +31,7 @@ int MomentsWorker::work(Node<ForceData> *node){
     setLeafType(node);
 
     if(node->getType() == Bucket || node->getType() == EmptyBucket){
-      node->getMomentsFromParticles();
+      node->get MomentsFromParticles();
       if(parent != NULL) parent->childMomentsReady();
     }
   }
@@ -39,7 +39,7 @@ int MomentsWorker::work(Node<ForceData> *node){
     setTypeFromChildren(node);
     // don't have moments of remote nodes yet
     if(node->getType() == Internal){ 
-      node->getMomentsFromChildren();
+      node->get MomentsFromChildren();
       if(parent != NULL) parent->childMomentsReady();
     }
   }

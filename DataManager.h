@@ -64,6 +64,8 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   CkVec<Particle> myParticles;
   int myNumParticles;
   BoundingBox myBox;
+  BoundingBox univBox;
+  Real uside;
 
   int numTreePieces;
   int numLocalUsefulTreePieces;

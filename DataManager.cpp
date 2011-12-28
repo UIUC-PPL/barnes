@@ -145,8 +145,6 @@ void DataManager::loadParticles(CkCallback &cb){
   }
   unsigned int numParticlesDone = 0;
 
-  BoundingBox myBox;
-
   /*
     Read particles.
   */
@@ -275,13 +273,27 @@ void DataManager::hashParticleCoordinates(OrientedBox<double> &universe){
   simulated universe.
 */
 void DataManager::decompose(BoundingBox &universe){
+  univBox = universe;
+
+#ifdef SPLASH_COMPATIBLE
+  Vector3D<Real> r = univBox.box.greater_corner-univBox.box.lesser_corner;
+  uside = r[0];
+  for(int x = 1; x <= 2; x++){
+    if(uside < r[x]) uside = r[x];
+  }
+  univBox.box.lesser_corner -= (uside/1e5);
+  univBox.box.greater_corner = univBox.box.lesser_corner + uside;
+
+  uside *= 1.00002;
+  uside = uside*uside;
+#endif
 
   if(CkMyPe() == 0){
     phaseTime = CmiWallTimer();
   }
 
   // Obtain key for each particle given the extents of the universe.
-  hashParticleCoordinates(universe.box);
+  hashParticleCoordinates(univBox.box);
   // Sort particles so that decomposition can be done in-place.
   myParticles.quickSort();
 
@@ -290,10 +302,10 @@ void DataManager::decompose(BoundingBox &universe){
     if(iteration == 1){
       // save this value so that we can compare
       // against it in future iterations. 
-      compareEnergy = universe.energy;
+      compareEnergy = univBox.energy;
     }
     else if(iteration > 1){
-      Real deltaE = compareEnergy-universe.energy;
+      Real deltaE = compareEnergy-univBox.energy;
       if(deltaE < 0) deltaE = -deltaE;
       // The energy should grow in magnitude
       // by less than a tenth of one per cent.
@@ -309,13 +321,13 @@ void DataManager::decompose(BoundingBox &universe){
     CkPrintf("(%d) iteration %d univ %f %f %f %f %f %f energy %f\n", 
         CkMyPe(),
         iteration,
-        universe.box.lesser_corner.x,
-        universe.box.lesser_corner.y,
-        universe.box.lesser_corner.z,
-        universe.box.greater_corner.x,
-        universe.box.greater_corner.y,
-        universe.box.greater_corner.z,
-        universe.energy);
+        univBox.box.lesser_corner.x,
+        univBox.box.lesser_corner.y,
+        univBox.box.lesser_corner.z,
+        univBox.box.greater_corner.x,
+        univBox.box.greater_corner.y,
+        univBox.box.greater_corner.z,
+        univBox.energy);
 
 
     prevIterationStart = CkWallTimer();
@@ -888,7 +900,12 @@ void DataManager::passMomentsUpward(Node<ForceData> *node){
     parent->childMomentsReady();
     TB_DEBUG("[%d] passup children ready %d for node %lu\n", CkMyPe(), parent->getNumChildrenMomentsReady(), parent->getKey());
     if(parent->allChildrenMomentsReady()){
+#ifdef SPLASH_COMPATIBLE
+      Real bside = uside/(1.0*(1<<(2*parent->getDepth())));
+      parent->getMomentsFromChildren(bside);
+#else
       parent->getMomentsFromChildren();
+#endif
       passMomentsUpward(parent);
     }
   }
@@ -1419,8 +1436,10 @@ void DataManager::advance(CkReductionMsg *msg){
   myBox.reset();
   kickDriftKick(myBox.box,myBox.energy);
 
+#ifndef SPLASH_COMPATIBLE
   Real pad = 0.00001;
   myBox.expand(pad);
+#endif
   myBox.numParticles = myNumParticles;
 
   if(CkMyPe() == 0){
@@ -1472,7 +1491,7 @@ void DataManager::advance(CkReductionMsg *msg){
 
 void DataManager::recvUnivBoundingBox(CkReductionMsg *msg){
   BoundingBox &univBB = *((BoundingBox *)msg->getData());
-  decompose(univBB);
+  decompose(univBox);
   delete msg;
 }
 
@@ -1913,7 +1932,12 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     // local TreePiece underneath it
     node->setType(Internal);
     // Create node's moments from those of children
+#ifdef SPLASH_COMPATIBLE
+    Real bside = uside/(1.0*(1<<(2*node->getDepth())));
+    node->getMomentsFromChildren(bside);
+#else
     node->getMomentsFromChildren();
+#endif
     // Tell node's parent it is done building subtree
     notifyParentMomentsDone(node);
   }
@@ -1951,7 +1975,12 @@ void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp
   if(np <= ((Real)globalParams.ppb*BUCKET_TOLERANCE)){
     if(np == 0) node->setType(EmptyBucket);
     else node->setType(Bucket);
+#ifdef SPLASH_COMPATIBLE
+    Real bside = uside/(1.0*(1<<(2*node->getDepth())));
+    node->getMomentsFromParticles(bside);
+#else
     node->getMomentsFromParticles();
+#endif
     // Add to the list of buckets on this PE
     myBuckets.push_back(node);
     // Record the fact that current tree piece has another bucket
@@ -1992,7 +2021,12 @@ void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp
     nodeTable[left->getKey()] = left;
     nodeTable[right->getKey()] = right;
 #endif
+#ifdef SPLASH_COMPATIBLE
+    Real bside = uside/(1.0*(1<<(2*node->getDepth())));
+    node->getMomentsFromChildren(bside);
+#else
     node->getMomentsFromChildren();
+#endif
   }
 }
 

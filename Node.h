@@ -554,7 +554,12 @@ class Node {
    * Used during tree building. Calculate the moments of a node
    * from the moments of its children. 
    */
-  void getMomentsFromChildren(){
+#ifdef SPLASH_COMPATIBLE
+  void getMomentsFromChildren(Real bside)
+#else
+  void getMomentsFromChildren()
+#endif
+  {
     OrientedBox<double> &bb = data.box;
     Real &mass = data.moments.totalMass;
     Vector3D<Real> &cm = data.moments.cm;
@@ -571,6 +576,9 @@ class Node {
     }
     if(mass > 0.0) cm /= mass;
 
+#ifdef SPLASH_COMPATIBLE
+    data.moments.rsq = bside;
+#else
     // Radius: distance between center of mass and the corner that is
     // farthest from it.
     Vector3D<Real> delta1 = data.moments.cm - data.box.lesser_corner;	
@@ -579,13 +587,19 @@ class Node {
     delta1.y = (delta1.y > delta2.y ? delta1.y : delta2.y);
     delta1.z = (delta1.z > delta2.z ? delta1.z : delta2.z);
     data.moments.rsq = delta1.lengthSquared();
+#endif
   }
 
   /*
    * If this node is a leaf, obtain its moments from 
    * the particles that it encloses.
    */
-  void getMomentsFromParticles(){
+#ifdef SPLASH_COMPATIBLE
+  void getMomentsFromParticles(Real bside)
+#else
+  void getMomentsFromParticles()
+#endif
+  {
     OrientedBox<double> &bb = data.box;
     Real &mass = data.moments.totalMass;
     Vector3D<Real> &cm = data.moments.cm;
@@ -599,6 +613,9 @@ class Node {
     }
     if(mass > 0.0) cm /= mass;
 
+#ifdef SPLASH_COMPATIBLE
+    data.moments.rsq = bside;
+#else
     Real d;
     // Radius: distance between center of mass and particle farthest from it
     data.moments.rsq = 0;
@@ -606,6 +623,7 @@ class Node {
       d = (cm - p->position).lengthSquared();
       if(d > data.moments.rsq) data.moments.rsq = d;
     }
+#endif
 
   }
 
