@@ -923,8 +923,10 @@ void DataManager::treeReady(){
 }
 
 void DataManager::nodeLevelMerge(){
-  string name("unmerged");
-  //doPrintTree(name);
+  if(globalParams.doPrintTree){
+    string name("unmerged");
+    doPrintTree(name);
+  }
   treeMergerProxy.ckLocalBranch()->submit(CkMyPe(),root);
 }
 
@@ -936,6 +938,11 @@ void DataManager::doneNodeLevelMerge(PointerContainer container){
   if(mergedRoot != root){
     delete root;
     root = mergedRoot;
+  }
+
+  if(globalParams.doPrintTree){
+    string name("merged");
+    if(CkMyPe()%numPesPerNode == 0) doPrintTree(name);
   }
 
   //CkPrintf("DM %d register\n", CkMyPe());
@@ -1749,7 +1756,7 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
      << "style=\"filled\""
      << "color=\"" << NodeTypeColor[nd->getType()] << "\""
      << "]" << endl;
-  //if(nd->getOwnerEnd()-1 == nd->getOwnerStart()) return;
+  if(nd->getOwnerEnd()-1 == nd->getOwnerStart()) return;
   for(int i = 0; i < nd->getNumChildren(); i++){
     Node<ForceData> *child = nd->getChildren()+i;
     CkAssert(child != NULL);

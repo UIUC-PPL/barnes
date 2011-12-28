@@ -19,10 +19,11 @@ void TreeMerger::submit(int pe, Node<ForceData>* root){
   myDataManagers.push_back(make_pair(pe,root));
   if(myDataManagers.length() == numPesPerNode){
     //CkPrintf("Merger %d merging\n", CkMyNode());
-    CkVec<pair<Node<ForceData>*,Node<ForceData>*> > toMerge;
+    CkVec<MergeStruct> toMerge;
     for(int i = 0; i < myDataManagers.length(); i++){
       root = myDataManagers[i].second;
-      if(root->getChildren() != NULL) toMerge.push_back(make_pair(root,root->getChildren())); 
+      pe = myDataManagers[i].first;
+      if(root->getChildren() != NULL) toMerge.push_back(MergeStruct(root,root->getChildren(),pe)); 
     }
     root = merge(toMerge);
     if(root->getNumChildren() > 0){
@@ -50,27 +51,30 @@ void TreeMerger::submit(int pe, Node<ForceData>* root){
   CmiUnlock(__nodelock);
 }
 
-Node<ForceData> *TreeMerger::merge(CkVec<pair<Node<ForceData>*,Node<ForceData>*> > &toMerge){
+Node<ForceData> *TreeMerger::merge(CkVec<MergeStruct> &toMerge){
   CkAssert(toMerge.length() > 0);
   if(toMerge.length() == 1){
-    return toMerge[0].first;
+    int key = toMerge[0].parent->getKey();
+    int pe = toMerge[0].pe;
+    //CkPrintf("return pe %d key %d\n", pe, key);
+    return toMerge[0].parent;
   }
 
   // find a target merge buffer for this level
-  // we pick the first one with the most number of valid children
+  // we pick the first one with the most number of particles underneath
   int pick = 0;
-  Node<ForceData> *node = toMerge[pick].second;
+  Node<ForceData> *node = toMerge[pick].parent;
   int maxCount = node->getNumParticles();
 
   int count;
   for(int i = 1; i < toMerge.length(); i++){
-    node = toMerge[i].second;
+    node = toMerge[i].child;
     count = node->getNumParticles();
 
     // second part of clause says that if even though an EmptyBucket 
     // will not have more particles than its peers (which should all be
     // RemoteEmptyBuckets) we should still pick it
-    if(count > maxCount || node->getType() == EmptyBucket){
+    if(count > maxCount){
       maxCount = count;
       pick = i;
     }
@@ -78,19 +82,19 @@ Node<ForceData> *TreeMerger::merge(CkVec<pair<Node<ForceData>*,Node<ForceData>*>
 
   // this the buffer we have picked as the target for the merge
   // we will return its parent
-  Node<ForceData> *thisLevelBuffer = toMerge[pick].second;
-  Node<ForceData> *thisLevelParent = toMerge[pick].first;
+  Node<ForceData> *thisLevelBuffer = toMerge[pick].child;
+  Node<ForceData> *thisLevelParent = toMerge[pick].parent;
 
   // merge the children of nodes in toMerge
   // this is the vector that is handed to the recursive calls
-  CkVec<pair<Node<ForceData>*,Node<ForceData>*> > newToMerge;
+  CkVec<MergeStruct> newToMerge;
   // begin with leftmost child
   for(int j = 0; j < BRANCH_FACTOR; j++){
     // get merge candidates for next level
     for(int i = 0; i < toMerge.length(); i++){
-      Node<ForceData> *node = (toMerge[i].second+j);
-      if(node->getNumParticles() > 0){
-        newToMerge.push_back(make_pair(node,node->getChildren()));
+      Node<ForceData> *node = (toMerge[i].child+j);
+      if(node->getType() == Boundary || node->isInternal()){
+        newToMerge.push_back(MergeStruct(node,node->getChildren(),toMerge[i].pe));
       }
     }
     if(newToMerge.length() > 0){
@@ -127,7 +131,7 @@ Node<ForceData> *TreeMerger::merge(CkVec<pair<Node<ForceData>*,Node<ForceData>*>
 
   // delete the buffers that were not selected as merge targets
   for(int i = 0; i < toMerge.length(); i++){
-    if(toMerge[i].second != thisLevelBuffer) delete[] toMerge[i].second;
+    if(toMerge[i].child != thisLevelBuffer) delete[] toMerge[i].child;
   }
 
   return thisLevelParent;

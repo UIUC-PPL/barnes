@@ -9,6 +9,20 @@
 #include <utility>
 using namespace std;
 
+struct MergeStruct {
+  Node<ForceData> *parent;
+  Node<ForceData> *child;
+  int pe;
+
+  MergeStruct(){
+  }
+
+  MergeStruct(Node<ForceData> *p, Node<ForceData> *c, int pe_) :
+    parent(p), child(c), pe(pe_)
+  {
+  }
+};
+
 class TreeMerger : public CBase_TreeMerger {
   int numPesPerNode;
   int numSyncd;
@@ -20,7 +34,7 @@ class TreeMerger : public CBase_TreeMerger {
   void init();
 
   void copyNode(Node<ForceData> *target, Node<ForceData> *source);
-  Node<ForceData> *merge(CkVec<pair<Node<ForceData>*,Node<ForceData>*> > &toMerge);
+  Node<ForceData> *merge(CkVec<MergeStruct> &toMerge);
 
   public:
   

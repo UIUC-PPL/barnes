@@ -48,6 +48,7 @@ struct Parameters {
   Real combineFlushPeriod;
 
   bool doPrintAccel;
+  bool doPrintTree;
 
   int decompPeriod;
   int decompLevels;
@@ -82,6 +83,7 @@ struct Parameters {
     p | iterations;
     p | balancePeriod;
     p | doPrintAccel;
+    p | doPrintTree;
 
     p | combineFlushCount;
     p | combineFlushPeriod;
