@@ -38,8 +38,10 @@ void TreePiece::init(){
   totalNumTraversals = 2;
   myDM = dataManagerProxy.ckLocalBranch();
   root = NULL;
+#ifndef SPLASH_COMPATIBLE
   myBuckets = NULL;
   myNumBuckets = 0;
+#endif
   myNumParticles = 0;
   myRoot = NULL;
   localTraversalState.finishedIteration();
@@ -92,30 +94,54 @@ void TreePiece::submitParticles(){
 }
 */
 
-void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int _numBuckets){
+#ifdef SPLASH_COMPATIBLE
+void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot)
+#else
+void TreePiece::prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int _numBuckets)
+#endif
+{
   root = _root;
   myRoot = _myRoot;
+  CkAssert(myRoot->getNumParticles() == myNumParticles);
+#ifndef SPLASH_COMPATIBLE
   myBuckets = buckets;
   myNumBuckets = _numBuckets;
+#endif
 }
 
 void TreePiece::startTraversal(int dummy){
   trav.setDataManager(myDM);
   
-  if(myNumBuckets == 0){
+#ifdef SPLASH_COMPATIBLE
+  if(myRoot->getNumParticles() == 0)
+#else
+  if(myNumBuckets == 0)
+#endif
+  {
     finishIteration();
     return;
   }
 
+#ifdef SPLASH_COMPATIBLE
+  remoteTraversalState.reset(this,myRoot->getNumParticles(),myRoot->getParticles());
+  remoteTraversalWorker.reset(this,&remoteTraversalState,myRoot->getParticles());
+#else
   remoteTraversalState.reset(this,myNumBuckets,myBuckets);
   remoteTraversalWorker.reset(this,&remoteTraversalState,*myBuckets);
+#endif
+
   RescheduleMsg *msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = REMOTE_GRAVITY_PRIORITY;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
   thisProxy[thisIndex].doRemoteGravity(msg);
 
+#ifdef SPLASH_COMPATIBLE
+  localTraversalState.reset(this,myRoot->getNumParticles(),myRoot->getParticles());
+  localTraversalWorker.reset(this,&localTraversalState,myRoot->getParticles());
+#else
   localTraversalState.reset(this,myNumBuckets,myBuckets);
   localTraversalWorker.reset(this,&localTraversalState,*myBuckets);
+#endif
 
   msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = LOCAL_GRAVITY_PRIORITY;
@@ -125,17 +151,28 @@ void TreePiece::startTraversal(int dummy){
 
 void TreePiece::doLocalGravity(RescheduleMsg *msg){
   int i;
+  int limit;
+#ifdef SPLASH_COMPATIBLE
+  limit = myRoot->getNumParticles();
+#else
+  limit = myNumBuckets;
+#endif
   for(i = 0; i < globalParams.yieldPeriod && 
-                 localTraversalState.current < myNumBuckets; 
+                 localTraversalState.current < limit; 
                  i++){
     trav.topDownTraversal(root,&localTraversalWorker,&localTraversalState);
     localTraversalState.current++;
+#ifdef SPLASH_COMPATIBLE
+    localTraversalState.currentParticle++;
+    localTraversalWorker.setContext(localTraversalState.currentParticle);
+#else
     localTraversalState.currentBucketPtr++;
     localTraversalWorker.setContext(*localTraversalState.currentBucketPtr);
+#endif
   }
 
   localTraversalState.decrPending(i);
-  if(localTraversalState.current < myNumBuckets){
+  if(localTraversalState.current < limit){
     CkAssert(!localTraversalState.complete());
     thisProxy[thisIndex].doLocalGravity(msg);
   }
@@ -150,17 +187,28 @@ void TreePiece::doLocalGravity(RescheduleMsg *msg){
 
 void TreePiece::doRemoteGravity(RescheduleMsg *msg){
   int i;
+  int limit;
+#ifdef SPLASH_COMPATIBLE
+  limit = myRoot->getNumParticles();
+#else
+  limit = myNumBuckets;
+#endif
   for(i = 0; i < globalParams.yieldPeriod &&
-                 remoteTraversalState.current < myNumBuckets;
+                 remoteTraversalState.current < limit;
                  i++){
     trav.topDownTraversal(root,&remoteTraversalWorker,&remoteTraversalState);
     remoteTraversalState.current++;
+#ifdef SPLASH_COMPATIBLE
+    remoteTraversalState.currentParticle++;
+    remoteTraversalWorker.setContext(remoteTraversalState.currentParticle);
+#else
     remoteTraversalState.currentBucketPtr++;
     remoteTraversalWorker.setContext(*remoteTraversalState.currentBucketPtr);
+#endif
   }
 
   remoteTraversalState.decrPending(i);
-  if(remoteTraversalState.current < myNumBuckets){
+  if(remoteTraversalState.current < limit){
     CkAssert(!remoteTraversalState.complete());
     thisProxy[thisIndex].doRemoteGravity(msg);
   }
@@ -185,18 +233,6 @@ void TreePiece::traversalDone(){
 }
 
 void TreePiece::finishIteration(){
-#if 0
-  Node<ForceData> **bucketptr;
-  for(bucketptr = myBuckets; bucketptr != myBuckets+myNumBuckets; bucketptr++){
-    Particle *p;
-    ostringstream oss;
-    for(p = (*bucketptr)->getParticles(); p != (*bucketptr)->getParticles()+(*bucketptr)->getNumParticles(); p++){
-      oss << p->acceleration.x << " " << p->acceleration.y << " " << p->acceleration.z << " ; ";
-    }
-    CkPrintf("(%d,%d) bucket %d xfinal acc : %s\n", thisIndex, iteration, (*bucketptr)->getKey(), oss.str().c_str());
-  }
-#endif
-
   checkTraversals();
   clearBucketsDebug();
 
@@ -204,7 +240,6 @@ void TreePiece::finishIteration(){
   CmiUInt8 pp = localTraversalState.numInteractions[1]+remoteTraversalState.numInteractions[1];
   CmiUInt8 oc = localTraversalState.numInteractions[2]+remoteTraversalState.numInteractions[2];
 
-  //CkPrintf("tree piece %d traversal done\n", thisIndex);
   dataManagerProxy[CkMyPe()].traversalsDone(pn,pp,oc);
 
 }
@@ -215,6 +250,9 @@ void TreePiece::cleanup(){
 }
 
 void TreePiece::quiescence(){
+#ifdef SPLASH_COMPATIBLE
+  int myNumBuckets = 0;
+#endif
   CkPrintf("QUIESCENCE tree piece %d proc %d submitted %d numBuckets %d trav_done %d outstanding local %d remote %d\n", 
                 thisIndex,
                 CkMyPe(),

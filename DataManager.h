@@ -87,8 +87,9 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   // Used in both decomposition and traversal
   Node<ForceData> *root;
 
-
+#ifndef SPLASH_COMPATIBLE
   CkVec<Node<ForceData>*> myBuckets;
+#endif
 
 #if 0
   bool doneFlushParticles; 
@@ -176,11 +177,6 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void reuseTree();
   void finishIteration();
 
-#if 0
-  void findMinVByA(DtReductionStruct &);
-  void markNaNBuckets();
-#endif
-  
   void printTree(Node<ForceData>*, ostream &);
   void doPrintTree(string name);
 

@@ -24,8 +24,15 @@ extern Parameters globalParams;
 inline bool
 openCriterionBucket(Node<ForceData> *node,
                    Node<ForceData> *bucketNode) {
-
   Vector3D<Real> dr = node->data.moments.cm - bucketNode->data.moments.cm;
+  Real drsq = dr.lengthSquared();
+  return (globalParams.tolsq*drsq < node->data.moments.rsq);
+}
+
+inline bool
+openCriterionParticle(Node<ForceData> *node,
+                   Particle *target) {
+  Vector3D<Real> dr = node->data.moments.cm - target->position;
   Real drsq = dr.lengthSquared();
   return (globalParams.tolsq*drsq < node->data.moments.rsq);
 }
@@ -64,11 +71,17 @@ void grav(Particle *pstart, Particle *pend, Real mass, const Vector3D<Real> &pos
 inline
 int nodeBucketForce(Node<ForceData> *node, 
 		    Node<ForceData> *req){
-  
   Particle *particles = req->getParticles();
   int numParticles = req->getNumParticles();
   grav(particles,particles+numParticles,node->data.moments.totalMass,node->data.moments.cm);
   return req->getNumParticles();
+}
+
+inline
+int nodeParticleForce(Node<ForceData> *node, 
+		      Particle *target){
+  grav(target,target+1,node->data.moments.totalMass,node->data.moments.cm);
+  return 1;
 }
 
 /*
@@ -77,11 +90,16 @@ int nodeBucketForce(Node<ForceData> *node,
  */
 inline int partBucketForce(ExternalParticle *part, 
 			   Node<ForceData> *req){ 
-
   Particle *particles = req->getParticles();
   int numParticles = req->getNumParticles();
   grav(particles,particles+numParticles,part->mass,part->position);
   return numParticles;
+}
+
+inline int particleParticleForce(ExternalParticle *part, 
+			         Particle *target){
+  grav(target,target+1,part->mass,part->position);
+  return 1;
 }
 
 #endif

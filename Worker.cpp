@@ -138,28 +138,44 @@ void MomentsWorker::setTypeFromChildren(Node<ForceData> *node){
 
 int TraversalWorker::work(Node<ForceData> *node){
   NodeType type = node->getType();
+#ifndef SPLASH_COMPATIBLE
   state->nodeEncountered(currentBucket->getKey(),node);
+#endif
   bool keep = getKeep(type);
 
   if(!keep){
+#ifndef SPLASH_COMPATIBLE
     state->nodeDiscarded(currentBucket->getKey(),node);
+#endif
     return 0;
   }
 
   // basic opening criterion
-  bool open = openCriterionBucket(node,currentBucket);
+  bool open;
+#ifdef SPLASH_COMPATIBLE
+  open = openCriterionParticle(node,currentParticle);
+#else
+  open = openCriterionBucket(node,currentBucket);
+#endif
   state->incrOpenCriterion();
   if(open){
+#ifndef SPLASH_COMPATIBLE
     state->nodeOpened(currentBucket->getKey(),node);
+#endif
     return 1;
   }
 
   if(repeat(node->getType())) return 0;
 
+  int computed;
+#ifdef SPLASH_COMPATIBLE
+  computed = nodeParticleForce(node,currentParticle);
+#else
   state->beforeForces(currentBucket,node->getKey());
-  int computed = nodeBucketForce(node,currentBucket);
+  computed = nodeBucketForce(node,currentBucket);
   state->nodeComputed(currentBucket,node->getKey());
-  state->incrPartNodeInteractions(currentBucket->getKey(),computed);
+#endif
+  state->incrPartNodeInteractions(computed);
   return 0;
 }
 
@@ -179,16 +195,25 @@ bool RemoteTraversalWorker::repeat(NodeType type){
 }
 
 void TraversalWorker::beforeParticleForces(Key k){
+#ifndef SPLASH_COMPATIBLE
   state->beforeForces(currentBucket,k);
+#endif
 }
 
 void TraversalWorker::work(ExternalParticle *particle){
-  int computed = partBucketForce(particle,currentBucket);
-  state->incrPartPartInteractions(currentBucket->getKey(),computed);
+  int computed;
+#ifdef SPLASH_COMPATIBLE
+  computed = particleParticleForce(particle,currentParticle);
+#else
+  computed = partBucketForce(particle,currentBucket);
+#endif
+  state->incrPartPartInteractions(computed);
 }
 
 void TraversalWorker::bucketDone(Key k){
+#ifndef SPLASH_COMPATIBLE
   state->bucketComputed(currentBucket,k);
+#endif
 }
 
 bool LocalTraversalWorker::getKeep(NodeType type){
@@ -201,7 +226,6 @@ bool RemoteTraversalWorker::getKeep(NodeType type){
 
 void RemoteTraversalWorker::done(){
   ownerTreePiece->doneRemoteRequests();
-  //CkPrintf("tree piece %d traversal done remote resume\n", ownerTreePiece->getIndex());
   ownerTreePiece->traversalDone();
 }
 

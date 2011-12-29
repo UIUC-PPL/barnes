@@ -24,8 +24,10 @@ class TreePiece : public CBase_TreePiece {
 
   int iteration;
 
+#ifndef SPLASH_COMPATIBLE
   int myNumBuckets;
   Node<ForceData> **myBuckets;
+#endif
   Node<ForceData> *root;
   Node<ForceData> *myRoot;
 
@@ -68,7 +70,12 @@ class TreePiece : public CBase_TreePiece {
   int getNumParticles() {return myNumParticles;}
   CkVec<ParticleMsg*> *getBufferedParticleMsgs() {return &decompMsgsRecvd;}
 
+#ifdef SPLASH_COMPATIBLE
+  void prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot);
+#else
   void prepare(Node<ForceData> *_root, Node<ForceData> *_myRoot, Node<ForceData> **buckets, int numBuckets);
+#endif
+
   void startTraversal(int dummy);
 
   void doLocalGravity(RescheduleMsg *);

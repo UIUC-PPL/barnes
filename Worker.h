@@ -81,32 +81,55 @@ class TraversalWorker : public CutoffWorker<ForceData> {
   TreePiece *ownerTreePiece;
   State *state;
   
+#ifdef SPLASH_COMPATIBLE
+  Particle *currentParticle;
+#else
   Node<ForceData> *currentBucket;
+#endif
 
   TraversalWorker() : 
     ownerTreePiece(NULL),
+#ifdef SPLASH_COMPATIBLE
+    currentParticle(NULL)
+#else
     currentBucket(NULL)
+#endif
   {
   }
 
   public:
 
-  void reset(TreePiece *owner, State *s, Node<ForceData> *bucket){
+#ifdef SPLASH_COMPATIBLE
+  void reset(TreePiece *owner, State *s, Particle *part)
+#else
+  void reset(TreePiece *owner, State *s, Node<ForceData> *bucket)
+#endif
+  {
     ownerTreePiece = owner;
     state = s;
+#ifdef SPLASH_COMPATIBLE
+    currentParticle = part;
+#else
     currentBucket = bucket;
-  }
-
-  Node<ForceData> *getCurrentBucket(){
-    return currentBucket;
+#endif
   }
 
   void *getContext(){
-    return (void *) currentBucket;
+    void *ret;
+#ifdef SPLASH_COMPATIBLE
+    ret = (void *) currentParticle;
+#else
+    ret = (void *) currentBucket;
+#endif
+    return ret;
   }
 
   void setContext(void *context){
+#ifdef SPLASH_COMPATIBLE
+    currentParticle = (Particle *) context;
+#else
     currentBucket = (Node<ForceData> *) context;
+#endif
   }
 
   int work(Node<ForceData> *node);
@@ -151,17 +174,6 @@ class TreeSizeWorker : public CutoffWorker<ForceData> {
   int work(Node<ForceData> *node);
   int getNumNodes(){
     return numNodes;
-  }
-};
-
-template<typename T>
-class FreeTreeWorker : public CutoffWorker<T> {
-  public:
-  int work(Node<T> *node){
-    if(node->getNumChildren() > 0){
-      delete[] node->getChildren();
-    }
-    return 1;
   }
 };
 

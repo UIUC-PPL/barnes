@@ -499,10 +499,7 @@ void DataManager::skipFlushParticles(){
 void DataManager::flushParticles(){
   treePieceRoots.length() = 0;
   treePieceRoots.resize(numTreePieces);
-  int numUsefulTreePieces = flushAndMark(root,0);
-#if 0
-  doneFlushParticles = true;
-#endif
+  flushAndMark(root,0);
 }
 
 /*
@@ -580,10 +577,7 @@ void DataManager::sendParticles(int ntp){
   // Flush particles to their owner tree pieces
   flushParticles();
 
-#if 0
-  // Obtain the number of tree pieces that are hosted on this PE
-  senseTreePieces();
-#endif
+  CkPrintf("[%d] SENDPARTICLES DONE\n", CkMyPe());
 }
 
 /*
@@ -596,43 +590,7 @@ void DataManager::senseTreePieces(){
   localTreePieces.reset();
   CkLocMgr *mgr = treePieceProxy.ckLocMgr();
   mgr->iterate(localTreePieces);
-#if 0
-  numLocalTreePieces = localTreePieces.count;
-#endif
-
-#if 0
-  /* 
-    It could be that all tree pieces on this PE received their
-    particles and submitted them to the DM before it received the 
-    "sendParticles" message. If this is the case, proceed to tree building.
-  */
-#endif
-
-#if 0
-  CkAssert(doneFlushParticles);
-#endif
-#if 0
-  if(submittedParticles.length() == numLocalTreePieces) processSubmittedParticles();
-#endif
 }
-
-#if 0
-/*
-  This is a normal C++ function called by tree pieces hosted
-  on this PE. Once a tree piece has received all the particles meant
-  for it, it submits them to the DM. The DM, in turn, collects particles
-  from all the tree pieces on its PE and constructs a local tree
-  from them. All nodes and particles within this PE-level tree are
-  then visible to all the tree pieces on the PE.
-*/
-void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, TreePiece * tp){ 
-  submittedParticles.push_back(TreePieceDescriptor(vec,numParticles,tp,tp->getIndex()));
-  myNumParticles += numParticles;
-  if(submittedParticles.length() == numLocalTreePieces && doneFlushParticles){
-    processSubmittedParticles();
-  }
-}
-#endif
 
 /*
   Once the DM has collected particles from all the tree pieces hosted
@@ -655,10 +613,7 @@ void DataManager::submitParticles(CkVec<ParticleMsg*> *vec, int numParticles, Tr
 */
 void DataManager::processSubmittedParticles(){
 
-  //CkPrintf("(%d) processSubmittedParticles\n", CkMyPe());
-  /*
-  CkPrintf("(%d) memcheck before processSubmittedParticles\n", CkMyPe());
-  */
+  CkPrintf("(%d) processSubmittedParticles\n", CkMyPe());
 
 #ifdef PHASE_BARRIERS
   CkCallback cb(CkIndex_DataManager::doneParticleFlush(),0,dataManagerProxy);
@@ -712,8 +667,10 @@ void DataManager::resumeProcessSubmittedParticles(){
   // XXX can make this a number of smaller sorts
   myParticles.quickSort();
 
+#ifndef SPLASH_COMPATIBLE
   // The first local TreePiece will always have buckets numbered from 0
   if(localTreePieces.count > 0) localTreePieces.submittedParticles[0].bucketStartIdx = 0;
+#endif
 
   buildTree(root,0,myNumParticles,0,numLocalUsefulTreePieces);
 
@@ -740,14 +697,15 @@ void DataManager::resumeProcessSubmittedParticles(){
   }
   */
   /*
-  CkPrintf("(%d) memcheck after processSubmittedParticles\n", CkMyPe());
+  CkPrintf("(%d) memcheck after process SubmittedParticles\n", CkMyPe());
   */
 
   if(CkMyPe() == 0){
     CkCallback cb(CkIndex_DataManager::processSubmittedParticles(),myProxy);
-    combiner->associateCallback(cb,false);
+    //combiner->associateCallback(cb,false);
+    CkStartQD(cb);
   }
-  combiner->enablePeriodicFlushing();
+  //combiner->enablePeriodicFlushing();
 }
 
 #if 0
@@ -982,9 +940,9 @@ void DataManager::registerTopLevelNodes(Node<ForceData> *node, int tpstart, int 
     return;
   }
   else if(tpend-tpstart == 1 && (node->getOwnerEnd()-node->getOwnerStart()==1)){
-    ostringstream buckets;
     TreePieceDescriptor &tp = localTreePieces.submittedParticles[tpstart];
     
+#ifndef SPLASH_COMPATIBLE
     // if this node was a bucket and is being registered here,
     // it could be the merged replacement for a previous node.
     // therefore we must correct the pointer to this bucket in
@@ -998,9 +956,9 @@ void DataManager::registerTopLevelNodes(Node<ForceData> *node, int tpstart, int 
       //CkPrintf("%d REGISTER %llu bucket idx %d\n", CkMyPe(), node->getKey(), bucketIdx);
       myBuckets[bucketIdx] = node;
     }
+#endif
 
     tp.root = node;
-    //CkPrintf("%d REGISTER tree piece %d root %llu buckets %s\n", CkMyPe(), tp.index, tp.root->getKey(), buckets.str().c_str());
   }
   else{
     Node<ForceData> *child = NULL;
@@ -1012,16 +970,6 @@ void DataManager::registerTopLevelNodes(Node<ForceData> *node, int tpstart, int 
       tpstart = tp;
     }
     registerTopLevelNodes(node->getChild(BRANCH_FACTOR-1),tpstart,tpend);
-
-#if 0
-    Node<ForceData> *rightChild = node->getRightChild();
-    Node<ForceData> *leftChild = node->getLeftChild();
-    int rightFirstOwner = rightChild->getOwnerStart(); 
-    int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner,localTreePieces.submittedParticles.getVec(),tpstart,tpend);
-
-    registerTopLevelNodes(leftChild,tpstart,tp);
-    registerTopLevelNodes(rightChild,tp,tpend);
-#endif
   }
 }
 
@@ -1045,31 +993,19 @@ bool CompareNodePtrToKey(void *a, Key k){
 void DataManager::startTraversal(){
   LBTurnInstrumentOn();
 
-  /*
-  CkPrintf("(%d) memcheck before traversal\n", CkMyPe());
-  */
-
+#ifndef SPLASH_COMPATIBLE
   Node<ForceData> **bucketPtrs = myBuckets.getVec();
-#if 0
-  localTreePieces.submittedParticles[0].bucketStartIdx = 0;
 #endif
-  int start = 0;
-  int end = myBuckets.length();
 
-  //doPrintTree();
-  //
   if(numLocalUsefulTreePieces > 0){
     int dummy=0;
     for(int i = 0; i < numLocalUsefulTreePieces; i++){
       TreePieceDescriptor &tp = localTreePieces.submittedParticles[i];
-#if 0
-      ostringstream buckets;
-      for(int j = tp.bucketStartIdx; j < tp.bucketEndIdx; j++){
-        buckets << myBuckets[j]->getKey() << ","; 
-      }
-      //CkPrintf("DM %d tree piece %d root %llu buckets %s\n", CkMyPe(), tp.index, tp.root->getKey(), buckets.str().c_str());
-#endif
+#ifdef SPLASH_COMPATIBLE
+      tp.owner->prepare(root,tp.root);
+#else
       tp.owner->prepare(root, tp.root, myBuckets.getVec()+tp.bucketStartIdx, tp.bucketEndIdx-tp.bucketStartIdx);
+#endif
       CkEntryOptions opts;
       opts.setPriority(START_TRAVERSAL_PRIORITY);
       opts.setQueueing(CK_QUEUEING_IFIFO);
@@ -1079,49 +1015,6 @@ void DataManager::startTraversal(){
   else{
     finishIteration();
   }
-
-#if 0
-  for(int i = 0; i < myNumParticles; i++){
-    Particle *p = &myParticles[i];
-    Real particleKinetic = 0.5*p->mass*p->velocity.lengthSquared();
-    Real particlePotential = p->mass*p->potential;
-    Real particleEnergy = particleKinetic+particlePotential;
-    CkPrintf("%d before traversal iteration %d energy K %f pos %f %f %f v %f %f %f\n", p->id, iteration, particleKinetic, p->position.x, p->position.y, p->position.z, p->velocity.x, p->velocity.y, p->velocity.z);
-  }
-
-#endif
-
-
-#if 0
-  if(end > 0){
-    for(int i = 0; i < numLocalTreePieces-1; i++){
-      TreePieceDescriptor &descr = submittedParticles[i];
-      int bucketIdx = binary_search_ge<Node<ForceData>*>(descr.largestKey,bucketPtrs,start,end,CompareNodePtrToKey);
-      descr.bucketEndIdx = bucketIdx;
-      int tpIndex = descr.owner->getIndex();
-      descr.owner->prepare(root,localTPRoots[tpIndex],myBuckets.getVec(),descr.bucketStartIdx,descr.bucketEndIdx);
-      treePieceProxy[tpIndex].tartTraversal();
-      submittedParticles[i+1].bucketStartIdx = bucketIdx;
-      start = bucketIdx;
-    }
-    TreePieceDescriptor &descr = submittedParticles[numLocalTreePieces-1];
-    descr.bucketEndIdx = myBuckets.length();
-    int tpIndex = descr.owner->getIndex();
-    descr.owner->prepare(root,localTPRoots[tpIndex],myBuckets.getVec(),descr.bucketStartIdx,descr.bucketEndIdx);
-    treePieceProxy[tpIndex].tartTraversal();
-  }
-  else if(numLocalTreePieces > 0){
-    for(int i = 0; i < numLocalTreePieces; i++){
-      TreePieceDescriptor &descr = submittedParticles[i];
-      descr.owner->prepare(root,NULL,myBuckets.getVec(),0,0);
-      int tpIndex = descr.owner->getIndex();
-      treePieceProxy[tpIndex].tartTraversal();
-    }
-  }
-  else{
-    finishIteration();
-  }
-#endif
 }
 
 ExternalParticle *DataManager::requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
@@ -1226,12 +1119,6 @@ Node<ForceData>* DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<Fo
     opts.setQueueing(CK_QUEUEING_IFIFO);
     std::pair<Key,int> pr(key,CkMyPe());
     treePieceProxy[requestOwner].requestNode(pr,&opts);
-    /*
-    RequestMsg *msg = new (NUM_PRIORITY_BITS) RequestMsg(key,CkMyPe());
-    CkSetQueueing(msg,CK_QUEUEING_IFIFO);
-    *((int *)CkPriorityPtr(msg)) = REQUEST_NODE_PRIORITY; 
-    treePieceProxy[requestOwner].requestNode(msg);
-    */
 #endif
   }
   request.requestors.push_back(Requestor(worker,state,traversal,worker->getContext()));
@@ -1241,7 +1128,6 @@ Node<ForceData>* DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<Fo
 
 void DataManager::combineNodeRequest(int tpindex, Key k){
   int dest_pe = tpArray->lastKnown(CkArrayIndex1D(tpindex)); 
-  //CkPrintf("[COMBINE] send tp %d key %llu reply %d dest_pe %d\n", tpindex, k, CkMyPe(), dest_pe);
   NodeRequest req(tpindex,k,CkMyPe());
   combiner->insertData(req, dest_pe);
 }
@@ -1250,28 +1136,19 @@ void DataManager::process(NodeRequest &req){
   int dest_pe = tpArray->lastKnown(CkArrayIndex1D(req.tp));
   // The target tree piece is on this PE: we must have its nodes
   if(dest_pe == CkMyPe()){
-    //CkPrintf("[COMBINE] recv tp %d key %llu reply %d dest_pe %d\n", req.tp, req.key, req.replyTo, dest_pe);
     std::pair<Key,int> pr(req.key, req.replyTo);
     requestNode(pr);
   }
   else{
     // The tree piece that this request was intended for has migrated,
     // forward request to dest_pe
-    //CkPrintf("[COMBINE] forward tp %d key %llu reply %d dest_pe %d\n", req.tp, req.key, req.replyTo, dest_pe);
     combiner->insertData(req, dest_pe);
   }
-#if 0
-  else{
-    RequestMsg *msg = new RequestMsg(req.key, req.replyTo);
-    tpArray->deliver((CkArrayMessage*)msg, CkDeliver_queue);
-  }
-#endif
 }
 
 void DataManager::doneRemoteRequests(){
   numTreePiecesDoneRemoteRequests++;
   if(numTreePiecesDoneRemoteRequests == numLocalUsefulTreePieces){
-    //CkPrintf("[COMBINE] Turn off streaming on PE %d\n", CkMyPe());
     combiner->doneInserting();
   }
 }
@@ -1370,7 +1247,6 @@ void DataManager::recvNode(NodeReplyMsg *msg){
 void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit)
 {
   numTreePiecesDoneTraversals++;
-  //CkPrintf("DM %d traversalsDone %d\n", CkMyPe(), numTreePiecesDoneTraversals);
   numInteractions[0] += pnInter;
   numInteractions[1] += ppInter;
   numInteractions[2] += openCrit;
@@ -1380,7 +1256,6 @@ void DataManager::traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 op
 }
 
 void DataManager::finishIteration(){
-
 #ifdef PHASE_BARRIERS
   CkCallback cb(CkIndex_DataManager::doneForces(),0,myProxy);
   contribute(0,0,CkReduction::sum_int,cb);
@@ -1414,9 +1289,6 @@ void DataManager::resumeFinishIteration(){
   CkAssert(partReqs.test());
 
   DtReductionStruct dtred;
-#if 0
-  findMinVByA(dtred);
-#endif
 
   dtred.pnInteractions = numInteractions[0];
   dtred.ppInteractions = numInteractions[1];
@@ -1430,15 +1302,6 @@ void DataManager::resumeFinishIteration(){
 void DataManager::advance(CkReductionMsg *msg){
 
   DtReductionStruct *dtred = (DtReductionStruct *)(msg->getData());
-#if 0
-  if(dtred->haveNaN){
-    CkPrintf("(%d) iteration %d NaN accel detected! Exit...\n", CkMyPe(), iteration);
-    markNaNBuckets();
-    CkCallback exitCb(CkCallback::ckExit);
-    contribute(0,0,CkReduction::sum_int,exitCb);
-    return;
-  }
-#endif
 
   myBox.reset();
   kickDriftKick(myBox.box,myBox.energy);
@@ -1518,7 +1381,6 @@ void DataManager::freeCachedData(){
     CkAssert(request.parentCached == request.parent->isCached());
     
     if(!request.parentCached){
-      //CkPrintf("[%d] delete uncached bucket %llu type %s cached %d\n", CkMyPe(), request.parent->getKey(), NodeTypeString[request.parent->getType()].c_str(), request.parent->isCached());
       delete request.parent;
     }
 
@@ -1535,7 +1397,6 @@ void DataManager::freeCachedData(){
     CkAssert(request.parentCached == request.parent->isCached());
 
     if(!request.parentCached){
-      //CkPrintf("[%d] delete uncached node %llu type %d cached %d %d\n", CkMyPe(), request.parent->getKey(), request.parent->getType(), request.parentCached, request.parent->isCached());
       delete request.parent;
     }
 
@@ -1574,7 +1435,6 @@ void DataManager::freeTree(){
 
   if(root != NULL){
 #ifdef NODE_LEVEL_MERGE
-    //CkPrintf("DM %d freeMergedTree\n", CkMyPe());
     treeMergerProxy.ckLocalBranch()->freeMergedTree();
 #else
     root->deleteBeneath();
@@ -1617,6 +1477,12 @@ void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
   
 
   if(globalParams.doPrintAccel && (iteration == globalParams.iterations-1)){
+#ifdef SPLASH_COMPATIBLE
+    for(int i = 0; i < myParticles.length(); i++){
+      Vector3D<Real> &a = myParticles[i].acceleration;
+      CkPrintf("[%d] particle %d final acc %f %f %f\n", CkMyPe(), i, a.x, a.y, a.z);
+    }
+#else
     Node<ForceData> *bucket;
     for(int i = 0; i < myBuckets.length(); i++){
       bucket = myBuckets[i];
@@ -1627,6 +1493,7 @@ void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
       }
       CkPrintf("%s\n", oss.str().c_str());
     }
+#endif
   }
 
   for(Particle *p = pstart; p <= pend; p++){
@@ -1649,50 +1516,8 @@ void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
 
     p->acceleration = Vector3D<Real>(0.0);
     p->potential = 0.0;
-
-#if 0
-    particlePotential = p->mass*p->potential;
-    particleKinetic = 0.5*p->mass*p->velocity.lengthSquared();
-    particleEnergy = particlePotential+particleKinetic;
-    CkPrintf("%d after update iteration %d energy K %f pos %f %f %f v %f %f %f\n", p->id, iteration, particleKinetic, p->position.x, p->position.y, p->position.z, p->velocity.x, p->velocity.y, p->velocity.z);
-#endif
   }
 }
-
-#if 0
-void DataManager::findMinVByA(DtReductionStruct &dtred){
-  if(myNumParticles == 0) {
-    dtred.haveNaN = false;
-    return;
-  }
-  
-  dtred.haveNaN = false;
-
-  for(int i = 0; i < myNumParticles; i++){
-    Real v = myParticles[i].velocity.length();
-    Real a = myParticles[i].acceleration.length();
-    CkAssert(!isnan(v));
-    if(isnan(a)) dtred.haveNaN = true;
-  }
-
-}
-#endif
-
-#if 0
-void DataManager::markNaNBuckets(){
-  for(int i = 0; i < myBuckets.length(); i++){
-    Node<ForceData> *bucket = myBuckets[i];
-    Particle *part = bucket->getParticles();
-    int numParticles = bucket->getNumParticles();
-    for(int j = 0; j < numParticles; j++){
-      if(isnan(part[j].acceleration.length())){
-        bucket->setType(Invalid);
-        break;
-      }
-    }
-  }
-}
-#endif
 
 void DataManager::init(){
   LBTurnInstrumentOff();
@@ -1703,14 +1528,10 @@ void DataManager::init(){
 
   decompIterations = 0;
 
-#if 0
-  doneFlushParticles = false;
-#endif
   doneTreeBuild = false;
-#if 0
-  numLocalTreePieces = -1;
-#endif
+#ifndef SPLASH_COMPATIBLE
   myBuckets.length() = 0;
+#endif
   treeMomentsReady = false;
   numTreePiecesDoneTraversals = 0;
   numTreePiecesDoneRemoteRequests = 0;
@@ -1728,9 +1549,6 @@ void DataManager::init(){
   numInteractions[0] = 0;
   numInteractions[1] = 0;
   numInteractions[2] = 0;
-#if 0
-  submittedParticles.length() = 0;
-#endif
 
   numMomentsRequested = numMomentsReceived = 0;
 }
@@ -1764,8 +1582,6 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
     printTree(child,os);
   }
 }
-#if 0
-#endif
 
 void DataManager::doPrintTree(string name){
   ostringstream oss;
@@ -1779,30 +1595,17 @@ void DataManager::doPrintTree(string name){
 
 int DataManager::flushAndMark(Node<ForceData> *node, int leafNum){
   node->setOwnerStart(leafNum);
-#if 0
-  int firstNotInLeft, firstNotInNode;
-#endif
   if(node->getNumChildren() > 0){
     for(int i = 0; i < node->getNumChildren(); i++){
       leafNum = flushAndMark(node->getChild(i),leafNum);
     }
-#if 0
-    firstNotInLeft = flushAndMark(node->getLeftChild(),leafNum);
-    firstNotInNode = flushAndMark(node->getRightChild(),firstNotInLeft);
-#endif
   }
   else{
     // sendParticlesToTreePiece whose root is 'node'
     sendParticlesToTreePiece(node,leafNum);
     leafNum++;
-#if 0
-    firstNotInNode = leafNum+1;
-#endif
   }
   node->setOwnerEnd(leafNum);
-#if 0
-  node->setOwnerEnd(firstNotInNode);
-#endif
   return leafNum;
 }
 
@@ -1838,7 +1641,6 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     CkAssert(pstart == pend);
     node->setParticles(NULL,0);
     // Delete subtree beneath this node
-    //if(node->getNumChildren() > 0) CkPrintf("(%d) REMOTE deleteBeneath %llu\n", CkMyPe(), node->getKey());
     node->deleteBeneath();
     // Set type when requested moments are received
     // Don't tell parent that I'm done
@@ -1849,7 +1651,6 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     TreePieceDescriptor &currentTP = localTreePieces.submittedParticles[tpstart];
     np = currentTP.numParticles;
     TB_DEBUG("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), currentTP.index, node->getKey());
-    //CkPrintf("(%d) SINGLE TREE index %d np %d pstart %d pend %d\n", CkMyPe(), currentTP.index, np, pstart, pend);
     // This is the first node that has 
     // a single tree piece beneath it.
 
@@ -1863,6 +1664,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     if(np > 0) node->setParticles(myParticles.getVec()+pstart,np);
     else node->setParticles(NULL,0);
 
+#ifndef SPLASH_COMPATIBLE
     // Set the bucket indices for this TreePiece
     // If this is not the 0-th local TreePiece to have its bucket indices set,
     // it can use the last bucket (exclusive) of the one previous to it as its first bucket
@@ -1870,6 +1672,7 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     // To obtain the last bucket, set it to the first
     // bucket and increment each time a new bucket is encountered (in singleBuildTree)
     currentTP.bucketEndIdx = currentTP.bucketStartIdx;
+#endif
     // Build the completely local tree underneath the root current TreePiece
     singleBuildTree(node,currentTP);
     // Since this node was completely local, its moments must have been computed
@@ -1884,10 +1687,6 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
 
 
   np = pend-pstart;
-#if 0
-  Node<ForceData> *leftChild = node->getLeftChild();
-  Node<ForceData> *rightChild = node->getRightChild();
-#endif
 
   if(np > 0) node->setParticles(myParticles.getVec()+pstart,pend-pstart);
   else node->setParticles(NULL,0);
@@ -1919,17 +1718,6 @@ void DataManager::buildTree(Node<ForceData> *node, int pstart, int pend, int tps
     pstart = pp;
   }
   buildTree(node->getChild(BRANCH_FACTOR-1),pstart,pend,tpstart,tpend);
-
-#if 0
-  int rightFirstOwner = rightChild->getOwnerStart(); 
-  int tp = binary_search_ge<int,TreePieceDescriptor>(rightFirstOwner, localTreePieces.submittedParticles.getVec(), tpstart, tpend); 
-
-  Key particleTestKey = Node<ForceData>::getParticleLevelKey(rightChild);
-  int firstParticleNotInLeft = binary_search_ge<Key,Particle>(particleTestKey, myParticles.getVec(), pstart, pend);
-
-  buildTree(leftChild,pstart,firstParticleNotInLeft,tpstart,tp);
-  buildTree(rightChild,firstParticleNotInLeft,pend,tp,tpend);
-#endif
 
   if(node->allChildrenMomentsReady()){
     // All descendants were able to construct their subtrees
@@ -1987,16 +1775,15 @@ void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp
     node->getMomentsFromParticles(bside);
 #else
     node->getMomentsFromParticles();
-#endif
     // Add to the list of buckets on this PE
     myBuckets.push_back(node);
     // Record the fact that current tree piece has another bucket
     tp.bucketEndIdx++;
+#endif
 
     // since we might be reusing the tree, it could happen
     // that this node was internal (not a leaf) in the previous 
     // iteration. delete descendants, if there are any
-    //if(node->getNumChildren() > 0) CkPrintf("(%d) BUCKET deleteBeneath %llu\n", CkMyPe(), node->getKey());
     node->deleteBeneath();
   }
   else{
@@ -2020,14 +1807,6 @@ void DataManager::singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &tp
       nodeTable[child->getKey()] = child;
     }
 
-#if 0
-    Node<ForceData> *left = node->getLeftChild();
-    Node<ForceData> *right = node->getRightChild();
-    singleBuildTree(left,tp);
-    singleBuildTree(right,tp);
-    nodeTable[left->getKey()] = left;
-    nodeTable[right->getKey()] = right;
-#endif
 #ifdef SPLASH_COMPATIBLE
     Real bside = uside/(1.0*(1<<(2*node->getDepth())));
     node->getMomentsFromChildren(bside);

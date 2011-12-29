@@ -117,8 +117,10 @@ struct TreePieceDescriptor {
   int numParticles;
   Node<ForceData> *root;
 
+#ifndef SPLASH_COMPATIBLE
   int bucketStartIdx;
   int bucketEndIdx;
+#endif
 
   TreePieceDescriptor() : 
     vec(NULL), owner(NULL), numParticles(0), index(-1)

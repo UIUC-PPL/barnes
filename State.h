@@ -39,7 +39,11 @@ struct State {
   // TreePiece::doRemoteGravity 
   int current;
   // Pointer to current bucket 
+#ifdef SPLASH_COMPATIBLE
+  Particle *currentParticle;
+#else
   Node<ForceData> **currentBucketPtr;
+#endif
   // The tree piece that initiated the traversal being tracked
   TreePiece *ownerTreePiece;
 
@@ -65,7 +69,11 @@ struct State {
   State() : 
     pending(-1), 
     current(-1), 
+#ifdef SPLASH_COMPATIBLE
+    currentParticle(NULL),
+#else
     currentBucketPtr(NULL),
+#endif
     ownerTreePiece(NULL)
   {
 
@@ -75,13 +83,22 @@ struct State {
   }
   
   // Reinitialize state
-  void reset(TreePiece *owner, int p, Node<ForceData> **bucketPtr){
+#ifdef SPLASH_COMPATIBLE
+  void reset(TreePiece *owner, int p, Particle *pt)
+#else
+  void reset(TreePiece *owner, int p, Node<ForceData> **bucketPtr)
+#endif
+  {
   //void reset(TreePiece *owner, string &id, int p, Node<ForceData> **bucketPtr){
     ownerTreePiece = owner;
     //description = id;
     pending = p;
     current = 0;
+#ifdef SPLASH_COMPATIBLE
+    currentParticle = pt;
+#else
     currentBucketPtr = bucketPtr;
+#endif
   }
 
   void nodeEncountered(Key bucketKey, Node<ForceData> *node);
@@ -118,11 +135,11 @@ struct State {
   }
 
   // Methods to increment different statistics
-  void incrPartNodeInteractions(Key bucketKey, CmiUInt8 n){
+  void incrPartNodeInteractions(CmiUInt8 n){
     numInteractions[0] += n;
   }
 
-  void incrPartPartInteractions(Key bucketKey, CmiUInt8 n){
+  void incrPartPartInteractions(CmiUInt8 n){
     numInteractions[1] += n;
   }
 
