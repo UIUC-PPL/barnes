@@ -576,8 +576,6 @@ void DataManager::sendParticles(int ntp){
   numTreePieces = ntp;
   // Flush particles to their owner tree pieces
   flushParticles();
-
-  CkPrintf("[%d] SENDPARTICLES DONE\n", CkMyPe());
 }
 
 /*
@@ -612,8 +610,6 @@ void DataManager::senseTreePieces(){
      PEs.
 */
 void DataManager::processSubmittedParticles(){
-
-  CkPrintf("(%d) processSubmittedParticles\n", CkMyPe());
 
 #ifdef PHASE_BARRIERS
   CkCallback cb(CkIndex_DataManager::doneParticleFlush(),0,dataManagerProxy);
@@ -654,11 +650,6 @@ void DataManager::resumeProcessSubmittedParticles(){
     for(int j = 0; j < vec->length(); j++){
       ParticleMsg *msg = (*vec)[j];
       if(msg->numParticles > 0) memcpy(myParticles.getVec()+offset,msg->part,sizeof(Particle)*msg->numParticles);
-      /*
-      for(int k = offset; k < offset+msg->numParticles; k++){
-        CkPrintf("(%d) particle %d key %lu\n", CkMyPe(), k, myParticles[k].key);
-      }
-      */
       offset += msg->numParticles;
       delete msg;
     }
@@ -673,90 +664,14 @@ void DataManager::resumeProcessSubmittedParticles(){
 #endif
 
   buildTree(root,0,myNumParticles,0,numLocalUsefulTreePieces);
-
-  // Set the set of buckets assigned to each non-useful tree piece to empty:
-#if 0
-  for(int i = numLocalUsefulTreePieces; i < numLocalTreePieces; i++){
-    TreePieceDescriptor &tp = submittedParticles[i];
-    tp.bucketStartIdx = tp.bucketEndIdx = myBuckets.length(); 
-  }
-#endif
   doneTreeBuild = true;
-
-#if 0
-  buildTree();
-  // makeMoments also sends out requests for moments 
-  // of remote nodes
-  makeMoments();
-#endif
-
-  /*
-  // are all particles local to this PE? 
-  if(root != NULL && root->allChildrenMomentsReady()){
-    passMomentsUpward(root);
-  }
-  */
-  /*
-  CkPrintf("(%d) memcheck after process SubmittedParticles\n", CkMyPe());
-  */
 
   if(CkMyPe() == 0){
     CkCallback cb(CkIndex_DataManager::processSubmittedParticles(),myProxy);
-    //combiner->associateCallback(cb,false);
-    CkStartQD(cb);
+    combiner->associateCallback(cb,false);
   }
-  //combiner->enablePeriodicFlushing();
+  combiner->enablePeriodicFlushing();
 }
-
-#if 0
-void DataManager::buildTree(){
-
-  int rootDepth = 0;
-  root = new Node<ForceData>(Key(1),rootDepth,myParticles.getVec(),myNumParticles);
-  root->setOwners(0,numTreePieces-1);
-  nodeTable[Key(1)] = root;
-  if(myNumParticles == 0){
-    return;
-  }
-
-  OwnershipActiveBinInfo<ForceData> abi(keyRanges);
-  abi.addNewNode(root);
-  int numFatNodes = 1;
-
-  int limit = ((Real)globalParams.ppb*BUCKET_TOLERANCE);
-
-  CkVec<int> refines;
-
-  while(numFatNodes > 0){
-    abi.reset();
-    refines.length() = 0;
-
-    CkVec<std::pair<Node<ForceData>*,bool> > *active = abi.getActive();
-
-    for(int i = 0; i < active->length(); i++){
-      Node<ForceData> *node = (*active)[i].first;
-      if(node->getNumParticles() > 0 && ((node->getOwnerEnd() > node->getOwnerStart()) || 
-         (node->getNumParticles() > limit))){
-        refines.push_back(i);
-      }
-    }
-
-    abi.processRefine(refines.getVec(), refines.length());
-    numFatNodes = abi.getNumCounts();
-  }
-  */
-
-}
-#endif
-
-#if 0
-void DataManager::makeMoments(){
-  if(root == NULL) return;
-
-  MomentsWorker mw(submittedParticles, nodeTable, localTPRoots, myBuckets);
-  fillTrav.postorderTraversal(root,&mw);
-}
-#endif
 
 Node<ForceData> *DataManager::lookupNode(Key k){
   map<Key,Node<ForceData>*>::iterator it;
@@ -1149,6 +1064,7 @@ void DataManager::process(NodeRequest &req){
 void DataManager::doneRemoteRequests(){
   numTreePiecesDoneRemoteRequests++;
   if(numTreePiecesDoneRemoteRequests == numLocalUsefulTreePieces){
+    //CkPrintf("[%d] call doneinserting\n", CkMyPe());
     combiner->doneInserting();
   }
 }
@@ -1503,14 +1419,14 @@ void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
     energy += particleEnergy;
 
 
+#ifndef NO_DRIFT
     // kick
     p->velocity += globalParams.dthf*p->acceleration;
-#ifndef NO_DRIFT
     // drift
     p->position += globalParams.dtime*p->velocity;
-#endif
     // kick
     p->velocity += globalParams.dthf*p->acceleration;
+#endif
     
     box.grow(p->position);
 

@@ -118,6 +118,7 @@ void TreePiece::startTraversal(int dummy){
   if(myNumBuckets == 0)
 #endif
   {
+    doneRemoteRequests();
     finishIteration();
     return;
   }
@@ -172,6 +173,7 @@ void TreePiece::doLocalGravity(RescheduleMsg *msg){
   }
 
   localTraversalState.decrPending(i);
+  //CkPrintf("[%d] localGravity cur %d pending %d\n",thisIndex, localTraversalState.current, localTraversalState.pending);
   if(localTraversalState.current < limit){
     CkAssert(!localTraversalState.complete());
     thisProxy[thisIndex].doLocalGravity(msg);
@@ -208,6 +210,7 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
   }
 
   remoteTraversalState.decrPending(i);
+  // CkPrintf("[%d] remoteGravity cur %d pending %d\n", thisIndex, remoteTraversalState.current, remoteTraversalState.pending);
   if(remoteTraversalState.current < limit){
     CkAssert(!remoteTraversalState.complete());
     thisProxy[thisIndex].doRemoteGravity(msg);
@@ -233,6 +236,7 @@ void TreePiece::traversalDone(){
 }
 
 void TreePiece::finishIteration(){
+  //CkPrintf("[%d] finishIteration\n", thisIndex);
   checkTraversals();
   clearBucketsDebug();
 
