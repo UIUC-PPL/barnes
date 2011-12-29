@@ -1277,7 +1277,7 @@ void DataManager::advance(CkReductionMsg *msg){
 
 void DataManager::recvUnivBoundingBox(CkReductionMsg *msg){
   BoundingBox &univBB = *((BoundingBox *)msg->getData());
-  decompose(univBox);
+  decompose(univBB);
   delete msg;
 }
 
