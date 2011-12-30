@@ -135,7 +135,8 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   // Called by requestNode() and process() (when streaming-combining)
   void processNodeRequest(Key key, int replyTo);
 
-  void kickDriftKick(OrientedBox<double> &box, Real &energy);
+  void kickDriftKick();
+  //void kickDriftKick(OrientedBox<double> &box, Real &energy);
 
   void hashParticleCoordinates(OrientedBox<double> &universe);
   void initHistogramParticles();

@@ -59,6 +59,9 @@ void grav(Particle *p, Real mass, const Vector3D<Real> &position){
   p->potential -= phii;
   mor3 = phii/drsq;
   p->acceleration += mor3*dr;
+#ifdef CHECK_INTER
+  p->interMass += mass;
+#endif
 }
 
 /*

@@ -23,6 +23,7 @@ struct BoundingBox {
   OrientedBox<double> box;
   int numParticles;
   Real energy;
+  Real mass;
 
   BoundingBox(){
     reset();
@@ -32,6 +33,7 @@ struct BoundingBox {
     numParticles = 0;
     box.reset();
     energy = 0.0;
+    mass = 0.0;
   }
 
   void grow(const Vector3D<Real> &v){
@@ -53,6 +55,7 @@ struct BoundingBox {
       box.grow(other.box);
       numParticles += other.numParticles;
       energy += other.energy;
+      mass += other.mass;
     }
   }
 
@@ -65,6 +68,7 @@ struct BoundingBox {
     p | box;
     p | numParticles;
     p | energy;
+    p | mass;
   }
 
 };

@@ -170,6 +170,7 @@ void DataManager::loadParticles(CkCallback &cb){
 
     // in order to find the bounding box of your particles
     myBox.grow(p.position);
+    myBox.mass += p.mass;
     // accumulate KE for this time period
     myBox.energy += p.mass*p.velocity.lengthSquared();
 
@@ -1220,7 +1221,8 @@ void DataManager::advance(CkReductionMsg *msg){
   DtReductionStruct *dtred = (DtReductionStruct *)(msg->getData());
 
   myBox.reset();
-  kickDriftKick(myBox.box,myBox.energy);
+  kickDriftKick();
+  //kickDriftKick(myBox.box,myBox.energy);
 
 #ifndef SPLASH_COMPATIBLE
   Real pad = 0.00001;
@@ -1228,8 +1230,12 @@ void DataManager::advance(CkReductionMsg *msg){
 #endif
   myBox.numParticles = myNumParticles;
 
+  Real pn = dtred->pnInteractions/1e6;
+  Real pp = dtred->ppInteractions/1e6;
+  Real oc = dtred->openCrit/1e6;
+
   if(CkMyPe() == 0){
-    CkPrintf("[STATS] node inter %llu part inter %llu open crit %llu\n", dtred->pnInteractions, dtred->ppInteractions, dtred->openCrit);
+    CkPrintf("[STATS] node inter %.3f part inter %.3f open crit %.3f\n", pn, pp, oc);
   }
 
   iteration++;
@@ -1381,7 +1387,7 @@ void DataManager::reuseTree(){
   }
 }
 
-void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
+void DataManager::kickDriftKick(){
   Vector3D<Real> dv;
 
   Particle *pstart = myParticles.getVec();
@@ -1390,6 +1396,11 @@ void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
   Real particleEnergy;
   Real particleKinetic;
   Real particlePotential;
+
+#ifdef CHECK_INTER
+  int bad = 0;
+  Real tolerance = 1.0/univBox.mass;
+#endif
   
 
   if(globalParams.doPrintAccel && (iteration == globalParams.iterations-1)){
@@ -1414,12 +1425,8 @@ void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
 
   for(Particle *p = pstart; p <= pend; p++){
     particlePotential = p->mass*p->potential;
-    particleKinetic = 0.5*p->mass*p->velocity.lengthSquared();
-    particleEnergy = particlePotential+particleKinetic;
-    energy += particleEnergy;
 
-
-#ifndef NO_DRIFT
+#ifndef STATIC
     // kick
     p->velocity += globalParams.dthf*p->acceleration;
     // drift
@@ -1428,11 +1435,36 @@ void DataManager::kickDriftKick(OrientedBox<double> &box, Real &energy){
     p->velocity += globalParams.dthf*p->acceleration;
 #endif
     
-    box.grow(p->position);
+    particleKinetic = 0.5*p->mass*p->velocity.lengthSquared();
+    particleEnergy = particlePotential+particleKinetic;
+    myBox.energy += particleEnergy;
+
+    myBox.grow(p->position);
+    myBox.mass += p->mass;
+
+#ifdef CHECK_INTER
+    p->interMass += p->mass;
+    p->interMass -= univBox.mass;
+    if(p->interMass < 0.0) p->interMass = -p->interMass;
+    if(p->interMass > tolerance && bad < 100){
+      CkPrintf("[%d] particle with interMass %g should be 0.0\n", CkMyPe(), p->interMass);
+      bad++;
+    }
+    /*
+    int diff = (int)(p->interMass) - (int)(0.0);
+    if(diff < 0) diff = -diff;
+    CkAssert(diff < 2);
+    */
+    p->interMass = 0.0;
+#endif
 
     p->acceleration = Vector3D<Real>(0.0);
     p->potential = 0.0;
   }
+
+#ifdef CHECK_INTER
+  CkAssert(bad == 0);
+#endif
 }
 
 void DataManager::init(){

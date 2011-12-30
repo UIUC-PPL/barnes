@@ -28,7 +28,15 @@ struct Particle : public ExternalParticle {
   Vector3D<Real> acceleration;
   Real potential;
 
-  Particle() : potential(0.0), acceleration(0.0) { }
+#ifdef CHECK_INTER
+  Real interMass;
+#endif
+
+  Particle() : potential(0.0), acceleration(0.0) { 
+#ifdef CHECK_INTER
+    interMass = 0.0;
+#endif
+  }
 
   bool operator<=(const Particle &other) const { return key <= other.key; }
   bool operator>=(const Particle &other) const { return key >= other.key; }
