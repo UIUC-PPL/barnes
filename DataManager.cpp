@@ -211,16 +211,31 @@ void DataManager::hashParticleCoordinates(OrientedBox<double> &universe){
   prepend = 1L;
   prepend <<= (TREE_KEY_BITS-1);
 
+  /*
   Real xsz = universe.greater_corner.x-universe.lesser_corner.x;
   Real ysz = universe.greater_corner.y-universe.lesser_corner.y;
   Real zsz = universe.greater_corner.z-universe.lesser_corner.z;
+  */
+  Vector3D<Real> sz = universe.greater_corner-universe.lesser_corner;
+  Vector3D<Real> prel;
 
   for(unsigned int i = 0; i < myNumParticles; i++){
     Particle *p = &(myParticles[i]);
     // Obtain the integer grid points on which the particle falls in each dimension
+
+    prel = p->position-universe.lesser_corner;
+    prel /= sz;
+    prel *= (1.0*BOXES_PER_DIM);
+
+    Key xint = (Key) prel.x;
+    Key yint = (Key) prel.y;
+    Key zint = (Key) prel.z;
+
+    /*
     Key xint = ((Key) (((p->position.x-universe.lesser_corner.x)*(BOXES_PER_DIM*1.0))/xsz)); 
     Key yint = ((Key) (((p->position.y-universe.lesser_corner.y)*(BOXES_PER_DIM*1.0))/ysz)); 
     Key zint = ((Key) (((p->position.z-universe.lesser_corner.z)*(BOXES_PER_DIM*1.0))/zsz)); 
+    */
 
     // Interleave bits
     Key mask = Key(0x1);
