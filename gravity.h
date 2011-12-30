@@ -44,24 +44,21 @@ openCriterionParticle(Node<ForceData> *node,
  * located at 'position'.
  */
 inline 
-void grav(Particle *pstart, Particle *pend, Real mass, const Vector3D<Real> &position){
+void grav(Particle *p, Real mass, const Vector3D<Real> &position){
   Vector3D<Real> dr;
   Real drsq;
   Real drabs;
   Real phii;
   Real mor3;
 
-  for(Particle *p = pstart; p != pend; p++){
-    if(position == p->position) continue;
-    dr = position - p->position;
-    drsq = dr.lengthSquared();
-    drsq += globalParams.epssq;
-    drabs = sqrt((double) drsq);
-    phii = mass/drabs;
-    p->potential -= phii;
-    mor3 = phii/drsq;
-    p->acceleration += mor3*dr;
-  }
+  dr = position - p->position;
+  drsq = dr.lengthSquared();
+  drsq += globalParams.epssq;
+  drabs = sqrt((double) drsq);
+  phii = mass/drabs;
+  p->potential -= phii;
+  mor3 = phii/drsq;
+  p->acceleration += mor3*dr;
 }
 
 /*
@@ -73,14 +70,16 @@ int nodeBucketForce(Node<ForceData> *node,
 		    Node<ForceData> *req){
   Particle *particles = req->getParticles();
   int numParticles = req->getNumParticles();
-  grav(particles,particles+numParticles,node->data.moments.totalMass,node->data.moments.cm);
-  return req->getNumParticles();
+  for(Particle *p = particles; p != particles+numParticles; p++){
+    grav(p,node->data.moments.totalMass,node->data.moments.cm);
+  }
+  return numParticles;
 }
 
 inline
 int nodeParticleForce(Node<ForceData> *node, 
 		      Particle *target){
-  grav(target,target+1,node->data.moments.totalMass,node->data.moments.cm);
+  grav(target,node->data.moments.totalMass,node->data.moments.cm);
   return 1;
 }
 
@@ -92,13 +91,20 @@ inline int partBucketForce(ExternalParticle *part,
 			   Node<ForceData> *req){ 
   Particle *particles = req->getParticles();
   int numParticles = req->getNumParticles();
-  grav(particles,particles+numParticles,part->mass,part->position);
-  return numParticles;
+  int computed = 0;
+
+  for(Particle *p = particles; p != particles+numParticles; p++){
+    if(p == part) continue;
+    grav(p,part->mass,part->position);
+    computed++;
+  }
+  return computed;
 }
 
 inline int particleParticleForce(ExternalParticle *part, 
 			         Particle *target){
-  grav(target,target+1,part->mass,part->position);
+  if(target == part) return 0;
+  grav(target,part->mass,part->position);
   return 1;
 }
 

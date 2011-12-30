@@ -137,6 +137,9 @@ Node<T> *Traversal<T>::processLeaf(Node<T> *leaf, CutoffWorker<T> *worker, State
     if(cached == NULL) state->incrPending();
     return cached;
   }
+
+  CkAbort("bad leaf type\n");
+  return NULL;
 }
 
 #if 0
