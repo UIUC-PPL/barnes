@@ -301,7 +301,6 @@ void DataManager::decompose(BoundingBox &universe){
   univBox.box.greater_corner = univBox.box.lesser_corner + uside;
 
   uside *= 1.00002;
-  uside = uside*uside;
 #endif
 
   if(CkMyPe() == 0){
@@ -322,7 +321,7 @@ void DataManager::decompose(BoundingBox &universe){
     }
     else if(iteration > 1){
       Real deltaE = compareEnergy-univBox.energy;
-      if(deltaE < 0) deltaE = -deltaE;
+      if(deltaE < 0.0) deltaE = -deltaE;
       // The energy should grow in magnitude
       // by less than a tenth of one per cent.
       CkAssert(deltaE/compareEnergy < 0.001);
@@ -334,20 +333,22 @@ void DataManager::decompose(BoundingBox &universe){
     ostringstream oss; 
     CkPrintf("(%d) prev time %g s\n", CkMyPe(), CmiWallTimer()-prevIterationStart);
     CkPrintf("(%d) mem %.2f MB\n", CkMyPe(), memMB);
-    CkPrintf("(%d) iteration %d univ %f %f %f %f %f %f energy %f\n", 
+    CkPrintf("(%d) iteration %d rmin %f %f %f rsize %f energy %f\n", 
         CkMyPe(),
         iteration,
         univBox.box.lesser_corner.x,
         univBox.box.lesser_corner.y,
         univBox.box.lesser_corner.z,
-        univBox.box.greater_corner.x,
-        univBox.box.greater_corner.y,
-        univBox.box.greater_corner.z,
+        uside,
         univBox.energy);
 
 
     prevIterationStart = CkWallTimer();
   }
+
+#ifdef SPLASH_COMPATIBLE
+  uside = uside*uside;
+#endif
 
   if(doSkipDecomposition){
     skipFlushParticles();
