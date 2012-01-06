@@ -419,7 +419,7 @@ void DataManager::sendHistogram(){
 // executed on PE 0
 void DataManager::receiveHistogram(CkReductionMsg *msg){
   int numRecvdBins = msg->getSize()/sizeof(int);
-  int *descriptors = (int *)msg->getData();
+  int *counts = (int *)msg->getData();
   CkVec<int> binsToRefine;
 
   /* 
@@ -439,17 +439,29 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
 
   Real thresh = (DECOMP_TOLERANCE*(Real)(globalParams.ppc));
   // Check which new active leaves need to be partitioned
+  Node<ForceData> *node = NULL;
   for(int i = 0; i < numRecvdBins; i++){
-    if((Real)descriptors[i] > thresh){
+    node = (*active)[i].first;
+    if((Real)counts[i] > thresh){
       // Need to refine this leaf (partition)
       binsToRefine.push_back(i);
       // By refining this node, we will remove one tree piece
       // and add BRANCH_FACTOR in its place.
       numTreePieces += Node<ForceData>::numLeaves(globalParams.decompLevels)-1;
-      //CkPrintf("[%d] Split bin %d num %d thresh %.1f\n", CkMyPe(), i, descriptors[i], thresh);
+      //CkPrintf("[%d] Split bin %d num %d thresh %.1f\n", CkMyPe(), i, counts[i], thresh);
+      // use ownerstart as a placeholder for 
+      // global num. particles underneath 'node'
+      node->setOwnerStart(-1);
+    }
+    else{
+      // this node will not be refined; save the
+      // global number of particles underneath it
+      // we will use this count later, to decide
+      // which nodes can be retracted.
+      node->setOwnerStart(counts[i]);
     }
 
-    particlesHistogrammed += descriptors[i];
+    particlesHistogrammed += counts[i];
   }
 
   // Do any active leaves need to be partitioned?
@@ -479,10 +491,54 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
       return;
     }
 
-    myProxy.sendParticles(numTreePieces);
+    doneDecomposition();
   }
 
   delete msg;
+}
+
+void DataManager::doneDecomposition(){
+  CkVec<Key> retractSites;
+  findRetractSites(root,retractSites);
+  CkPrintf("found %d retractable node sites\n", retractSites.length());
+  myProxy.sendParticles(numTreePieces);
+}
+
+void DataManager::findRetractSites(Node<ForceData> *node, CkVec<Key> &sites){
+  Real thresh = (DECOMP_TOLERANCE*(Real)(globalParams.ppc));
+  // if leaf, cannot descend further
+  if(node->getNumChildren() == 0){
+    // must have set global num particles for leaves
+    CkAssert(node->getOwnerStart() >= 0);
+    return;
+  }
+
+  // if internal, process children first, so that
+  // their global particle counts are available
+  int globalParticleCount = 0;
+  bool allChildrenRetractable = true;
+  for(int i = 0; i < node->getNumChildren(); i++){
+    findRetractSites(node->getChild(i),sites);
+    int childNumParticles = node->getChild(i)->getOwnerStart();
+    if(childNumParticles > thresh) allChildrenRetractable = false;
+
+    globalParticleCount += childNumParticles;
+  }
+
+  node->setOwnerStart(globalParticleCount);
+  // if all children are retractable, node is retractable too;
+  // we only add a retractable child to 'sites' if at least one of its siblings
+  // is not retractable (i.e. node is not retractable) 
+  Node<ForceData> *child = NULL;
+  if(!allChildrenRetractable){
+    for(int i = 0; i < node->getNumChildren(); i++){
+      child = node->getChild(i);
+      int childNumParticles = child->getOwnerStart();
+      // in order to be retractable, a child must have fewer particles
+      // than the threshold for splitting, and be an internal node in the tree
+      if(childNumParticles <= thresh && child->getNumChildren() > 0) sites.push_back(child->getKey());
+    }
+  }
 }
 
 void DataManager::skipFlushParticles(){

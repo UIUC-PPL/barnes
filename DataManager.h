@@ -194,6 +194,8 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 
   void decompose(BoundingBox &universe);
   void receiveHistogram(CkReductionMsg *msg);
+  void doneDecomposition();
+  void findRetractSites(Node<ForceData> *root, CkVec<Key> &sites);
   void receiveSplitters(CkVec<int> splitBins);
   void sendParticles(int);
   void sendParticlesToTreePiece(Node<ForceData> *nd, int tp);

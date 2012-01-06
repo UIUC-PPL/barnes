@@ -72,6 +72,8 @@ struct ActiveBinInfo{
   CkVec<int> counts;
   //CkVec<Node<T>*> unrefined;
 
+  std::map<Key,Node<T>*> treeNodes;
+
 
   ActiveBinInfo(){
     oldvec = new CkVec<std::pair<Node<T> *, bool> >();
@@ -96,6 +98,7 @@ struct ActiveBinInfo{
     */
     newvec->push_back(make_pair(node,false));
     counts.push_back(node->getNumParticles());
+    treeNodes[node->getKey()] = node;
   }
 
   /*
@@ -143,7 +146,7 @@ struct ActiveBinInfo{
   }
 
   virtual void refine(Node<T> *node){
-    node->refine(counts,newvec,globalParams.decompLevels);
+    node->refine(counts,newvec,treeNodes,globalParams.decompLevels);
   }
 
 #if 0

@@ -20,6 +20,7 @@
 #include "Descriptor.h"
 
 #include <stack>
+#include <map>
 using namespace std;
 
 // Type of node
@@ -73,7 +74,7 @@ struct NodeCore {
   // Number of children nodes 
   int numChildren;
 
-  // TreePieces [ownerStart,ownerEnd] own this node
+  // TreePieces [ownerStart,ownerEnd) own this node
   int ownerStart;
   int ownerEnd;
 
@@ -321,7 +322,8 @@ class Node {
   // this version is used during decomposition, 
   // in order to maintain a list of "active" nodes
   // for the next iteration of histogramming
-  void refine(CkVec<int> &counts, CkVec<std::pair<Node<T>*,bool> > *active, int levels=1){
+  void refine(CkVec<int> &counts, CkVec<std::pair<Node<T>*,bool> > *active, map<Key,Node<T>*> &treeNodes, int levels=1){
+    treeNodes[getKey()] = this;
     if(levels == 0){
       active->push_back(make_pair(this,false));
       counts.push_back(getNumParticles());
@@ -362,7 +364,7 @@ class Node {
 
     for(int i = 0; i < BRANCH_FACTOR; i++){
       initChild(i,splitters,childKey,childDepth);
-      getChild(i)->refine(counts,active,levels-1);
+      getChild(i)->refine(counts,active,treeNodes,levels-1);
       childKey++;
     }
     
@@ -528,7 +530,7 @@ class Node {
     }
   }
 
-  void setCached(){ core.cached = true; }
+  void setCached(bool val=true){ core.cached = val; }
   bool isCached(){ return core.cached; }
 
   /*
