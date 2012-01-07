@@ -173,24 +173,79 @@ void pranset(int);
 
 int main(int argc, char **argv){
   pranset(128363);
-  assert(argc == 3);
+  assert(argc == 4);
 
-  int nbody = atoi(argv[1]);
-  int ndims = 3;
-  Real tnow = 0.0;
-  ofstream out(argv[2], ios::out|ios::binary);
-  ifstream in(argv[2], ios::in|ios::binary);
-  
-  out.write((char *)&nbody, sizeof(int));
-  out.write((char *)&ndims, sizeof(int));
-  out.write((char *)&tnow, sizeof(Real));
+  int mode = atoi(argv[1]);
 
-  int preambleSize = 2*sizeof(int)+sizeof(Real);
+  // WRITE
+  if(mode == 0){
+    ofstream out(argv[3], ios::out|ios::binary);
+    ifstream in(argv[3], ios::in|ios::binary);
 
-  testdata(out,in,nbody,preambleSize);
+    assert(!in.bad() && !in.fail() && in.is_open());
+    assert(!out.bad() && !out.fail() && out.is_open());
 
-  out.close();
-  in.close();
+    int nbody = atoi(argv[2]);
+    int ndims = 3;
+    Real tnow = 0.0;
+
+    out.write((char *)&nbody, sizeof(int));
+    out.write((char *)&ndims, sizeof(int));
+    out.write((char *)&tnow, sizeof(Real));
+
+    int preambleSize = 2*sizeof(int)+sizeof(Real);
+
+    testdata(out,in,nbody,preambleSize);
+
+    out.close();
+    in.close();
+  }
+  // READ
+  else{
+    ifstream in(argv[3], ios::in|ios::binary);
+    assert(!in.fail() && !in.bad() && in.is_open());
+
+    int limit = atoi(argv[2]);
+
+    int nbody;
+    int ndims;
+    Real tnow;
+    in.read((char *)&nbody, sizeof(int));
+    in.read((char *)&ndims, sizeof(int));
+    in.read((char *)&tnow, sizeof(Real));
+
+    printf("nbody %d ndims %d tnow %f\n", nbody, ndims, tnow);
+
+    int bufSize = 10*(1<<20)/sizeof(Particle);
+
+    Particle *bodytab = new Particle[bufSize];
+
+    int remaining = nbody;
+    int cnt = 0;
+    int curSize;
+    while(remaining > 0){
+      if(remaining > bufSize) curSize = bufSize;
+      else curSize = remaining;
+      readFromDisk(in,bodytab,curSize);
+
+      remaining -= curSize;
+
+      Particle *p = bodytab;
+      for(int i = 0; i < curSize && cnt < limit; i++){
+        printf("idx %d pos %f %f %f mass %g\n",
+                  cnt, 
+                  p->position.x,
+                  p->position.y,
+                  p->position.z,
+                  p->mass);
+        cnt++;
+        p++;
+      }
+
+      if(cnt >= limit) break;
+    }
+
+  }
 
   return 0;
 }

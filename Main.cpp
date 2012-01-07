@@ -227,13 +227,16 @@ void Main::getNumParticles(){
 }
 
 void Main::commence(){
-  CkPrintf("[Main] load particles\n");
+  double loadTime = CmiWallTimer();
+  CkPrintf("[Main] load particles ... ");
   CkReductionMsg *redMsg;
   /* 
     Tell each PE to read the particles 
     from its portion of the input file
   */
   dataManagerProxy.loadParticles(CkCallbackResumeThread((void *&)redMsg));
+
+  CkPrintf(" took %f s\n", CmiWallTimer()-loadTime);
 
   /*
     Each PE contributes the bounding box of the particles
