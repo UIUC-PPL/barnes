@@ -322,8 +322,7 @@ class Node {
   // this version is used during decomposition, 
   // in order to maintain a list of "active" nodes
   // for the next iteration of histogramming
-  void refine(CkVec<int> &counts, CkVec<std::pair<Node<T>*,bool> > *active, map<Key,Node<T>*> &treeNodes, int levels=1){
-    treeNodes[getKey()] = this;
+  void refine(CkVec<int> &counts, CkVec<std::pair<Node<T>*,bool> > *active, int levels=1){
     if(levels == 0){
       active->push_back(make_pair(this,false));
       counts.push_back(getNumParticles());
@@ -364,7 +363,7 @@ class Node {
 
     for(int i = 0; i < BRANCH_FACTOR; i++){
       initChild(i,splitters,childKey,childDepth);
-      getChild(i)->refine(counts,active,treeNodes,levels-1);
+      getChild(i)->refine(counts,active,levels-1);
       childKey++;
     }
     
@@ -646,7 +645,6 @@ class Node {
       child->deleteBeneath();
       child++;
     }
-    //CkPrintf("delete children of %llu\n", getKey());
     delete[] getChildren();
     setChildren(NULL,0);
   }

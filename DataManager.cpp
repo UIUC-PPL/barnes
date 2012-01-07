@@ -313,6 +313,7 @@ void DataManager::decompose(BoundingBox &universe){
   myParticles.quickSort();
 
   if(CkMyPe()==0){
+    Real deltaE = 0.0;
     // Check whether total energy remains (about) constant
     if(iteration == 1){
       // save this value so that we can compare
@@ -320,28 +321,27 @@ void DataManager::decompose(BoundingBox &universe){
       compareEnergy = univBox.energy;
     }
     else if(iteration > 1){
-      Real deltaE = compareEnergy-univBox.energy;
+      deltaE = compareEnergy-univBox.energy;
       if(deltaE < 0.0) deltaE = -deltaE;
       // The energy should grow in magnitude
       // by less than a tenth of one per cent.
-      CkAssert(deltaE/compareEnergy < 0.001);
-      CkPrintf("(%d) iteration %d deltaE/E %f\n", CkMyPe(), iteration, deltaE/compareEnergy);
+      deltaE /= compareEnergy;
+      CkAssert(deltaE < 0.001);
     }
 
     // Print statistics
     float memMB = (1.0*CmiMemoryUsage())/(1<<20);
     ostringstream oss; 
-    CkPrintf("(%d) prev time %g s\n", CkMyPe(), CmiWallTimer()-prevIterationStart);
-    CkPrintf("(%d) mem %.2f MB\n", CkMyPe(), memMB);
-    CkPrintf("(%d) iteration %d rmin %f %f %f rsize %f energy %f\n", 
+    CkPrintf("(%d) iteration %d rmin %f %f %f rsize %f energy %f delE/E %f\n", 
         CkMyPe(),
         iteration,
         univBox.box.lesser_corner.x,
         univBox.box.lesser_corner.y,
         univBox.box.lesser_corner.z,
         uside,
-        univBox.energy);
+        univBox.energy, deltaE);
 
+    CkPrintf("(%d) mem %.2f MB prev time %g s\n\n", CkMyPe(), memMB, CmiWallTimer()-prevIterationStart);
 
     prevIterationStart = CkWallTimer();
   }
@@ -354,13 +354,6 @@ void DataManager::decompose(BoundingBox &universe){
     skipFlushParticles();
   }
   else{
-    /* 
-       We increase the number of required tree pieces
-       as the decomposition iterations proceed. Begin
-       with a single tree piece holding all the particles.
-     */
-    numTreePieces = 1;
-
     // How many particles do I hold?
     initHistogramParticles();
     // Send this count to the master PE
@@ -447,7 +440,6 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
       binsToRefine.push_back(i);
       // By refining this node, we will remove one tree piece
       // and add BRANCH_FACTOR in its place.
-      numTreePieces += Node<ForceData>::numLeaves(globalParams.decompLevels)-1;
       //CkPrintf("[%d] Split bin %d num %d thresh %.1f\n", CkMyPe(), i, counts[i], thresh);
       // use ownerstart as a placeholder for 
       // global num. particles underneath 'node'
@@ -473,24 +465,9 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   else{
     // No more leaves to refine; send out particles to tree pieces
     double t = CmiWallTimer();
-    CkPrintf("[0] Decomposition took %f s\n", t-phaseTime);
+    CkPrintf("[0] Decomposition took %f s iterations %d\n", t-phaseTime, decompIterations);
     phaseTime = t;
-
-    CkPrintf("[0] Iterations %d used treepieces %d\n", decompIterations, numTreePieces);
     decompIterations = 0;
-    /*
-      Tell all PEs that there are no remaining active leaves,
-      i.e. we have obtained a partitioning of particles on to
-      tree pieces such that each tree piece gets no more than 
-      a threshold (ppc) number of particles.
-    */
-    // Fail if not enough tree pieces are provided
-    if(numTreePieces > globalParams.numTreePieces){
-      CkPrintf("have %d treepieces need %d\n",globalParams.numTreePieces,numTreePieces);
-      CkAbort("Need more tree pieces!\n");
-      return;
-    }
-
     doneDecomposition();
   }
 
@@ -499,56 +476,72 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
 
 void DataManager::doneDecomposition(){
   CkVec<Key> retractSites;
+  int globalNumParticles = setGlobalParticleCounts(root);
   findRetractSites(root,retractSites);
-  CkPrintf("found %d retractable node sites\n", retractSites.length());
-  myProxy.sendParticles(numTreePieces);
+  CkPrintf("retractable nodes %d particles %d\n", retractSites.length(), globalNumParticles);
+  /*
+  for(int i = 0; i < retractSites.length(); i++){
+    CkPrintf("Retractable %d key %llu\n", i, retractSites[i]);
+  }
+  */
+  /*
+    Tell all PEs that there are no remaining active leaves,
+    i.e. we have obtained a partitioning of particles on to
+    tree pieces such that each tree piece gets no more than 
+    a threshold (ppc) number of particles.
+  */
+  myProxy.sendParticles(retractSites);
+}
+
+// must set global num particles for each node before
+// we mark retractable nodes; otherwise, the retractable
+// nodes will not be obtained in DFS order
+int DataManager::setGlobalParticleCounts(Node<ForceData> *node){
+  int globalParticleCount;
+  if(node->getNumChildren() == 0){
+    // must have already set global num particles for leaves
+    globalParticleCount = node->getOwnerStart();
+    CkAssert(globalParticleCount >= 0);
+  }
+  else{
+    // if internal, process children first, so that
+    // their global particle counts are available
+    globalParticleCount = 0;
+    for(int i = 0; i < node->getNumChildren(); i++){
+      globalParticleCount += setGlobalParticleCounts(node->getChild(i));
+    }
+    node->setOwnerStart(globalParticleCount);
+  }
+
+  return globalParticleCount;
 }
 
 void DataManager::findRetractSites(Node<ForceData> *node, CkVec<Key> &sites){
   Real thresh = (DECOMP_TOLERANCE*(Real)(globalParams.ppc));
-  // if leaf, cannot descend further
-  if(node->getNumChildren() == 0){
-    // must have set global num particles for leaves
-    CkAssert(node->getOwnerStart() >= 0);
-    return;
+  // if this node has fewer particles than the threshold for splitting,
+  // check whether its parent also sub-threshold. since we would like the
+  // list of retractable nodes to be minimal, we should put a node in it
+  // iff the node is retractable but its parent isn't
+  // also, it is wasteful to mark leaves as retractable
+  if(node->getNumChildren() > 0 && node->getOwnerStart() <= thresh){ 
+    Node<ForceData> *parent = node->getParent();
+    if(parent != NULL && 
+       parent->getOwnerStart() > thresh) sites.push_back(node->getKey());
   }
-
-  // if internal, process children first, so that
-  // their global particle counts are available
-  int globalParticleCount = 0;
-  bool allChildrenRetractable = true;
-  for(int i = 0; i < node->getNumChildren(); i++){
-    findRetractSites(node->getChild(i),sites);
-    int childNumParticles = node->getChild(i)->getOwnerStart();
-    if(childNumParticles > thresh) allChildrenRetractable = false;
-
-    globalParticleCount += childNumParticles;
-  }
-
-  node->setOwnerStart(globalParticleCount);
-  // if all children are retractable, node is retractable too;
-  // we only add a retractable child to 'sites' if at least one of its siblings
-  // is not retractable (i.e. node is not retractable) 
-  Node<ForceData> *child = NULL;
-  if(!allChildrenRetractable){
+  else{
     for(int i = 0; i < node->getNumChildren(); i++){
-      child = node->getChild(i);
-      int childNumParticles = child->getOwnerStart();
-      // in order to be retractable, a child must have fewer particles
-      // than the threshold for splitting, and be an internal node in the tree
-      if(childNumParticles <= thresh && child->getNumChildren() > 0) sites.push_back(child->getKey());
+      findRetractSites(node->getChild(i),sites);
     }
   }
 }
 
 void DataManager::skipFlushParticles(){
-  //CkPrintf("[%d] skip decomposition, flush particles %d treepieces %d\n", CkMyPe(), myNumParticles, numTreePieces);
   int pstart = 0;
   int pend = myNumParticles;
-  //CkPrintf("(%d) SKIP TP 0 node %llu\n", CkMyPe(), treePieceRoots[0]);
+  //CkPrintf("(%d) SKIP TP 0 node %llu\n", CkMyPe(), treePieceKeys[0]);
   for(int i = 1; i < numTreePieces; i++){
-    Key check = treePieceRoots[i];
-    //CkPrintf("(%d) SKIP TP %d node %llu\n", CkMyPe(), i, treePieceRoots[i]);
+    Key check = treePieceKeys[i];
+    //CkPrintf("(%d) SKIP TP %d node %llu\n", CkMyPe(), i, treePieceKeys[i]);
     int prev_start = pstart;
     pstart = binary_search_ge<Key,Particle>(check,myParticles.getVec(),pstart,pend); 
 
@@ -568,11 +561,12 @@ void DataManager::skipFlushParticles(){
   We do this by traversing the tree that
   was constructed during the decompostion by the 
   activeBins data structure.
+
+  Returns number of tree pieces (leaves of the decomposition tree)
 */
-void DataManager::flushParticles(){
-  treePieceRoots.length() = 0;
-  treePieceRoots.resize(numTreePieces);
-  flushAndMark(root,0);
+int DataManager::flushParticles(CkVec<Key> &retractSites, int &retractIndex){
+  treePieceKeys.resize(0);
+  return flushAndMark(root,0,retractSites,retractIndex);
 }
 
 /*
@@ -600,7 +594,8 @@ void DataManager::receiveSplitters(CkVec<int> splitBins) {
 void DataManager::sendParticlesToTreePiece(Node<ForceData> *nd, int tp) {
   CkAssert(nd->getNumChildren() == 0);
   int np = nd->getNumParticles();
-  treePieceRoots[tp] = Node<ForceData>::getParticleLevelKey(nd);
+  CkAssert(tp == treePieceKeys.length());
+  treePieceKeys.push_back(Node<ForceData>::getParticleLevelKey(nd));
   //CkPrintf("(%d) DECOMP TP %d node %llu\n", CkMyPe(), tp, nd->getKey());
 
   sendParticleMsg(tp,nd->getParticles(),np);
@@ -644,11 +639,22 @@ void DataManager::sendParticleMsg(int tp, Particle *p, int np){
   It also communicates the ranges of particles held  by each
   tree piece to every PE. 
 */
-void DataManager::sendParticles(int ntp){
-  // Save tree piece particle ranges
-  numTreePieces = ntp;
+void DataManager::sendParticles(CkVec<Key> &retractSites){
   // Flush particles to their owner tree pieces
-  flushParticles();
+  // this will also set the number of tree pieces used
+  // after retracting
+  int retractIndex = 0;
+  numTreePieces = flushParticles(retractSites, retractIndex);
+  CkAssert(retractIndex == retractSites.length());
+
+  // Fail if not enough tree pieces are provided
+  if(CkMyPe() == 0 && numTreePieces > globalParams.numTreePieces){
+    CkPrintf("have %d treepieces need %d\n",globalParams.numTreePieces,numTreePieces);
+    CkAbort("Need more tree pieces!\n");
+  }
+  else if(CkMyPe() == 0){
+    CkPrintf("Used %d tree pieces\n", numTreePieces);
+  }
 }
 
 /*
@@ -1613,11 +1619,19 @@ void DataManager::doPrintTree(string name){
   ofs.close();
 }
 
-int DataManager::flushAndMark(Node<ForceData> *node, int leafNum){
+int DataManager::flushAndMark(Node<ForceData> *node, int leafNum, CkVec<Key> &retractSites, int &retractIndex){
+  if(retractIndex < retractSites.length() && 
+          retractSites[retractIndex] == node->getKey()){
+    //CkPrintf("Retract node %llu\n", node->getKey());
+    node->deleteBeneath();
+    retractIndex++;
+  }
+
   node->setOwnerStart(leafNum);
   if(node->getNumChildren() > 0){
     for(int i = 0; i < node->getNumChildren(); i++){
-      leafNum = flushAndMark(node->getChild(i),leafNum);
+      // returned value is used by next child
+      leafNum = flushAndMark(node->getChild(i),leafNum,retractSites,retractIndex);
     }
   }
   else{

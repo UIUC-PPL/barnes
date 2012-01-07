@@ -114,7 +114,7 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   map<Key,Request> particleRequestTable;
 
   // needed for skipping decomposition
-  CkVec<Key> treePieceRoots;
+  CkVec<Key> treePieceKeys;
   bool doSkipDecomposition;
 
   Traversal<ForceData> fillTrav;
@@ -146,8 +146,8 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void buildTree(Node<ForceData> *node, int pstart, int pend, int tpstart, int tpend);
   void singleBuildTree(Node<ForceData> *node, TreePieceDescriptor &ownerTreePiece);
 
-  void flushParticles();
-  int flushAndMark(Node<ForceData> *node, int mark); 
+  int flushParticles(CkVec<Key> &retractSites, int &retractIndex);
+  int flushAndMark(Node<ForceData> *node, int mark, CkVec<Key> &retractSites, int &retractIndex);
   // for skipping decomposition
   void skipFlushParticles();
 
@@ -195,9 +195,10 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void decompose(BoundingBox &universe);
   void receiveHistogram(CkReductionMsg *msg);
   void doneDecomposition();
+  int setGlobalParticleCounts(Node<ForceData> *node);
   void findRetractSites(Node<ForceData> *root, CkVec<Key> &sites);
   void receiveSplitters(CkVec<int> splitBins);
-  void sendParticles(int);
+  void sendParticles(CkVec<Key> &retractSites);
   void sendParticlesToTreePiece(Node<ForceData> *nd, int tp);
 
   void receiveMoments(MomentsExchangeStruct moments);
