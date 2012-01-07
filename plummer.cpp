@@ -7,11 +7,13 @@
  */
 
 #include "Vector3D.h"
+#include "OrientedBox.h"
 #include "Particle.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
+
 
 using namespace std;
 
@@ -171,6 +173,8 @@ int intpow(int i, int j)
 
 void pranset(int);
 
+#define NDIMS 3
+
 int main(int argc, char **argv){
   pranset(128363);
   assert(argc == 4);
@@ -205,16 +209,18 @@ int main(int argc, char **argv){
     ifstream in(argv[3], ios::in|ios::binary);
     assert(!in.fail() && !in.bad() && in.is_open());
 
-    int limit = atoi(argv[2]);
+    int print_limit = atoi(argv[2]);
 
     int nbody;
     int ndims;
     Real tnow;
+
     in.read((char *)&nbody, sizeof(int));
     in.read((char *)&ndims, sizeof(int));
     in.read((char *)&tnow, sizeof(Real));
 
     printf("nbody %d ndims %d tnow %f\n", nbody, ndims, tnow);
+    assert(ndims == NDIMS);
 
     int bufSize = 10*(1<<20)/sizeof(Particle);
 
@@ -223,6 +229,12 @@ int main(int argc, char **argv){
     int remaining = nbody;
     int cnt = 0;
     int curSize;
+
+    OrientedBox<Real> bb;
+    Vector3D<Real> com;
+    Real totalMass = 0.0;
+    Real unitMass;
+
     while(remaining > 0){
       if(remaining > bufSize) curSize = bufSize;
       else curSize = remaining;
@@ -231,19 +243,36 @@ int main(int argc, char **argv){
       remaining -= curSize;
 
       Particle *p = bodytab;
-      for(int i = 0; i < curSize && cnt < limit; i++){
-        printf("idx %d pos %f %f %f mass %g\n",
+      for(int i = 0; i < curSize; i++){
+        if(cnt == 0) unitMass = p->mass;
+        bb.grow(p->position);
+        totalMass += p->mass;
+        com += p->position;
+        if(cnt < print_limit){
+          printf("idx %d pos %f %f %f mass %g\n",
                   cnt, 
                   p->position.x,
                   p->position.y,
                   p->position.z,
                   p->mass);
+        }
         cnt++;
         p++;
       }
-
-      if(cnt >= limit) break;
     }
+
+    printf("\n\nmass %f bb %f %f %f %f %f %f com %f %f %f\n", 
+            unitMass*cnt, 
+            bb.lesser_corner.x,
+            bb.lesser_corner.y,
+            bb.lesser_corner.z,
+            bb.greater_corner.x,
+            bb.greater_corner.y,
+            bb.greater_corner.z,
+            com.x,
+            com.y,
+            com.z
+            );
 
   }
 
