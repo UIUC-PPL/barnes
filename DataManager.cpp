@@ -37,6 +37,10 @@
 #include <iostream>
 #include <sstream>
 
+#include <limits>
+#define LARGEST (std::numeric_limits<Real>::max())
+#define SMALLEST (-LARGEST)
+
 using namespace std;
 extern CProxy_TreePiece treePieceProxy;
 extern CProxy_TreeMerger treeMergerProxy;
@@ -189,7 +193,8 @@ void DataManager::loadParticles(CkCallback &cb){
     of all loaded particles. This bounding box is required in order to
     obtain the key for each particle.
   */
-  contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
+  contributeBoundingBox(cb);
+  //contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
 }
 
 /*
@@ -1352,15 +1357,24 @@ void DataManager::advance(CkReductionMsg *msg){
       TreePiece *tp = localTreePieces.submittedParticles[i].owner;
       tp->cleanup();
     }
+
     CkCallback cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),myProxy);
-    contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
+    contributeBoundingBox(cb);
+    //contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
   }
 
   delete msg;
 }
 
 void DataManager::recvUnivBoundingBox(CkReductionMsg *msg){
-  BoundingBox &univBB = *((BoundingBox *)msg->getData());
+  BoundingBox univBB;
+  Real *data = (Real *)msg->getData();
+  for(int i = 0; i < 3; i++){
+    univBB.box.lesser_corner[i] = data[i];
+    univBB.box.greater_corner[i] = data[i+3];
+  }
+  univBB.energy = data[6];
+
   decompose(univBB);
   delete msg;
 }
@@ -1586,7 +1600,25 @@ void DataManager::resumeFromLB(){
    * */
   init();
   CkCallback cb(CkIndex_DataManager::recvUnivBoundingBox(NULL),myProxy);
-  contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
+  contributeBoundingBox(cb);
+}
+
+void DataManager::contributeBoundingBox(CkCallback &cb){
+  Real data[7];
+  if(myNumParticles > 0){
+    for(int i = 0; i < 3; i++){
+      data[i] = myBox.box.lesser_corner[i];
+      data[i+3] = myBox.box.greater_corner[i];
+    }
+  }
+  else{
+    for(int i = 0; i < 3; i++){
+      data[i] = LARGEST;
+      data[i+3] = SMALLEST;
+    }
+  }
+  data[6] = myBox.energy;
+  contribute(7*sizeof(Real),data,BoundingBoxGrowReductionType,cb);
 }
 
 extern string NodeTypeColor[];

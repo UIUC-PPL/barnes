@@ -238,12 +238,22 @@ void Main::commence(){
 
   CkPrintf(" took %f s\n", CmiWallTimer()-loadTime);
 
+  CkExit();
+  return;
+
   /*
     Each PE contributes the bounding box of the particles
     it read to a reduction; as a result, the bounding box
     of all particles in the simulated "universe" is obtained.
   */
-  BoundingBox &universe = *((BoundingBox *)redMsg->getData());
+  BoundingBox universe;
+  Real *data = (Real *) redMsg->getData();
+  for(int i = 0; i < 3; i++){
+    universe.box.lesser_corner[i] = data[i];
+    universe.box.greater_corner[i] = data[i+3];
+  }
+  universe.energy = data[6];
+
 #ifndef SPLASH_COMPATIBLE
   Real pad = 0.00001;
   /*

@@ -23,6 +23,20 @@ CkReduction::reducerType DtReductionType;
  * particles.
  */
 CkReductionMsg *BoundingBoxGrowReduction(int nmsgs, CkReductionMsg **msgs){
+  Real *result = (Real *) (msgs[0]->getData());
+  for(int i = 1; i < nmsgs; i++){
+    CkAssert(msgs[i]->getSize() == 7*sizeof(Real));
+    Real *compare = (Real *)msgs[i]->getData();
+    for(int j = 0; j < 3; j++){
+      if(compare[j] < result[j]) result[j] = compare[j];
+      if(compare[j+3] > result[j+3]) result[j+3] = compare[j+3];
+    }
+  }
+
+  return CkReductionMsg::buildNew(7*sizeof(Real),result);
+
+
+  /*
   BoundingBox &bb = *((BoundingBox *) msgs[0]->getData());
   for(int i = 1; i < nmsgs; i++){
     CkAssert(msgs[i]->getSize() == sizeof(BoundingBox));
@@ -30,6 +44,7 @@ CkReductionMsg *BoundingBoxGrowReduction(int nmsgs, CkReductionMsg **msgs){
     bb.grow(other);
   }
   return CkReductionMsg::buildNew(sizeof(BoundingBox),&bb);
+  */
 }
 
 #if 0

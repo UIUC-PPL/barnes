@@ -232,6 +232,7 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void recvParticles(ParticleReplyMsg *msg);
   void recvNode(NodeReplyMsg *msg);
 
+  void contributeBoundingBox(CkCallback &cb);
   void recvUnivBoundingBox(CkReductionMsg *msg);
 
   void quiescence();
