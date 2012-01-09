@@ -10,7 +10,7 @@ APP_FLAGS = -DCHECK_INTER -DPHASE_BARRIERS -DNODE_LEVEL_MERGE #-DCOMBINE_NODE_RE
 OPTS = -O3 -g $(APP_FLAGS)
 CPPFLAGS += -I$(INCPATH) -I$(STRUCTURES_PATH) -I$(MESH_STREAMER_PATH)
 CXXFLAGS += $(OPTS) $(CPPFLAGS)
-LDFLAGS += $(OPTS) -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -module Orb3dLB_notopo -module MeshStreamer -memory os #-tracemode projections
+LDFLAGS += $(OPTS) -L$(STRUCTURES_PATH) -lTipsy -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -module Orb3dLB_notopo -module MeshStreamer -memory os #-tracemode projections
 
 CHARMC = $(CHARM_PATH)/bin/charmc
 
@@ -29,13 +29,19 @@ SRC = Main.cpp DataManager.cpp TreePiece.cpp \
       State.cpp gen_util.cpp plummer.cpp 
 
 TARGET = barnes 
-all: $(TARGET) plummer 
+all: $(STRUCTURES_PATH)/libTipsy.a $(TARGET) plummer 
 
-$(TARGET): $(OBJECTS) Makefile.dep libmoduleOrb3dLB_notopo.a 
+$(TARGET): $(OBJECTS) Makefile.dep libmoduleOrb3dLB_notopo.a $(STRUCTURES_PATH)/libTipsy.a 
 	$(CHARMC) -o $(TARGET) $(LDFLAGS) $(OBJECTS)
 
+
 libmoduleOrb3dLB_notopo.a: Orb3dLB_notopo.o
-	$(CHARMC) -o libmoduleOrb3dLB_notopo.a Orb3dLB_notopo.o 
+	$(CHARMC) -o libmoduleOrb3dLB_notopo.a Orb3dLB_notopo.o  
+
+
+
+$(STRUCTURES_PATH)/libTipsy.a:
+	cd $(STRUCTURES_PATH); $(MAKE) libTipsy.a
 
 plummer.o: plummer.cpp 
 	g++ $(CPPFLAGS) -c plummer.cpp
