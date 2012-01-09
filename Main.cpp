@@ -21,6 +21,8 @@
 
 #include <iostream>
 #include <fstream>
+
+#include "TipsyFile.h"
 using namespace std;
 
 /* Proxies for tree piece array and data manager group */
@@ -200,8 +202,7 @@ void Main::setParameters(CkArgMsg *m){
       calculate it from the number of particles per chare and
       the total number of particles.
     */
-    globalParams.numTreePieces = ((Real)globalParams.numParticles/((Real)globalParams.ppc))*2.0;
-    if(globalParams.numTreePieces == 0) globalParams.numTreePieces = 1;
+    globalParams.numTreePieces = CkNumPes()*8;
   }
   else{
     /*
@@ -216,14 +217,23 @@ void Main::setParameters(CkArgMsg *m){
 }
 
 void Main::getNumParticles(){
-  ifstream partFile;
   CkPrintf("[Main] file %s\n", globalParams.filename);
-  partFile.open(globalParams.filename, ios::in | ios::binary);
-  CkAssert(partFile.is_open());
 
-  partFile.read((char *)(&globalParams.numParticles),sizeof(int)); 
-  CkPrintf("[Main] numParticles %d\n", globalParams.numParticles);
-  partFile.close();
+  string filename(globalParams.filename);
+  Tipsy::TipsyReader r(filename);
+  if(!r.status()) {
+    cerr << CkMyPe() << ": Fatal: Couldn't open tipsy file! " << filename << endl;
+    CkExit();
+    return;
+  }
+
+  Tipsy::header tipsyHeader = r.getHeader();
+  int nTotalParticles = tipsyHeader.nbodies;
+  int nTotalSPH = tipsyHeader.nsph;
+  int nTotalDark = tipsyHeader.ndark;
+  int nTotalStar = tipsyHeader.nstar;
+
+  CkPrintf("[Main] nsph %d ndark %d nstar %d\n", tipsyHeader.nsph, tipsyHeader.ndark, tipsyHeader.nstar);
 }
 
 void Main::commence(){
@@ -234,12 +244,16 @@ void Main::commence(){
     Tell each PE to read the particles 
     from its portion of the input file
   */
-  dataManagerProxy.loadParticles(CkCallbackResumeThread((void *&)redMsg));
+  dataManagerProxy.loadTipsy(CkCallbackResumeThread((void *&)redMsg));
+  //dataManagerProxy.loadParticles(CkCallbackResumeThread((void *&)redMsg));
 
   CkPrintf(" took %f s\n", CmiWallTimer()-loadTime);
 
-  CkExit();
-  return;
+  Real *dat = (Real *) redMsg->getData();
+  CkPrintf("bb lesser %f %f %f greater %f %f %f\n", dat[0], dat[1], dat[2], dat[3], dat[4], dat[5]);
+
+  //CkExit();
+  //return;
 
   /*
     Each PE contributes the bounding box of the particles

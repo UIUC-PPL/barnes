@@ -93,6 +93,7 @@ mainmodule barnes {
   group [migratable] DataManager : MeshStreamerClient<NodeRequest> {
     entry DataManager();
     entry void loadParticles(CkCallback &cb);
+    entry void loadTipsy(CkCallback &cb);
     entry void decompose(BoundingBox &box);
     entry void receiveHistogram(CkReductionMsg *msg);
     entry void receiveSplitters(CkVec<int> splitBins);

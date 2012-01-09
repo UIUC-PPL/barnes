@@ -186,11 +186,14 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   void nodeLevelMerge();
   void registerTopLevelNodes(Node<ForceData> *node, int tpstart, int tpend);
 
+  void initProxies();
+
   public:
   DataManager();
   DataManager(CkMigrateMessage *m) {}
 
   void loadParticles(CkCallback &cb);
+  void loadTipsy(CkCallback &cb);
 
   void decompose(BoundingBox &universe);
   void receiveHistogram(CkReductionMsg *msg);

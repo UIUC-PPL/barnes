@@ -41,6 +41,8 @@
 #define LARGEST (std::numeric_limits<Real>::max())
 #define SMALLEST (-LARGEST)
 
+#include "TipsyFile.h"
+
 using namespace std;
 extern CProxy_TreePiece treePieceProxy;
 extern CProxy_TreeMerger treeMergerProxy;
@@ -83,19 +85,175 @@ DataManager::DataManager() :
   //tpArray = CkArrayID::CkLocalBranch(treePieceProxy.ckGetArrayID());
 }
 
-/*
-  Load your share of the particles from the input
-  file. 
-*/
-void DataManager::loadParticles(CkCallback &cb){
-
+void DataManager::initProxies(){
   // set up my own proxy, local combiner, TP ckarray
   myProxy = CProxy_DataManager(thisgroup);
   combiner = ((MeshStreamer<NodeRequest> *)CkLocalBranch(combinerProxy));
   tpArray = treePieceProxy.ckGetArrayID().ckLocalBranch();
 
   numRankBits = LOG_BRANCH_FACTOR;
+}
 
+void DataManager::loadTipsy(CkCallback &cb){
+
+  initProxies();
+
+  string filename(globalParams.filename);
+  Tipsy::TipsyReader r(filename);
+  if(!r.status()) {
+    cerr << CkMyPe() << ": Fatal: Couldn't open tipsy file! " << filename << endl;
+    CkExit();
+    return;
+  }
+
+  Tipsy::header tipsyHeader = r.getHeader();
+  int nTotalParticles = tipsyHeader.nbodies;
+  int nTotalSPH = tipsyHeader.nsph;
+  int nTotalDark = tipsyHeader.ndark;
+  int nTotalStar = tipsyHeader.nstar;
+  int dStartTime = tipsyHeader.time;
+  int excess;
+  unsigned int startParticle;
+
+  unsigned int numLoaders = CkNumPes();
+
+  myNumParticles = nTotalParticles / numLoaders;
+  excess = nTotalParticles % numLoaders;
+  startParticle = myNumParticles * CkMyPe();
+  if(CkMyPe() < (int) excess) {
+    myNumParticles++;
+    startParticle += CkMyPe();
+  }
+  else {
+    startParticle += excess;
+  }
+
+  /*
+    cerr << CkMyPe() << ": Taking " << myNumParticles
+      << " of " << nTotalParticles
+      << " particles, starting at " << startParticle << endl;
+  */
+
+  // allocate an array for myParticles
+  int nStore = myNumParticles;
+  myParticles.resize(nStore);
+  // Are we loading SPH?
+  CkAssert(nTotalSPH == 0);
+#if 0
+  if(startParticle < nTotalSPH) {
+    if(startParticle + myNumParticles <= nTotalSPH)
+      myNumSPH = myNumParticles;
+    else
+      myNumSPH = nTotalSPH - startParticle;
+  }
+  else {
+    myNumSPH = 0;
+  }
+  nStoreSPH = (int)(myNumSPH*(1.0 + dExtraStore));
+  if(nStoreSPH > 0)
+    mySPHParticles = new extraSPHData[nStoreSPH];
+  // Are we loading stars?
+  if(startParticle + myNumParticles > nTotalSPH + nTotalDark) {
+    if(startParticle <= nTotalSPH + nTotalDark)
+      myNumStar = startParticle + myNumParticles
+        - (nTotalSPH + nTotalDark);
+    else
+      myNumStar = myNumParticles;
+  }
+  else {
+    myNumStar = 0;
+  }
+  nStoreStar = (int)(myNumStar*(1.0 + dExtraStore));
+  nStoreStar += 12;  // in case we start with 0
+  myStarParticles = new extraStarData[nStoreStar];
+#endif
+
+  if(!r.seekParticleNum(startParticle)) {
+    CkAbort("Couldn't seek to my particles!");
+    return;
+  }
+
+  Tipsy::gas_particle gp;
+  Tipsy::dark_particle dp;
+  Tipsy::star_particle sp;
+
+  int iSPH = 0;
+  int iStar = 0;
+  myBox.reset();
+  myBox.energy = 0.0;
+
+#if 0
+  if(CkMyPe() == 0){
+    CkPrintf("[%d] nsph %d ndark %d nstar %d mynum %d\n", CkMyPe(), tipsyHeader.nsph, tipsyHeader.ndark, tipsyHeader.nstar, myNumParticles);
+  }
+#endif
+
+  for(unsigned int i = 0; i < myNumParticles; ++i) {
+    if(i + startParticle < (unsigned int) tipsyHeader.nsph) {
+      if(!r.getNextGasParticle(gp)) {
+        CkAbort("failed to read gas particle!");
+      }
+      myParticles[i].mass = gp.mass;
+      myParticles[i].position = gp.pos;
+      myParticles[i].velocity = gp.vel;
+      //myParticles[i].soft = gp.hsmooth;
+#ifdef CHANGESOFT
+      //myParticles[i].fSoft0 = gp.hsmooth;
+#endif
+      //myParticles[i].iType = TYPE_GAS;
+      //myParticles[i].fDensity = gp.rho;
+      //myParticles[i].extraData = &mySPHParticles[iSPH];
+      //mySPHParticles[iSPH].fMetals() = gp.metals;
+      //mySPHParticles[iSPH].u() = dTuFac*gp.temp;
+      //mySPHParticles[iSPH].uPred() = dTuFac*gp.temp;
+      //mySPHParticles[iSPH].vPred() = gp.vel;
+      //mySPHParticles[iSPH].fBallMax() = HUGE;
+      iSPH++;
+    } else if(i + startParticle < (unsigned int) tipsyHeader.nsph
+        + tipsyHeader.ndark) {
+      if(!r.getNextDarkParticle(dp)) {
+        CkAbort("failed to read dark particle!");
+      }
+      myParticles[i].mass = dp.mass;
+      myParticles[i].position = dp.pos;
+      myParticles[i].velocity = dp.vel;
+      //myParticles[i].soft = dp.eps;
+#ifdef CHANGESOFT
+      //myParticles[i].fSoft0 = dp.eps;
+#endif
+      //myParticles[i].iType = TYPE_DARK;
+    } else {
+      if(!r.getNextStarParticle(sp)) {
+        CkAbort("failed to read star particle!");
+      }
+      myParticles[i].mass = sp.mass;
+      myParticles[i].position = sp.pos;
+      myParticles[i].velocity = sp.vel;
+      //myParticles[i].soft = sp.eps;
+#ifdef CHANGESOFT
+      //myParticles[i].fSoft0 = sp.eps;
+#endif
+      //myParticles[i].extraData = &myStarParticles[iStar];
+      //myParticles[i].fStarMetals() = sp.metals;
+      //myParticles[i].fTimeForm() = sp.tform;
+      //myParticles[i].iType = TYPE_STAR;
+      iStar++;
+    }
+    //myParticles[i].iOrder = i + startParticle;
+    myBox.grow(myParticles[i].position);
+    myBox.mass += myParticles[i].mass;
+    myBox.energy += myParticles[i].mass*myParticles[i].velocity.lengthSquared();
+  }
+  myBox.energy /= 2.0;
+  contributeBoundingBox(cb);
+}
+
+/*
+  Load your share of the particles from the input
+  file. 
+*/
+void DataManager::loadParticles(CkCallback &cb){
+  initProxies();
   const char *fname = globalParams.filename;
   int npart = globalParams.numParticles;
 
@@ -306,6 +464,8 @@ void DataManager::decompose(BoundingBox &universe){
   univBox.box.greater_corner = univBox.box.lesser_corner + uside;
 
   uside *= 1.00002;
+#else
+  uside = 0.0;
 #endif
 
   if(CkMyPe() == 0){

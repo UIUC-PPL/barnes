@@ -31,6 +31,7 @@ CkReductionMsg *BoundingBoxGrowReduction(int nmsgs, CkReductionMsg **msgs){
       if(compare[j] < result[j]) result[j] = compare[j];
       if(compare[j+3] > result[j+3]) result[j+3] = compare[j+3];
     }
+    result[6] += compare[6];
   }
 
   return CkReductionMsg::buildNew(7*sizeof(Real),result);
