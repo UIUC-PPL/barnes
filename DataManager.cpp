@@ -462,11 +462,10 @@ void DataManager::decompose(BoundingBox &universe){
   }
   univBox.box.lesser_corner -= (uside/1e5);
   univBox.box.greater_corner = univBox.box.lesser_corner + uside;
-
-  uside *= 1.00002;
 #else
-  uside = 0.0;
+  uside = (univBox.box.greater_corner-univBox.box.lesser_corner).lengthSquared();
 #endif
+  uside *= 1.00002;
 
   if(CkMyPe() == 0){
     phaseTime = CmiWallTimer();

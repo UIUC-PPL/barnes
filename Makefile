@@ -29,7 +29,7 @@ SRC = Main.cpp DataManager.cpp TreePiece.cpp \
       State.cpp gen_util.cpp plummer.cpp 
 
 TARGET = barnes 
-all: $(STRUCTURES_PATH)/libTipsy.a $(TARGET) plummer 
+all: $(STRUCTURES_PATH)/libTipsy.a $(TARGET) 
 
 $(TARGET): $(OBJECTS) Makefile.dep libmoduleOrb3dLB_notopo.a $(STRUCTURES_PATH)/libTipsy.a 
 	$(CHARMC) -o $(TARGET) $(LDFLAGS) $(OBJECTS)
@@ -40,8 +40,11 @@ libmoduleOrb3dLB_notopo.a: Orb3dLB_notopo.o
 
 
 
-$(STRUCTURES_PATH)/libTipsy.a:
+$(STRUCTURES_PATH)/libTipsy.a: $(STRUCTURES_PATH)/Makefile
 	cd $(STRUCTURES_PATH); $(MAKE) libTipsy.a
+
+$(STRUCTURES_PATH)/Makefile:  
+	cd $(STRUCTURES_PATH); ./configure
 
 plummer.o: plummer.cpp 
 	g++ $(CPPFLAGS) -c plummer.cpp
