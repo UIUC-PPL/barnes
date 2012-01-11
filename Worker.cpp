@@ -143,6 +143,13 @@ int TraversalWorker::work(Node<ForceData> *node){
 #endif
   bool keep = getKeep(type);
 
+  if(node->getType() == EmptyBucket ||
+      node->getType() == RemoteEmptyBucket){
+#ifndef SPLASH_COMPATIBLE
+    state->nodeComputed(currentBucket,node->getKey());
+#endif
+    return 0;
+  }
   if(!keep){
 #ifndef SPLASH_COMPATIBLE
     state->nodeDiscarded(currentBucket->getKey(),node);

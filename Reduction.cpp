@@ -25,16 +25,17 @@ CkReduction::reducerType DtReductionType;
 CkReductionMsg *BoundingBoxGrowReduction(int nmsgs, CkReductionMsg **msgs){
   Real *result = (Real *) (msgs[0]->getData());
   for(int i = 1; i < nmsgs; i++){
-    CkAssert(msgs[i]->getSize() == 7*sizeof(Real));
+    CkAssert(msgs[i]->getSize() == 8*sizeof(Real));
     Real *compare = (Real *)msgs[i]->getData();
     for(int j = 0; j < 3; j++){
       if(compare[j] < result[j]) result[j] = compare[j];
       if(compare[j+3] > result[j+3]) result[j+3] = compare[j+3];
     }
     result[6] += compare[6];
+    result[7] += compare[7];
   }
 
-  return CkReductionMsg::buildNew(7*sizeof(Real),result);
+  return CkReductionMsg::buildNew(8*sizeof(Real),result);
 
 
   /*

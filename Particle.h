@@ -32,6 +32,8 @@ struct Particle : public ExternalParticle {
   Real interMass;
 #endif
 
+  int order;
+
   Particle() : potential(0.0), acceleration(0.0) { 
 #ifdef CHECK_INTER
     interMass = 0.0;

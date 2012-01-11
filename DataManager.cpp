@@ -128,17 +128,10 @@ void DataManager::loadTipsy(CkCallback &cb){
     startParticle += excess;
   }
 
-  /*
-    cerr << CkMyPe() << ": Taking " << myNumParticles
-      << " of " << nTotalParticles
-      << " particles, starting at " << startParticle << endl;
-  */
-
   // allocate an array for myParticles
   int nStore = myNumParticles;
   myParticles.resize(nStore);
   // Are we loading SPH?
-  CkAssert(nTotalSPH == 0);
 #if 0
   if(startParticle < nTotalSPH) {
     if(startParticle + myNumParticles <= nTotalSPH)
@@ -180,7 +173,8 @@ void DataManager::loadTipsy(CkCallback &cb){
   int iSPH = 0;
   int iStar = 0;
   myBox.reset();
-  myBox.energy = 0.0;
+  myBox.pe = 0.0;
+  myBox.ke = 0.0;
 
 #if 0
   if(CkMyPe() == 0){
@@ -240,11 +234,14 @@ void DataManager::loadTipsy(CkCallback &cb){
       iStar++;
     }
     //myParticles[i].iOrder = i + startParticle;
+    myParticles[i].order = i+startParticle; 
+    myParticles[i].potential = 0.0;
     myBox.grow(myParticles[i].position);
     myBox.mass += myParticles[i].mass;
-    myBox.energy += myParticles[i].mass*myParticles[i].velocity.lengthSquared();
+    myBox.ke += myParticles[i].mass*myParticles[i].velocity.lengthSquared();
+    myBox.pe = 0.0;
   }
-  myBox.energy /= 2.0;
+  myBox.ke /= 2.0;
   contributeBoundingBox(cb);
 }
 
@@ -307,11 +304,9 @@ void DataManager::loadParticles(CkCallback &cb){
   }
   unsigned int numParticlesDone = 0;
 
-  /*
-    Read particles.
-  */
   Real tmp[REALS_PER_PARTICLE];
-  myBox.energy = 0.0;
+  myBox.ke = 0.0;
+  myBox.pe = 0.0;
   /*
     Read particles.
   */
@@ -334,11 +329,12 @@ void DataManager::loadParticles(CkCallback &cb){
     myBox.grow(p.position);
     myBox.mass += p.mass;
     // accumulate KE for this time period
-    myBox.energy += p.mass*p.velocity.lengthSquared();
+    myBox.ke += p.mass*p.velocity.lengthSquared();
 
     numParticlesDone++;
   }
-  myBox.energy /= 2.0;
+  myBox.ke /= 2.0;
+  myBox.pe = 0.0;
 
   CkAssert(numParticlesDone == myNumParticles);
   myBox.numParticles = myNumParticles;
@@ -482,30 +478,30 @@ void DataManager::decompose(BoundingBox &universe){
     if(iteration == 1){
       // save this value so that we can compare
       // against it in future iterations. 
-      compareEnergy = univBox.energy;
+      compareEnergy = univBox.ke+univBox.pe;
     }
     else if(iteration > 1){
-      deltaE = compareEnergy-univBox.energy;
-      if(deltaE < 0.0) deltaE = -deltaE;
-      // The energy should grow in magnitude
-      // by less than a tenth of one per cent.
+      deltaE = compareEnergy-(univBox.ke+univBox.pe);
       deltaE /= compareEnergy;
-      CkAssert(deltaE < 0.001);
+      if(deltaE < 0.0) deltaE = -deltaE;
     }
 
     // Print statistics
     float memMB = (1.0*CmiMemoryUsage())/(1<<20);
     ostringstream oss; 
-    CkPrintf("(%d) iteration %d rmin %f %f %f rsize %f energy %f delE/E %f\n", 
+    CkPrintf("(%d) iteration %d rsize %f ke %f pe %f delE/E %f\n", 
         CkMyPe(),
         iteration,
-        univBox.box.lesser_corner.x,
-        univBox.box.lesser_corner.y,
-        univBox.box.lesser_corner.z,
         uside,
-        univBox.energy, deltaE);
+        univBox.ke, univBox.pe, deltaE);
 
     CkPrintf("(%d) mem %.2f MB prev time %g s\n\n", CkMyPe(), memMB, CmiWallTimer()-prevIterationStart);
+
+    if(iteration > 1){
+      // The energy should grow in magnitude
+      // by less than a tenth of one per cent.
+      //CkAssert(deltaE < 0.01);
+    }
 
     prevIterationStart = CkWallTimer();
   }
@@ -642,7 +638,7 @@ void DataManager::doneDecomposition(){
   CkVec<Key> retractSites;
   int globalNumParticles = setGlobalParticleCounts(root);
   findRetractSites(root,retractSites);
-  CkPrintf("retractable nodes %d particles %d\n", retractSites.length(), globalNumParticles);
+  //CkPrintf("retractable nodes %d particles %d\n", retractSites.length(), globalNumParticles);
   /*
   for(int i = 0; i < retractSites.length(); i++){
     CkPrintf("Retractable %d key %llu\n", i, retractSites[i]);
@@ -1462,7 +1458,6 @@ void DataManager::advance(CkReductionMsg *msg){
 
   DtReductionStruct *dtred = (DtReductionStruct *)(msg->getData());
 
-  myBox.reset();
   kickDriftKick();
   //kickDriftKick(myBox.box,myBox.energy);
 
@@ -1532,7 +1527,8 @@ void DataManager::recvUnivBoundingBox(CkReductionMsg *msg){
     univBB.box.lesser_corner[i] = data[i];
     univBB.box.greater_corner[i] = data[i+3];
   }
-  univBB.energy = data[6];
+  univBB.pe = data[6];
+  univBB.ke = data[7];
 
   decompose(univBB);
   delete msg;
@@ -1652,15 +1648,23 @@ void DataManager::kickDriftKick(){
   int bad = 0;
   Real tolerance = 1.0/univBox.mass;
 #endif
-  
+
+  myBox.reset();
 
   if(globalParams.doPrintAccel && (iteration == globalParams.iterations-1)){
-#ifdef SPLASH_COMPATIBLE
     for(int i = 0; i < myParticles.length(); i++){
-      Vector3D<Real> &a = myParticles[i].acceleration;
-      CkPrintf("[%d] particle %d final acc %f %f %f\n", CkMyPe(), i, a.x, a.y, a.z);
+      Vector3D<Real> &p = myParticles[i].position;
+      Vector3D<Real> &v = myParticles[i].velocity;
+      CkPrintf("[%d] part %d p %f %f %f v %f %f %f\n", CkMyPe(), myParticles[i].order, 
+              p.x, 
+              p.y, 
+              p.z,
+              v.x, 
+              v.y, 
+              v.z
+              );
     }
-#else
+#if 0
     Node<ForceData> *bucket;
     for(int i = 0; i < myBuckets.length(); i++){
       bucket = myBuckets[i];
@@ -1674,24 +1678,27 @@ void DataManager::kickDriftKick(){
 #endif
   }
 
-  for(Particle *p = pstart; p <= pend; p++){
-    particlePotential = p->mass*p->potential;
-
 #ifndef STATIC
-    // kick
-    p->velocity += globalParams.dthf*p->acceleration;
-    // drift
-    p->position += globalParams.dtime*p->velocity;
-    // kick
+  if(iteration > 0){
+    for(Particle *p = pstart; p <= pend; p++){
+      p->velocity += globalParams.dthf*p->acceleration;
+    }
+  }
+#endif
+
+  for(Particle *p = pstart; p <= pend; p++){
+
+    particlePotential = p->mass*p->potential;
+    particleKinetic = 0.5*p->mass*p->velocity.lengthSquared();
+    myBox.pe += particlePotential;
+    myBox.ke += particleKinetic;
+
+#ifndef STATIC 
+    p->position += globalParams.dtime*p->velocity 
+        + 0.5*globalParams.dtime*globalParams.dtime*p->acceleration;
+
     p->velocity += globalParams.dthf*p->acceleration;
 #endif
-    
-    particleKinetic = 0.5*p->mass*p->velocity.lengthSquared();
-    particleEnergy = particlePotential+particleKinetic;
-    myBox.energy += particleEnergy;
-
-    myBox.grow(p->position);
-    myBox.mass += p->mass;
 
 #ifdef CHECK_INTER
     p->interMass += p->mass;
@@ -1708,6 +1715,8 @@ void DataManager::kickDriftKick(){
     */
     p->interMass = 0.0;
 #endif
+    myBox.grow(p->position);
+    myBox.mass += p->mass;
 
     p->acceleration = Vector3D<Real>(0.0);
     p->potential = 0.0;
@@ -1776,8 +1785,9 @@ void DataManager::contributeBoundingBox(CkCallback &cb){
       data[i+3] = SMALLEST;
     }
   }
-  data[6] = myBox.energy;
-  contribute(7*sizeof(Real),data,BoundingBoxGrowReductionType,cb);
+  data[6] = myBox.pe;
+  data[7] = myBox.ke;
+  contribute(8*sizeof(Real),data,BoundingBoxGrowReductionType,cb);
 }
 
 extern string NodeTypeColor[];
@@ -1791,7 +1801,7 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
      << "style=\"filled\""
      << "color=\"" << NodeTypeColor[nd->getType()] << "\""
      << "]" << endl;
-  if(nd->getOwnerEnd()-1 == nd->getOwnerStart()) return;
+  //if(nd->getOwnerEnd()-1 == nd->getOwnerStart()) return;
   for(int i = 0; i < nd->getNumChildren(); i++){
     Node<ForceData> *child = nd->getChildren()+i;
     CkAssert(child != NULL);
@@ -1802,6 +1812,7 @@ void DataManager::printTree(Node<ForceData> *nd, ostream &os){
 
 void DataManager::doPrintTree(string name){
   ostringstream oss;
+  CkPrintf("[%d] printing tree\n", CkMyPe());
   oss << name << "." << CkMyPe() << "." << iteration << ".dot";
   ofstream ofs(oss.str().c_str());
   ofs << "digraph " << name << "_" << CkMyPe() << "_" << iteration << " {" << endl;

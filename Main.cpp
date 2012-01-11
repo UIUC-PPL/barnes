@@ -156,7 +156,7 @@ void Main::setParameters(CkArgMsg *m){
   CkPrintf("balancePeriod: %d\n", globalParams.balancePeriod);
 
   globalParams.doPrintAccel = false;
-  if(table.find("output") != table.end()) globalParams.doPrintAccel = true;
+  if(table.find("printAccel") != table.end()) globalParams.doPrintAccel = true;
   CkPrintf("doPrintAccel: %d\n", globalParams.doPrintAccel);
 
   globalParams.doPrintTree = false;
@@ -250,7 +250,7 @@ void Main::commence(){
   CkPrintf(" took %f s\n", CmiWallTimer()-loadTime);
 
   Real *dat = (Real *) redMsg->getData();
-  CkPrintf("bb lesser %f %f %f greater %f %f %f\n", dat[0], dat[1], dat[2], dat[3], dat[4], dat[5]);
+  CkPrintf("bb l %f %f %f g %f %f %f\n", dat[0], dat[1], dat[2], dat[3], dat[4], dat[5]);
 
   //CkExit();
   //return;
@@ -266,7 +266,8 @@ void Main::commence(){
     universe.box.lesser_corner[i] = data[i];
     universe.box.greater_corner[i] = data[i+3];
   }
-  universe.energy = data[6];
+  universe.pe = data[6];
+  universe.ke = data[7];
 
 #ifndef SPLASH_COMPATIBLE
   Real pad = 0.00001;

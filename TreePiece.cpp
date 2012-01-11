@@ -56,16 +56,29 @@ void TreePiece::init(){
 void TreePiece::checkTraversals(){
 #ifdef DEBUG_TRAVERSALS
   map<Key,set<Key> >::iterator it = bucketKeys.begin();
+  int nbad = 0;
   for(; it != bucketKeys.end(); ++it){
-    set<Key>::iterator jt = it->second.find(Key(0));
-    CkAssert(jt != it->second.end());
-    CkAssert(it->second.size() == 1);
-    ostringstream oss;
-    for(jt = it->second.begin(); jt != it->second.end(); ++jt){
-      oss << (*jt) << ","; 
+    if(it->second.size() == 0) continue;
+
+    set<Key>::iterator jt;
+    if(it->second.size() != 1){
+      nbad++;
+      ostringstream oss;
+      for(jt = it->second.begin(); jt != it->second.end(); ++jt){
+        oss << (*jt) << ","; 
+      }
+      CkPrintf("tp %d bucket %llu rem: %s\n", thisIndex, it->first, oss.str().c_str());
     }
-    CkPrintf("tp %d bucket %llu rem: %s\n", thisIndex, it->first, oss.str().c_str());
+    else{
+      jt = it->second.find(Key(0));
+      if(jt == it->second.end()){
+        CkPrintf("tp %d bucket %llu can't find Key(0)\n", thisIndex, it->first);
+        nbad++;
+      }
+    }
   }
+
+  if(nbad > 0) CkAbort("bad traversal(s)\n");
 #endif
 }
 

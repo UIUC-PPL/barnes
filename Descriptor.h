@@ -22,7 +22,8 @@
 struct BoundingBox {
   OrientedBox<double> box;
   int numParticles;
-  Real energy;
+  Real pe;
+  Real ke;
   Real mass;
 
   BoundingBox(){
@@ -32,7 +33,8 @@ struct BoundingBox {
   void reset(){
     numParticles = 0;
     box.reset();
-    energy = 0.0;
+    pe = 0.0;
+    ke = 0.0;
     mass = 0.0;
   }
 
@@ -54,7 +56,8 @@ struct BoundingBox {
     else{
       box.grow(other.box);
       numParticles += other.numParticles;
-      energy += other.energy;
+      pe += other.pe;
+      ke += other.ke;
       mass += other.mass;
     }
   }
@@ -67,7 +70,8 @@ struct BoundingBox {
   void pup(PUP::er &p){
     p | box;
     p | numParticles;
-    p | energy;
+    p | pe;
+    p | ke;
     p | mass;
   }
 
