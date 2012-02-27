@@ -489,11 +489,11 @@ void DataManager::decompose(BoundingBox &universe){
     // Print statistics
     float memMB = (1.0*CmiMemoryUsage())/(1<<20);
     ostringstream oss; 
-    CkPrintf("(%d) iteration %d rsize %f ke %f pe %f delE/E %f\n", 
+    CkPrintf("(%d) iteration %d rsize %f energy %f delE/E %f\n", 
         CkMyPe(),
         iteration,
         uside,
-        univBox.ke, univBox.pe, deltaE);
+        univBox.ke+univBox.pe, deltaE);
 
     CkPrintf("(%d) mem %.2f MB prev time %g s\n\n", CkMyPe(), memMB, CmiWallTimer()-prevIterationStart);
 
