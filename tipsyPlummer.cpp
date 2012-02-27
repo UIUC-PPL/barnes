@@ -14,8 +14,6 @@
 #include <iostream>
 #include <fstream>
 
-#include "tipsydefs.h"
-
 
 using namespace std;
 
@@ -175,157 +173,130 @@ int intpow(int i, int j)
 
 void pranset(int);
 
+#define NDIMS 3
+#include "TipsyFile.h"
+
+using namespace Tipsy;
+
 int main(int argc, char **argv){
-  pranset(128363);
-  if(argc != 4){
-    fprintf(stderr,"write usage: tipsyPlummer 0 <nbody> <filename>\n");
-    fprintf(stderr,"read usage: tipsyPlummer 1 <print_limit> <filename>\n");
-    return 1;
-  }
+  assert(argc == 3);
 
-  int mode = atoi(argv[1]);
+  ifstream in(argv[1], ios::in|ios::binary);
+  assert(!in.fail() && !in.bad() && in.is_open());
 
-  // WRITE
-  if(mode == 0){
-    ofstream out(argv[3], ios::out|ios::binary);
-    ifstream in(argv[3], ios::in|ios::binary);
+  int nbody;
+  int ndims;
+  Real tnow;
 
-    assert(!in.bad() && !in.fail() && in.is_open());
-    assert(!out.bad() && !out.fail() && out.is_open());
+  in.read((char *)&nbody, sizeof(int));
+  in.read((char *)&ndims, sizeof(int));
+  in.read((char *)&tnow, sizeof(Real));
 
-    int nbody = atoi(argv[2]);
-    int ndims = NDIMS;
-    Real tnow = 0.0;
+  string fname(argv[2]);
+  Tipsy::header hdr;
 
-    dump header; 
-    header.time = tnow;
-    header.nbodies = nbody;
-    header.ndim = ndims;
-    header.nsph = 0;
-    header.ndark = nbody;
-    header.nstar = 0;
+  printf("nbody %d ndims %d tnow %f\n", nbody, ndims, tnow);
+  assert(ndims == NDIMS);
 
-    out.write((char *)&header, sizeof(dump));
-    /*
-    out.write((char *)&ndims, sizeof(int));
-    out.write((char *)&tnow, sizeof(Real));
-    */
+  hdr.nbodies = nbody;
+  hdr.ndim = ndims;
+  hdr.ndark = nbody;
+  hdr.time = tnow;
 
-    int preambleSize = sizeof(dump);
+  TipsyWriter wr(fname,hdr);
 
-    testdata(out,in,nbody,preambleSize);
+  int bufSize = 10*(1<<20)/sizeof(Particle);
 
-    out.close();
-    in.close();
-  }
-  // READ
-  else{
-    ifstream in(argv[3], ios::in|ios::binary);
-    assert(!in.fail() && !in.bad() && in.is_open());
+  Particle *bodytab = new Particle[bufSize];
 
-    int print_limit = atoi(argv[2]);
+  int remaining = nbody;
+  int cnt = 0;
+  int curSize;
 
-    dump header;
-    in.read((char *)&header, sizeof(dump));
+  OrientedBox<Real> bb;
+  Vector3D<Real> com;
+  Real totalMass = 0.0;
+  Real unitMass;
 
-    int nbody = header.nbodies;
-    int ndims = header.ndim;
-    int tnow = header.time;
+  dark_particle dp;
 
-    printf("nbody %d ndims %d tnow %f\n", nbody, ndims, tnow);
-    assert(ndims == NDIMS);
+  while(remaining > 0){
+    if(remaining > bufSize) curSize = bufSize;
+    else curSize = remaining;
+    readFromDisk(in,bodytab,curSize);
 
-    int bufSize = 10*(1<<20)/sizeof(Particle);
+    remaining -= curSize;
 
-    Particle *bodytab = new Particle[bufSize];
+    Particle *p = bodytab;
+    for(int i = 0; i < curSize; i++){
+      if(cnt == 0) unitMass = p->mass;
+      bb.grow(p->position);
+      totalMass += p->mass;
+      com += p->position;
 
-    int remaining = nbody;
-    int cnt = 0;
-    int curSize;
+      dp.
 
-    OrientedBox<Real> bb;
-    Vector3D<Real> com;
-    Real totalMass = 0.0;
-    Real unitMass;
-
-    while(remaining > 0){
-      if(remaining > bufSize) curSize = bufSize;
-      else curSize = remaining;
-      readFromDisk(in,bodytab,curSize);
-
-      remaining -= curSize;
-
-      Particle *p = bodytab;
-      for(int i = 0; i < curSize; i++){
-        if(cnt == 0) unitMass = p->mass;
-        bb.grow(p->position);
-        totalMass += p->mass;
-        com += p->position;
-        if(cnt < print_limit){
-          printf("idx %d pos %f %f %f mass %g\n",
-                  cnt, 
-                  p->position.x,
-                  p->position.y,
-                  p->position.z,
-                  p->mass);
-        }
-        cnt++;
-        p++;
-      }
+      cnt++;
+      p++;
     }
-
-    printf("\n\nmass %f bb %f %f %f %f %f %f com %f %f %f\n", 
-            unitMass*cnt, 
-            bb.lesser_corner.x,
-            bb.lesser_corner.y,
-            bb.lesser_corner.z,
-            bb.greater_corner.x,
-            bb.greater_corner.y,
-            bb.greater_corner.z,
-            com.x,
-            com.y,
-            com.z
-            );
-
   }
+
+  printf("\n\nmass %f bb %f %f %f %f %f %f com %f %f %f\n", 
+      unitMass*cnt, 
+      bb.lesser_corner.x,
+      bb.lesser_corner.y,
+      bb.lesser_corner.z,
+      bb.greater_corner.x,
+      bb.greater_corner.y,
+      bb.greater_corner.z,
+      com.x,
+      com.y,
+      com.z
+      );
 
   return 0;
 }
 
-#define EPS 0.05
-
 void writeToDisk(ofstream &out, Particle *p, int nbody){
-  dark_particle *tmp = new dark_particle[nbody];
+  Real *tmp = new Real[nbody*REALS_PER_PARTICLE];
   Real soft = 0.001;
 
-  for(int i = 0; i < nbody; i++){
-    for(int j = 0; j < NDIMS; j++){
-      tmp[i].pos[j] = p->position[j];
-      tmp[i].vel[j] = p->velocity[j];
-    }
-    tmp[i].mass = p->mass;
-    tmp[i].eps = EPS;
-    tmp[i].phi = 0.0;
+  for(int i = 0; i < nbody*REALS_PER_PARTICLE; i += REALS_PER_PARTICLE){
+    tmp[i+0] = p->position.x;
+    tmp[i+1] = p->position.y;
+    tmp[i+2] = p->position.z;
+    tmp[i+3] = p->velocity.x;
+    tmp[i+4] = p->velocity.y;
+    tmp[i+5] = p->velocity.z;
+    tmp[i+6] = p->mass;
+    tmp[i+7] = soft;
+
+    //cout << "WRITE " << p->position.x << " " << p->position.y << " " << p->position.z << endl;
 
     p++;
   }
 
-  out.write((char*)tmp, nbody*sizeof(dump));
+  out.write((char*)tmp, nbody*REALS_PER_PARTICLE*sizeof(Real));
   out.flush();
   delete[] tmp;
 }
 
 void readFromDisk(ifstream &in, Particle *p, int nbody){
-  dark_particle *tmp = new dark_particle[nbody];
+  Real *tmp = new Real[nbody*REALS_PER_PARTICLE];
   Real soft = 0.001;
 
-  in.read((char*)tmp, nbody*sizeof(dump));
-  for(int i = 0; i < nbody; i++){
-    for(int j = 0; j < NDIMS; j++){
-      p->position[j] = tmp[i].pos[j];
-      p->velocity[j] = tmp[i].vel[j];
-    }
-    p->mass = tmp[i].mass;
+  in.read((char*)tmp, nbody*REALS_PER_PARTICLE*sizeof(Real));
+  for(int i = 0; i < nbody*REALS_PER_PARTICLE; i += REALS_PER_PARTICLE){
+    p->position.x = tmp[i+0];
+    p->position.y = tmp[i+1];
+    p->position.z = tmp[i+2];
+    p->velocity.x = tmp[i+3];
+    p->velocity.y = tmp[i+4];
+    p->velocity.z = tmp[i+5];
+    p->mass       = tmp[i+6];
+    soft          = tmp[i+7];
+
+    //cout << "READ " << p->position.x << " " << p->position.y << " " << p->position.z << endl;
     p++;
   }
 
