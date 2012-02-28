@@ -22,156 +22,7 @@ using namespace std;
 Real xrand(Real,Real);
 void pickshell(Vector3D<Real> &vec, Real rad);
 
-void writeToDisk(ofstream &ofs, Particle *p, int nbody);
 void readFromDisk(ifstream &in, Particle *p, int nbody);
-
-void testdata(ofstream &out, ifstream &in, int nbody, int preambleSize){
-  Real rsc, vsc, rsq, r, v, x, y;
-  Vector3D<Real> cmr, cmv;
-  Particle *p;
-  int rejects = 0;
-  int k;
-  int halfnbody, i;
-  Real offset;
-  Particle *cp;
-  Real tmp;
-
-  int curSize;
-
-  int bufSize = 10*(1<<20)/sizeof(Particle);
-
-  //cout << "bufsize " << bufSize << endl;
-  
-  halfnbody = nbody / 2;
-  if (nbody % 2 != 0) halfnbody++;
-
-  
-  Particle *bodytab = new Particle[bufSize];
-  assert(bodytab != NULL);
-
-  rsc = 9 * PI / 16;
-  vsc = sqrt(1.0 / rsc);
-
-  cmr = Vector3D<Real>(0.0);
-  cmv = Vector3D<Real>(0.0);
-
-  int remaining = halfnbody;
-  while(remaining > 0){
-    if(remaining > bufSize) curSize = bufSize;
-    else curSize = remaining;
-
-    remaining -= curSize;
-  
-    for(p = bodytab; p < bodytab+curSize; p++){
-      p->mass = 1.0/nbody;
-      r = 1 / sqrt(std::pow((double)xrand(0.0, MFRAC), (double)-2.0/3.0) - 1);
-      /*   reject radii greater than 10 */
-      while (r > 9.0) {
-        rejects++;
-        r = 1 / sqrt(std::pow((double)xrand(0.0, MFRAC), (double)-2.0/3.0) - 1);
-
-      }        
-      pickshell(p->position, rsc * r);
-
-      cmr += p->position;
-      do {
-        x = xrand(0.0, 1.0);
-        y = xrand(0.0, 0.1);
-
-      } while (y > x*x * std::pow((double)(1 - x*x), (double)3.5));
-
-      v = sqrt(2.0) * x / std::pow((double)(1 + r*r), (double)0.25);
-      pickshell(p->velocity, vsc * v);
-      cmv += p->velocity;
-    }
-    writeToDisk(out,bodytab,curSize);
-  }
-
-  offset = 4.0;
-
-  remaining = nbody-halfnbody;
-  in.seekg(preambleSize,ios::beg);
-
-  //cout << "TELLG " << in.tellg() << endl;
-  
-  while(remaining > 0){
-    if(remaining > bufSize) curSize = bufSize;
-    else curSize = remaining;
-
-    remaining -= curSize;
-
-    readFromDisk(in,bodytab,curSize);
-
-    for(p = bodytab; p < bodytab+curSize; p++){
-      p->position += offset;
-      cmr += p->position;
-      cmv += p->position;
-    }
-
-    writeToDisk(out,bodytab,curSize);
-  }
-
-  cmr /= nbody;
-  cmv /= nbody;
-
-  in.seekg(preambleSize,ios::beg);
-  out.seekp(preambleSize,ios::beg);
-
-  remaining = nbody;
-  while(remaining > 0){
-    if(remaining > bufSize) curSize = bufSize;
-    else curSize = remaining;
-
-    remaining -= curSize;
-
-    readFromDisk(in,bodytab,curSize);
-
-    for(p = bodytab; p < bodytab+curSize; p++){
-      p->position -= cmr;
-      p->velocity -= cmv;
-    }
-
-    writeToDisk(out,bodytab,curSize);
-  }
-
-  delete[] bodytab;
-}
-
-/*
- * PICKSHELL: pick a random point on a sphere of specified radius.
- */
-
-void pickshell(Vector3D<Real> &vec, Real rad)
-   //Real vec[];                     /* coordinate vector chosen */
-   //Real rad;                       /* radius of chosen point */
-{
-   register int k;
-   Real rsq, rsc;
-
-   do {
-     vec.x = xrand(-1.0,1.0);
-     vec.y = xrand(-1.0,1.0);
-     vec.z = xrand(-1.0,1.0);
-     rsq = vec.lengthSquared();
-     //cout << "rsq " << vec.x << "," << vec.y << "," << vec.z << "," << rsq << endl;
-   } while (rsq > 1.0);
-
-   rsc = rad / sqrt(rsq);
-   vec = rsc*vec;
-}
-
-
-int intpow(int i, int j)
-{   
-    int k;
-    int temp = 1;
-
-    for (k = 0; k < j; k++)
-        temp = temp*i;
-    return temp;
-}
-
-void pranset(int);
 
 #define NDIMS 3
 #include "TipsyFile.h"
@@ -205,6 +56,7 @@ int main(int argc, char **argv){
   hdr.time = tnow;
 
   Tipsy::TipsyWriter wr(fname,hdr);
+  assert(wr.writeHeader());
 
   int bufSize = 10*(1<<20)/sizeof(Particle);
 
@@ -261,31 +113,13 @@ int main(int argc, char **argv){
       com.z
       );
 
+  // TEST
+
+  Tipsy::TipsyReader rd(fname);
+  assert(rd.status());
+  hdr = rd.getHeader();
+
   return 0;
-}
-
-void writeToDisk(ofstream &out, Particle *p, int nbody){
-  Real *tmp = new Real[nbody*REALS_PER_PARTICLE];
-  Real soft = 0.001;
-
-  for(int i = 0; i < nbody*REALS_PER_PARTICLE; i += REALS_PER_PARTICLE){
-    tmp[i+0] = p->position.x;
-    tmp[i+1] = p->position.y;
-    tmp[i+2] = p->position.z;
-    tmp[i+3] = p->velocity.x;
-    tmp[i+4] = p->velocity.y;
-    tmp[i+5] = p->velocity.z;
-    tmp[i+6] = p->mass;
-    tmp[i+7] = soft;
-
-    //cout << "WRITE " << p->position.x << " " << p->position.y << " " << p->position.z << endl;
-
-    p++;
-  }
-
-  out.write((char*)tmp, nbody*REALS_PER_PARTICLE*sizeof(Real));
-  out.flush();
-  delete[] tmp;
 }
 
 void readFromDisk(ifstream &in, Particle *p, int nbody){
