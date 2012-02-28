@@ -176,7 +176,8 @@ void pranset(int);
 #define NDIMS 3
 #include "TipsyFile.h"
 
-using namespace Tipsy;
+#define EPS 0.05
+
 
 int main(int argc, char **argv){
   assert(argc == 3);
@@ -203,7 +204,7 @@ int main(int argc, char **argv){
   hdr.ndark = nbody;
   hdr.time = tnow;
 
-  TipsyWriter wr(fname,hdr);
+  Tipsy::TipsyWriter wr(fname,hdr);
 
   int bufSize = 10*(1<<20)/sizeof(Particle);
 
@@ -218,7 +219,7 @@ int main(int argc, char **argv){
   Real totalMass = 0.0;
   Real unitMass;
 
-  dark_particle dp;
+  Tipsy::dark_particle dp;
 
   while(remaining > 0){
     if(remaining > bufSize) curSize = bufSize;
@@ -234,7 +235,13 @@ int main(int argc, char **argv){
       totalMass += p->mass;
       com += p->position;
 
-      dp.
+      dp.mass = p->mass;
+      dp.pos = p->position;
+      dp.vel = p->velocity;
+      dp.eps = EPS;
+      dp.phi = 0.0;
+
+      wr.putNextDarkParticle(dp);
 
       cnt++;
       p++;
