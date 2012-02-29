@@ -26,7 +26,7 @@ OBJECTS = Main.o DataManager.o TreePiece.o util.o \
 SRC = Main.cpp DataManager.cpp TreePiece.cpp \
       util.cpp Reduction.cpp Worker.cpp Request.cpp \
       Orb3dLB_notopo.cpp TreeMerger.cpp \
-      State.cpp gen_util.cpp plummer.cpp 
+      State.cpp gen_util.cpp plummer.cpp tipsyPlummer.cpp  
 
 TARGET = barnes 
 all: $(STRUCTURES_PATH)/libTipsy.a $(TARGET) 
@@ -49,11 +49,17 @@ $(STRUCTURES_PATH)/Makefile:
 plummer.o: plummer.cpp 
 	g++ $(CPPFLAGS) -c plummer.cpp
 
+tipsyPlummer.o: tipsyPlummer.cpp 
+	g++ $(CPPFLAGS) -g -O0 -c tipsyPlummer.cpp
+
 gen_util.o: gen_util.cpp 
 	g++ $(CPPFLAGS) -c gen_util.cpp
 
 plummer: plummer.o gen_util.o 
 	g++ $(CPPFLAGS) -o plummer plummer.o gen_util.o
+
+tipsyPlummer: tipsyPlummer.o gen_util.o 
+	g++ $(CPPFLAGS) -g -O0 -o tipsyPlummer tipsyPlummer.o gen_util.o -lTipsy -L$(STRUCTURES_PATH)
 
 %.decl.h %.def.h : %.ci
 	$(CHARMC) $(APP_FLAGS) -E $(CPPFLAGS) $<
@@ -61,7 +67,7 @@ plummer: plummer.o gen_util.o
 %.o: Makefile
 
 clean:
-	rm -f core* *.a $(OBJECTS) *~ $(TARGET) *.decl.h *.def.h charmrun conv-host gen plummer
+	rm -f core* *.a *.o $(OBJECTS) *~ $(TARGET) *.decl.h *.def.h charmrun conv-host gen plummer tipsyPlummer
 
 depends:
 	$(CXX_DEPEND) $(SRC) | while read i;do echo $$i| awk -F' ' '{for (i=1;i<NF;++i) print $$i" \\"}';echo;done|grep -v "$(CHARM_PATH)/bin" > Makefile.dep 
