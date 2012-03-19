@@ -31,7 +31,10 @@ void readFromDisk(ifstream &in, Particle *p, int nbody);
 
 
 int main(int argc, char **argv){
-  assert(argc == 3);
+  if(argc != 3){
+    fprintf(stderr,"usage: ./tipsyPlummer <input plummer model file> <output Tipsy file>\n");
+    return 1;
+  }
 
   ifstream in(argv[1], ios::in|ios::binary);
   assert(!in.fail() && !in.bad() && in.is_open());

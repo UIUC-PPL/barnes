@@ -177,7 +177,10 @@ void pranset(int);
 
 int main(int argc, char **argv){
   pranset(128363);
-  assert(argc == 4);
+  if(argc != 4){
+    fprintf(stderr,"usage: ./plummer <mode write:0; read:1> <nbody> <output plummer model file>\n");
+    return 1;
+  }
 
   int mode = atoi(argv[1]);
 
