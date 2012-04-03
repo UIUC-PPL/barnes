@@ -1,16 +1,15 @@
-CHARM_PATH = #
+CHARM_PATH = ~/work/charm
 CHARM_LIBS = $(CHARM_PATH)/lib
-MESH_STREAMER_PATH = $(CHARM_LIBS)/MeshStreamer
 INCPATH = $(CHARM_PATH)/include
 STRUCTURES_PATH = utility/structures
 
 VPATH = $(STRUCTURES_PATH)
 
-APP_FLAGS = -DCHECK_INTER -DPHASE_BARRIERS -DNODE_LEVEL_MERGE #-DCOMBINE_NODE_REQUESTS #-DVERBOSE_TRAVERSAL -DVERBOSE_TRAVERSAL_INTERACTION
+APP_FLAGS = -DCHECK_INTER -DPHASE_BARRIERS -DNODE_LEVEL_MERGE -DCOMBINE_NODE_REQUESTS #-DVERBOSE_TRAVERSAL -DVERBOSE_TRAVERSAL_INTERACTION
 OPTS = -O3 -g $(APP_FLAGS)
-CPPFLAGS += -I$(INCPATH) -I$(STRUCTURES_PATH) -I$(MESH_STREAMER_PATH)
+CPPFLAGS += -I$(INCPATH) -I$(STRUCTURES_PATH) 
 CXXFLAGS += $(OPTS) $(CPPFLAGS)
-LDFLAGS += $(OPTS) -L$(STRUCTURES_PATH) -lTipsy -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -module Orb3dLB_notopo -module MeshStreamer -memory os #-tracemode projections
+LDFLAGS += $(OPTS) -L$(STRUCTURES_PATH) -lTipsy -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -module Orb3dLB_notopo -module NDMeshStreamer -module completion -memory os #-tracemode projections
 
 CHARMC = $(CHARM_PATH)/bin/charmc
 
@@ -28,7 +27,7 @@ SRC = Main.cpp DataManager.cpp TreePiece.cpp \
       Orb3dLB_notopo.cpp TreeMerger.cpp \
       State.cpp gen_util.cpp plummer.cpp tipsyPlummer.cpp  
 
-TARGET = barnes 
+TARGET = barnes
 all: $(STRUCTURES_PATH)/libTipsy.a $(TARGET) 
 
 $(TARGET): $(OBJECTS) Makefile.dep libmoduleOrb3dLB_notopo.a $(STRUCTURES_PATH)/libTipsy.a 

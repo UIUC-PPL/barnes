@@ -34,6 +34,7 @@ void TreePiece::findOrbLB(){
 }
 
 void TreePiece::init(){
+  myProxy = CProxy_TreePiece(thisProxy);
   decompMsgsRecvd.length() = 0;
   totalNumTraversals = 2;
   myDM = dataManagerProxy.ckLocalBranch();
@@ -147,7 +148,7 @@ void TreePiece::startTraversal(int dummy){
   RescheduleMsg *msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = REMOTE_GRAVITY_PRIORITY;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-  thisProxy[thisIndex].doRemoteGravity(msg);
+  myProxy[thisIndex].doRemoteGravity(msg);
 
 #ifdef SPLASH_COMPATIBLE
   localTraversalState.reset(this,myRoot->getNumParticles(),myRoot->getParticles());
@@ -160,7 +161,7 @@ void TreePiece::startTraversal(int dummy){
   msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = LOCAL_GRAVITY_PRIORITY;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-  thisProxy[thisIndex].doLocalGravity(msg);
+  myProxy[thisIndex].doLocalGravity(msg);
 }
 
 void TreePiece::doLocalGravity(RescheduleMsg *msg){
@@ -189,7 +190,7 @@ void TreePiece::doLocalGravity(RescheduleMsg *msg){
   //CkPrintf("[%d] localGravity cur %d pending %d\n",thisIndex, localTraversalState.current, localTraversalState.pending);
   if(localTraversalState.current < limit){
     CkAssert(!localTraversalState.complete());
-    thisProxy[thisIndex].doLocalGravity(msg);
+    myProxy[thisIndex].doLocalGravity(msg);
   }
   else{
     delete msg;
@@ -226,7 +227,7 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
   // CkPrintf("[%d] remoteGravity cur %d pending %d\n", thisIndex, remoteTraversalState.current, remoteTraversalState.pending);
   if(remoteTraversalState.current < limit){
     CkAssert(!remoteTraversalState.complete());
-    thisProxy[thisIndex].doRemoteGravity(msg);
+    myProxy[thisIndex].doRemoteGravity(msg);
   }
   else{
     delete msg;
@@ -287,15 +288,19 @@ void TreePiece::requestMoments(Key k, int replyTo){
   myDM->requestMoments(k,replyTo);
 }
 
-void TreePiece::requestParticles(std::pair<Key, int> request) {
+void TreePiece::requestParticles(Key k, int replyTo) {
   // forward the request to the DM, since TPs don't
   // really own particles or nodes
-  myDM->requestParticles(request);
+  myDM->requestParticles(k, replyTo);
+}
+
+void TreePiece::process(NodeRequest &req) {
+  myDM->requestNode(req.key, req.replyTo);
 }
 
 //void TreePiece::requestNode(RequestMsg *request){
-void TreePiece::requestNode(std::pair<Key, int> &request) {
-  myDM->requestNode(request);
+void TreePiece::requestNode(Key k, int replyTo) {
+  myDM->requestNode(k, replyTo);
 }
 
 int TreePiece::getIteration() {
@@ -303,7 +308,7 @@ int TreePiece::getIteration() {
 }
 
 void TreePiece::pup(PUP::er &p){
-  CBase_TreePiece::pup(p);
+  MeshStreamerArrayClient<NodeRequest>::pup(p);
   p | iteration;
   if(p.isUnpacking()){
     init();

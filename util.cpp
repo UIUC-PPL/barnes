@@ -1,3 +1,4 @@
+#include "NDMeshStreamer.h"
 #include "defines.h"
 #include "Particle.h"
 #include "util.h"

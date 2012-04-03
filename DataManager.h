@@ -4,7 +4,7 @@
 #include "Particle.h"
 
 #include "OrientedBox.h"
-#include "MeshStreamer.h"
+#include "NDMeshStreamer.h"
 #include "barnes.decl.h"
 #include "Node.h"
 #include "Descriptor.h"
@@ -54,7 +54,7 @@ struct CacheStats {
   bool test(){ return (outstandingRequests==0) && (outstandingDeliveries==0); }
 };
 
-class DataManager : public MeshStreamerClient<NodeRequest> {
+class DataManager : public CBase_DataManager{
   int numRankBits;
   int numPesPerNode;
   double prevIterationStart;
@@ -129,7 +129,9 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   CmiUInt8 numInteractions[3];
   CProxy_DataManager myProxy;
   
-  MeshStreamer<NodeRequest> *combiner;
+  ArrayMeshStreamer<NodeRequest, 
+                    CProxy_MeshStreamerArrayClient<NodeRequest>, 
+                    int > *combiner;
   CkArray *tpArray;
 
   // Called by requestNode() and process() (when streaming-combining)
@@ -217,20 +219,20 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
   Node<ForceData> *requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
   ExternalParticle * requestParticles(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *callbackTraversal);
 
-  void combineNodeRequest(int tpindex, Key k);
   void combineParticleRequest(Key k, int tpindex);
 
   // after detecting quiescence, identify tree pieces on PE
   // and get their particles
   void processSubmittedParticles();
+  void doneStreaming();
 
   void startTraversal();
   void doneNodeLevelMerge(PointerContainer);
 
   // called by tree piece that is forwarding a remote request
   //void requestNode(RequestMsg *);
-  void requestNode(std::pair<Key, int> &request);
-  void requestParticles(std::pair<Key, int> &request);
+  void requestNode(Key key, int replyTo);
+  void requestParticles(Key k, int replyTo);
   
   void recvParticles(ParticleReplyMsg *msg);
   void recvNode(NodeReplyMsg *msg);
@@ -245,7 +247,6 @@ class DataManager : public MeshStreamerClient<NodeRequest> {
 
   void resumeFromLB();
 
-  void process(NodeRequest &);
   void pup(PUP::er &p);
 
   // phase timing measurements

@@ -3,7 +3,7 @@
 
 #include "defines.h"
 #include "OrientedBox.h"
-#include "MeshStreamer.h"
+#include "NDMeshStreamer.h"
 #include "barnes.decl.h"
 #include "Particle.h"
 #include "Messages.h"
@@ -18,7 +18,9 @@
 
 extern CProxy_DataManager dataManagerProxy;
 
-class TreePiece : public CBase_TreePiece {
+class TreePiece : public MeshStreamerArrayClient<NodeRequest> {
+
+  CProxy_TreePiece myProxy;
   CkVec<ParticleMsg *> decompMsgsRecvd;
   int myNumParticles;
 
@@ -81,9 +83,9 @@ class TreePiece : public CBase_TreePiece {
   void doLocalGravity(RescheduleMsg *);
   void doRemoteGravity(RescheduleMsg *);
 
-  void requestParticles(std::pair<Key, int> request);
+  void requestParticles(Key k, int replyTo);
   //void requestNode(RequestMsg *);
-  void requestNode(std::pair<Key, int> &request);
+  void requestNode(Key k, int replyTo);
 
   void requestMoments(Key k, int replyTo);
   void traversalDone();
@@ -98,6 +100,8 @@ class TreePiece : public CBase_TreePiece {
   void cleanup();
   void doAtSync(); 
   void ResumeFromSync();
+
+  void process(NodeRequest &req);
 };
 
 #endif
