@@ -17,7 +17,7 @@
 
 */
 
-#define TB_DEBUG CkPrintf
+#define TB_DEBUG
 
 #include "DataManager.h"
 #include "Reduction.h"
@@ -965,6 +965,7 @@ void DataManager::flushMomentRequests(){
 #endif
 
 void DataManager::respondToMomentsRequest(Node<ForceData> *node, CkVec<int> &replyTo){
+
   MomentsExchangeStruct moments = *node;
   for(int i = 0; i < replyTo.length(); i++){
     TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), replyTo[i], node->getKey());
@@ -1285,9 +1286,11 @@ Node<ForceData>* DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<Fo
 
 void DataManager::doneRemoteRequests(){
   numTreePiecesDoneRemoteRequests++;
+  /*
   if(numTreePiecesDoneRemoteRequests == numLocalUsefulTreePieces){
     combiner->done(localTreePieces.count);
   }
+  */
 }
 
 void DataManager::requestNode(Key k, int replyTo){
@@ -1503,6 +1506,7 @@ void DataManager::advance(CkReductionMsg *msg){
 }
 
 void DataManager::recvUnivBoundingBox(CkReductionMsg *msg){
+  
   BoundingBox univBB;
   Real *data = (Real *)msg->getData();
   for(int i = 0; i < 3; i++){
@@ -1511,6 +1515,8 @@ void DataManager::recvUnivBoundingBox(CkReductionMsg *msg){
   }
   univBB.pe = data[6];
   univBB.ke = data[7];
+
+  combiner->done(localTreePieces.count);
 
   decompose(univBB);
   delete msg;
