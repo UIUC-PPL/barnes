@@ -17,7 +17,7 @@
 
 */
 
-#define TB_DEBUG 
+#define TB_DEBUG CkPrintf
 
 #include "DataManager.h"
 #include "Reduction.h"
@@ -49,9 +49,7 @@ extern CProxy_TreeMerger treeMergerProxy;
 extern CProxy_Main mainProxy;
 extern Parameters globalParams;
 
-extern CProxy_ArrayMeshStreamer<NodeRequest, 
-                                CProxy_MeshStreamerArrayClient<NodeRequest>, 
-                                int > combinerProxy;
+extern CProxy_ArrayMeshStreamer<NodeRequest, int > combinerProxy;
 extern CProxy_CompletionDetector detector;
 
 #define RRDEBUG 
@@ -92,8 +90,7 @@ void DataManager::initProxies(){
   // set up my own proxy, local combiner, TP ckarray
   myProxy = CProxy_DataManager(thisgroup);
   combiner = ((ArrayMeshStreamer<NodeRequest, 
-                                CProxy_MeshStreamerArrayClient<NodeRequest>, 
-                                int> *)CkLocalBranch(combinerProxy));
+               int> *) CkLocalBranch(combinerProxy));
   tpArray = treePieceProxy.ckGetArrayID().ckLocalBranch();
 
   numRankBits = LOG_BRANCH_FACTOR;
@@ -630,7 +627,7 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   else{
     // No more leaves to refine; send out particles to tree pieces
     double t = CmiWallTimer();
-    CkPrintf("[0] Decomposition took %f s iterations %d\n", t-phaseTime, decompIterations);
+    CkPrintf("[0] Decomposition took %f s iterations %d histogramParticles %d\n", t-phaseTime, decompIterations, particlesHistogrammed);
     phaseTime = t;
     decompIterations = 0;
     doneDecomposition();
@@ -2062,8 +2059,7 @@ void DataManager::pup(PUP::er &p){
   p|myProxy;
   if(p.isUnpacking()){
     combiner = ((ArrayMeshStreamer<NodeRequest, 
-                                   CProxy_MeshStreamerArrayClient<NodeRequest>, 
-                                   int> *)CkLocalBranch(combinerProxy));
+                 int> *)CkLocalBranch(combinerProxy));
     tpArray = treePieceProxy.ckGetArrayID().ckLocalBranch();
   }
 

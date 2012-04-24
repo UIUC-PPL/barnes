@@ -64,7 +64,7 @@ class TreePiece : public MeshStreamerArrayClient<NodeRequest> {
   TreePiece();
   TreePiece(CkMigrateMessage *) {}
 
-  int getIndex() {return thisIndex;}
+  CkIndexMax getIndex() {return thisIndex;}
 
   void receiveParticles(ParticleMsg *msg);
 

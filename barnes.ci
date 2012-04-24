@@ -10,9 +10,7 @@ mainmodule barnes {
   readonly CProxy_Main mainProxy;
   readonly Parameters globalParams;
 
-  readonly CProxy_ArrayMeshStreamer<NodeRequest,
-                                    CProxy_MeshStreamerArrayClient<NodeRequest>,
-                                    int> combinerProxy;  
+  readonly CProxy_ArrayMeshStreamer<NodeRequest, int> combinerProxy;
   readonly CProxy_CompletionDetector detector;
 
   initproc void registerReducers();
@@ -135,10 +133,8 @@ mainmodule barnes {
   };
 
   message MeshStreamerMessage<ArrayDataItem<NodeRequest, int> >;
-  array [1D] MeshStreamerArrayClient<NodeRequest>;
-  group ArrayMeshStreamer<NodeRequest,  
-                          CProxy_MeshStreamerArrayClient<NodeRequest>, 
-                          int >;
+  array [Max] MeshStreamerArrayClient<NodeRequest>;
+  group ArrayMeshStreamer<NodeRequest, int >;
   group MeshStreamer<ArrayDataItem<NodeRequest, int> >;
 
 };

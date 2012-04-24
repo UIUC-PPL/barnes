@@ -32,9 +32,7 @@ CProxy_TreeMerger treeMergerProxy;
 CProxy_Main mainProxy;
 
 CProxy_CompletionDetector detector;
-CProxy_ArrayMeshStreamer<NodeRequest, 
-                         CProxy_MeshStreamerArrayClient<NodeRequest>, 
-                         int > combinerProxy;
+CProxy_ArrayMeshStreamer<NodeRequest, int > combinerProxy;
 
 Parameters globalParams;
 
@@ -54,7 +52,8 @@ Main::Main(CkArgMsg *msg){
   int meshNumColumns = tmgr.getDimNY();
   int meshNumPlanes = tmgr.getDimNZ();
 
-  int meshTopology[] = {meshNumRows, meshNumColumns, meshNumPlanes};
+  //  int meshTopology[] = {meshNumRows, meshNumColumns, meshNumPlanes};
+  int meshTopology[] = {2, 2, 2};
 
   CkArrayOptions opts(globalParams.numTreePieces);
   /* 
@@ -66,11 +65,10 @@ Main::Main(CkArgMsg *msg){
   /*
     Create the tree piece chare array.
   */
-  treePieceProxy = CProxy_TreePiece::ckNew(opts);
+  treePieceProxy = CProxy_TreePiece::ckNew(opts);  
 
   combinerProxy = 
-    CProxy_ArrayMeshStreamer<NodeRequest, 
-                             CProxy_MeshStreamerArrayClient<NodeRequest>, 
+    CProxy_ArrayMeshStreamer<NodeRequest,                         
                              int>::ckNew(globalParams.combineFlushCount, 
                                          3, meshTopology, treePieceProxy,
                                          0, globalParams.combineFlushPeriod);
