@@ -1,4 +1,4 @@
-CHARM_PATH = ~/work/charm
+CHARM_PATH = #
 CHARM_LIBS = $(CHARM_PATH)/lib
 INCPATH = $(CHARM_PATH)/include
 STRUCTURES_PATH = utility/structures
