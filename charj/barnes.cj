@@ -399,15 +399,6 @@ group DataManager {
   CmiUInt8 numInteractions[3];
   CProxy_DataManager myProxy;
 
-  ArrayMeshStreamer<NodeRequest, 
-    CProxy_MeshStreamerArrayClient<NodeRequest>, 
-    int > *combiner;
-  CkArray *tpArray;
-
-
-
-
-
   entry DataManager(){
     iteration = 0;
     prevIterationStart = 0.0;
@@ -2109,31 +2100,32 @@ array[1D] TreePiece {
   entry void startTraversal(int dummy){
     trav.setDataManager(myDM);
 
-      if(myNumBuckets == 0){
-        doneRemoteRequests();
-        finishIteration();
-        return;
-      }
+    if(myNumBuckets == 0){
+      doneRemoteRequests();
+      finishIteration();
+      return;
+    }
 
     remoteTraversalState.reset(this,myNumBuckets,myBuckets);
     remoteTraversalWorker.reset(this,remoteTraversalState,myBuckets[0]);
 
     RescheduleMsg msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
+    // FIXME - how to do this?
     *(int *)CkPriorityPtr(msg) = REMOTE_GRAVITY_PRIORITY;
     CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-    thisProxy[thisIndex].doRemoteGravity(msg);
+    thisProxy[thisIndex]@doRemoteGravity(msg);
 
     localTraversalState.reset(this,myNumBuckets,myBuckets);
-    localTraversalWorker.reset(this,&localTraversalState,*myBuckets);
+    localTraversalWorker.reset(this,localTraversalState,*myBuckets);
 
     msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
+    // FIXME - how to do this?
     *(int *)CkPriorityPtr(msg) = LOCAL_GRAVITY_PRIORITY;
     CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-    thisProxy[thisIndex].doLocalGravity(msg);
+    thisProxy[thisIndex]@doLocalGravity(msg);
   }
 
-  //entry void doLocalGravity();
-  //entry void doRemoteGravity();
+  // FIXME - start here
   entry void doLocalGravity(RescheduleMsg msg){
     int i;
     int limit;
@@ -2227,48 +2219,48 @@ array[1D] TreePiece {
   }
 
   // sequential functions
-void findOrbLB(){
-  LBDatabase *lbdb = LBDatabaseObj();
-  numLB = lbdb->getNLoadBalancers();
-  BaseLB **lb = lbdb->getLoadBalancers();
-  haveOrbLB = false;
-  for(int i = 0; i < numLB; i++){
-    if(string(lb[i]->lbName()) == "Orb3dLB_notopo"){
-      orbLBProxy = lb[i]->getGroupID();
-      haveOrbLB = true;
-      break;
+  void findOrbLB(){
+    LBDatabase *lbdb = LBDatabaseObj();
+    numLB = lbdb->getNLoadBalancers();
+    BaseLB **lb = lbdb->getLoadBalancers();
+    haveOrbLB = false;
+    for(int i = 0; i < numLB; i++){
+      if(string(lb[i]->lbName()) == "Orb3dLB_notopo"){
+        orbLBProxy = lb[i]->getGroupID();
+        haveOrbLB = true;
+        break;
+      }
     }
   }
-}
 
-void init(){
-  decompMsgsRecvd.length() = 0;
-  totalNumTraversals = 2;
-  myDM = dataManagerProxy.ckLocalBranch();
-  root = null;
-  myBuckets = null;
-  myNumBuckets = 0;
-  myNumParticles = 0;
-  myRoot = null;
-  localTraversalState.finishedIteration();
-  remoteTraversalState.finishedIteration();
+  void init(){
+    decompMsgsRecvd.length() = 0;
+    totalNumTraversals = 2;
+    myDM = dataManagerProxy.ckLocalBranch();
+    root = null;
+    myBuckets = null;
+    myNumBuckets = 0;
+    myNumParticles = 0;
+    myRoot = null;
+    localTraversalState.finishedIteration();
+    remoteTraversalState.finishedIteration();
 
-}
+  }
 
-void checkTraversals(){
-}
+  void checkTraversals(){
+  }
 
-void clearBucketsDebug(){
-}
+  void clearBucketsDebug(){
+  }
 
-void TreePiece::prepare(Node<ForceData> _root, Node<ForceData> _myRoot, Node<ForceData> **buckets, int _numBuckets)
-{
-  root = _root;
-  myRoot = _myRoot;
-  CkAssert(myRoot.getNumParticles() == myNumParticles);
-  myBuckets = buckets;
-  myNumBuckets = _numBuckets;
-}
+  void TreePiece::prepare(Node<ForceData> _root, Node<ForceData> _myRoot, Node<ForceData> **buckets, int _numBuckets)
+  {
+    root = _root;
+    myRoot = _myRoot;
+    CkAssert(myRoot.getNumParticles() == myNumParticles);
+    myBuckets = buckets;
+    myNumBuckets = _numBuckets;
+  }
 
 
 
