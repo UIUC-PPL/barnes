@@ -1,0 +1,2285 @@
+/*
+  Proxies for tree pieces, data managers and main chare.
+*/
+readonly TreePiece@ treePieceProxy;
+readonly DataManager@ dataManagerProxy;
+readonly TreeMerger@ treeMergerProxy;
+readonly Main@ mainProxy;
+readonly Parameters globalParams;
+
+class Parameters;
+class MultipoleMoments;
+
+message ParticleMsg {
+  Array<Particle> part;
+  int numParticles;
+};
+
+// To respond to remote request for particles 
+message ParticleReplyMsg {
+  ExternalParticle data[];
+  Key key;
+  int np;
+};
+
+message RequestMsg{
+  Key key;
+  int replyTo;
+  RequestMsg(Key _key, int _replyTo){
+    key = _key;
+    replyTo = _replyTo;
+  }
+};
+
+// To respond to remote request for subtree under node
+message NodeReplyMsg {
+  Node<ForceData> data[];
+  Key key;
+  int nn;
+};
+
+// To continuously reschedule local and remote work
+message RescheduleMsg{
+};
+
+include "Descriptor.h";
+
+// Main chare initiates computation and ends it
+mainchare Main {
+  entry Main(CkArgMsg msg){
+    /* Read input parameters from command line. Fill in defaults for
+       unspecified parameters.
+     */
+    setParameters(msg);
+
+    /* Create the DataManager group; there is one representative/member
+       of the group on each PE.
+     */
+    treeMergerProxy = new TreeMerger@();
+    dataManagerProxy = new DataManager@();
+
+    CkArrayOptions opts(globalParams.numTreePieces);
+    /* 
+       We would like the tree piece array elements to be mapped to PEs
+       in a round-robin fashion to begin with.
+     */
+    CProxy_RRMap myMap = CProxy_RRMap::ckNew();
+    opts.setMap(myMap);
+    /*
+       Create the tree piece chare array.
+     */
+    treePieceProxy = new TreePiece@(opts);
+
+    /*
+       Set mainProxy readonly so that it is available
+       on all other PEs after this method finishes.
+     */
+    mainProxy = thisProxy;
+
+    /*
+       Begin actual computation
+     */
+    thisProxy.commence();
+
+    delete msg;
+  }
+
+  void setParameters(CkArgMsg m){
+    map<string,string> table;
+    params.extractParameters(m.argc, m.argv, table); 
+
+    map<string,string>::iterator it = table.find("in");
+    if(it == table.end()){
+      CkPrintf("[Main] Must specify input particle file:\n");
+      usage();
+      CkAbort("bad command line arguments\n");
+    }
+
+    /* Input file */
+    string filename = params.getsparam("in", table);
+    globalParams.nchars = filename.length();
+    globalParams.filename = new char[globalParams.nchars+1];
+    filename.copy(globalParams.filename,globalParams.nchars);
+    globalParams.filename[globalParams.nchars] = '\0';
+
+    /* Opening angle */
+    globalParams.theta = params.getrparam("theta", DEFAULT_THETA, table);
+    CkPrintf("theta: %f\n", globalParams.theta);
+
+    /* Step time */
+    globalParams.dtime = params.getrparam("dtime", DEFAULT_DTIME, table);
+    CkPrintf("dtime: %f\n", globalParams.dtime);
+
+    /* Half of step time; used in leapfrog "kick" */
+    globalParams.dthf = globalParams.dtime/2.0;
+
+    /* Softening parameter */
+    globalParams.epssq = params.getrparam("eps", DEFAULT_EPS, table);
+    CkPrintf("eps: %f\n", globalParams.epssq);
+    globalParams.epssq = globalParams.epssq*globalParams.epssq;
+
+    globalParams.tolsq = globalParams.theta;
+    CkPrintf("tol: %f\n", globalParams.tolsq);
+    globalParams.tolsq = globalParams.tolsq*globalParams.tolsq;
+
+    /* Particles per chare (number of particles per tree piece) */
+    globalParams.ppc = params.getiparam("ppc", DEFAULT_PPC, table); 
+    CkPrintf("ppc: %d\n", globalParams.ppc);
+
+    globalParams.ppb = params.getiparam("b", DEFAULT_PPB, table);
+    CkPrintf("bucketSize: %d\n", globalParams.ppb);
+
+    /* Number of steps to run the simulation for */
+    globalParams.iterations = params.getiparam("killat", DEFAULT_KILLAT, table);
+    CkPrintf("killat: %d\n", globalParams.iterations);
+
+    /* 
+       When a remote node is requested, the subtree beneath
+       it up to "cacheLineSize" is communicated alongwith the
+       node itself. This helps to coarsen the grain of communication.
+     */
+    globalParams.cacheLineSize = params.getiparam("chunkdepth", DEFAULT_CHUNK_DEPTH, table);
+    CkPrintf("chunkdepth: %d\n", globalParams.cacheLineSize);
+
+    /*
+       When traversing the global tree for each bucket of particles, 
+       do "yield" number of buckets before returning to the scheduler
+       to look for outstanding request messages, etc.
+     */
+    globalParams.yieldPeriod = params.getiparam("yield", DEFAULT_YIELD_PERIOD, table);
+    CkPrintf("yieldPeriod: %d\n", globalParams.yieldPeriod);
+
+    /*
+       Do load balancing every "balancePeriod" iterations.
+     */
+    globalParams.balancePeriod = params.getiparam("balancePeriod", DEFAULT_BALANCE_PERIOD, table);
+    CkPrintf("balancePeriod: %d\n", globalParams.balancePeriod);
+
+    globalParams.doPrintAccel = false;
+    if(table.find("printAccel") != table.end()) globalParams.doPrintAccel = true;
+    CkPrintf("doPrintAccel: %d\n", globalParams.doPrintAccel);
+
+    globalParams.doPrintTree = false;
+    if(table.find("printTree") != table.end()) globalParams.doPrintTree = true;
+    CkPrintf("doPrintTree: %d\n", globalParams.doPrintTree);
+
+    /* Number of steps between decompositions */
+    globalParams.decompPeriod = params.getiparam("decompPeriod", DEFAULT_DECOMP_PERIOD, table); 
+    CkPrintf("decompPeriod: %d\n", globalParams.decompPeriod);
+
+    /* To prevent sending of very large messages after decomposition */
+    globalParams.particleMsgMaxSize = params.getiparam("particleMsgMaxSize", DEFAULT_PARTICLE_MSG_MAX_SIZE, table); 
+    CkPrintf("particleMsgMaxSize: %d\n", globalParams.particleMsgMaxSize);
+
+    /* Decide several bits in one iteration when decomposing */
+    globalParams.decompLevels = params.getiparam("decompLevels", DEFAULT_DECOMP_BITS, table); 
+    CkPrintf("decompLevels: %d\n", globalParams.decompLevels);
+
+
+    /*
+       Use the filename obtained previously to read just the 
+       number of particles from the input file.
+     */
+    getNumParticles();
+
+    /* 
+       Find the appropriate number of tree pieces to generate.
+     */
+    it = table.find("p");
+    /* 
+       Find the appropriate number of tree pieces to generate.
+     */
+    if(it == table.end()){
+      /*
+         If the number of pieces is not specified by the user, 
+         calculate it from the number of particles per chare and
+         the total number of particles.
+       */
+      globalParams.numTreePieces = CkNumPes()*8;
+    }
+    else{
+      /*
+         If the number of pieces is specified by the user, use that.
+       */
+      globalParams.numTreePieces = atoi(it.second.c_str());
+    }
+
+    CkPrintf("tree pieces: %d\n", globalParams.numTreePieces);
+
+
+  }
+
+  void getNumParticles(){
+    CkPrintf("[Main] file %s\n", globalParams.filename);
+
+    string filename(globalParams.filename);
+    Tipsy::TipsyReader r(filename);
+    if(!r.status()) {
+      cerr << CkMyPe() << ": Fatal: Couldn't open tipsy file! " << filename << endl;
+      CkExit();
+      return;
+    }
+
+    Tipsy::header tipsyHeader = r.getHeader();
+    int nTotalParticles = tipsyHeader.nbodies;
+    int nTotalSPH = tipsyHeader.nsph;
+    int nTotalDark = tipsyHeader.ndark;
+    int nTotalStar = tipsyHeader.nstar;
+
+    CkPrintf("[Main] nsph %d ndark %d nstar %d\n", tipsyHeader.nsph, tipsyHeader.ndark, tipsyHeader.nstar);
+  }
+
+  entry void commence(){
+    double loadTime = CmiWallTimer();
+    CkPrintf("[Main] load particles ... ");
+    /* 
+       Tell each PE to read the particles 
+       from its portion of the input file
+     */
+    dataManagerProxy@loadTipsy(CkCallback(CkReductionTarget(Main,doneLoadParticles),thisProxy));
+  }
+
+  entry void doneLoadParticles(Array<Real> bb){
+    //dataManagerProxy.loadParticles(CkCallbackResumeThread((void *&)redMsg));
+
+    CkPrintf(" took %f s\n", CmiWallTimer()-loadTime);
+    CkPrintf("bb l %f %f %f g %f %f %f\n", bb[0], bb[1], bb[2], bb[3], bb[4], bb[5]);
+
+    //CkExit();
+    //return;
+
+    /*
+       Each PE contributes the bounding box of the particles
+       it read to a reduction; as a result, the bounding box
+       of all particles in the simulated "universe" is obtained.
+     */
+    BoundingBox universe;
+    //Real *data = (Real *) redMsg->getData();
+    for(int i = 0; i < 3; i++){
+      universe.box.lesser_corner[i] = bb[i];
+      universe.box.greater_corner[i] = bb[i+3];
+    }
+    universe.pe = data[6];
+    universe.ke = data[7];
+
+    Real pad = 0.00001;
+    /*
+       Provide a little padding so that the particles closest to
+       the extremities of the universe get correct keys.
+     */
+    universe.expand(pad);
+    /*
+       Tell all PEs to begin Oct decomposition of read particles.
+     */
+
+    CkStartQD(CkCallback(CkReductionTarget(DataManager,doneParticleFlush),0,dataManagerProxy));
+    dataManagerProxy@decompose(universe);
+
+  }
+
+  void niceExit(){
+    CkPrintf("[Main] graceful exit\n");
+    CkExit();
+  }
+
+  void quiescence(){
+    CkPrintf("[Main] Quiescence detected!\n");
+    treePieceProxy.quiescence();
+    dataManagerProxy.quiescence();
+  }
+
+  void quiescenceExit(){
+    numQuiescenceRecvd++;
+    if(numQuiescenceRecvd == 2){
+      CkExit();
+    }
+  }
+
+  void usage(){
+    map<string,string> usage;
+    usage["in"] = "input file";
+    usage["ppc"] = "particles per chare";
+    usage["b"] = "particles per bucket (leaf)";
+    usage["theta"] = "opening angle";
+    usage["killat"] = "num single steps";
+    usage["chunkDepth"] = "when fetching remote data, what depth of subtree to fetch";
+    usage["yield"] = "how many buckets to process before yielding processor";
+    usage["ppc"] = "particleschare";
+
+
+    map<string,string>::iterator it;
+    CkPrintf("Usage: ./charmrun +p<numproc> ./barnes <options>\n");
+    CkPrintf("Options take the form -<name>=<value>\n");
+    CkPrintf("Options are described below:\n");
+    for(it = usage.begin(); it != usage.end(); it++){
+      CkPrintf("%s : %s\n", it.first.c_str(), it.second.c_str());
+    }
+  }
+
+
+  Parameters params;
+  int numQuiescenceRecvd;
+};
+
+
+include "Particle.h";
+
+  /*
+    There is one DataManager per PE. It has several functions: 
+    1. load a subset of the particles from an input file
+    2. Oct-decompose particles onto TreePieces using a histogram-sort like algorithm
+    3. Construct a PE-level tree from all the particles on the PE after decomposition
+    4. Initiate traversals for all TreePieces on the PE after tree building
+    5. Maintain a per-PE cache of data fetched from remote sources for TreePieces on the PE
+    6. Update particle positions and velocities once traversals have completed.
+  */
+group DataManager {
+
+  // data members
+  int numRankBits;
+  int numPesPerNode;
+  double prevIterationStart;
+
+  double phaseTime;
+
+  CkVec<Particle> myParticles;
+  int myNumParticles;
+  BoundingBox myBox;
+  BoundingBox univBox;
+  Real uside;
+
+  int numTreePieces;
+  int numLocalUsefulTreePieces;
+  TreePieceCounter localTreePieces;
+
+  int numMomentsRequested;
+  int numMomentsReceived;
+
+  int iteration;
+  int decompIterations;
+  ActiveBinInfo<ForceData> activeBins;
+  // Root of particles on this PE
+  // Used in both decomposition and traversal
+  Node<ForceData> *root;
+
+  CkVec<Node<ForceData>*> myBuckets;
+
+  // I am done constructing the tree 
+  // from particles present on this PE
+  bool doneTreeBuild;
+  map<Key,Node<ForceData>*> nodeTable;
+
+  map<Key,CkVec<int> > pendingMoments;
+
+  // I have processed the moment 
+  // contributions from all other PEs, so that
+  // the tree on this PE is now ready for 
+  // traversal
+  bool treeMomentsReady;
+  //CkVec<RequestMsg*> bufferedNodeRequests;
+  CkVec< std::pair<Key, int> > bufferedNodeRequests;
+  CkVec< std::pair<Key, int> > bufferedParticleRequests;
+
+  map<Key,Request> nodeRequestTable;
+  map<Key,Request> particleRequestTable;
+
+  // needed for skipping decomposition
+  CkVec<Key> treePieceKeys;
+  bool doSkipDecomposition;
+
+  Traversal<ForceData> fillTrav;
+  int numTreePiecesDoneTraversals;
+  int numTreePiecesDoneRemoteRequests;
+  CacheStats nodeReqs;
+  CacheStats partReqs;
+
+  /* used only on PE 0 to track drift in energy */ 
+  Real compareEnergy;
+
+  CmiUInt8 numInteractions[3];
+  CProxy_DataManager myProxy;
+
+  ArrayMeshStreamer<NodeRequest, 
+    CProxy_MeshStreamerArrayClient<NodeRequest>, 
+    int > *combiner;
+  CkArray *tpArray;
+
+
+
+
+
+  entry DataManager(){
+    iteration = 0;
+    prevIterationStart = 0.0;
+    root = null; 
+    numPesPerNode = CkNumPes()/CkNumNodes();
+    numLocalUsefulTreePieces = 0;
+    doSkipDecomposition = false;
+    init();
+  }
+
+  entry void loadTipsy(CkCallback cb){
+    initProxies();
+
+    string filename(globalParams.filename);
+    Tipsy.TipsyReader r(filename);
+    if(!r.status()) {
+      CkPrintf("[%d] : Fatal: Couldn't open tipsy file (%s)\n", CkMyPe(), filename);
+      CkExit();
+      return;
+    }
+
+    Tipsy::header tipsyHeader = r.getHeader();
+    int nTotalParticles = tipsyHeader.nbodies;
+    int nTotalSPH = tipsyHeader.nsph;
+    int nTotalDark = tipsyHeader.ndark;
+    int nTotalStar = tipsyHeader.nstar;
+    int dStartTime = tipsyHeader.time;
+    int excess;
+    int startParticle;
+
+    int numLoaders = CkNumPes();
+
+    myNumParticles = nTotalParticles / numLoaders;
+    excess = nTotalParticles % numLoaders;
+    startParticle = myNumParticles * CkMyPe();
+    if(CkMyPe() < (int) excess) {
+      myNumParticles++;
+      startParticle += CkMyPe();
+    }
+    else {
+      startParticle += excess;
+    }
+
+    // allocate an array for myParticles
+    int nStore = myNumParticles;
+    myParticles.resize(nStore);
+
+    if(!r.seekParticleNum(startParticle)) {
+      CkAbort("Couldn't seek to my particles!");
+      return;
+    }
+
+    // namespace Tipsy
+    Tipsy.gas_particle gp;
+    Tipsy.dark_particle dp;
+    Tipsy.star_particle sp;
+
+    int iSPH = 0;
+    int iStar = 0;
+    myBox.reset();
+    myBox.pe = 0.0;
+    myBox.ke = 0.0;
+
+    CkAssert(nTotalSPH == 0);
+    CkAssert(nTotalStar == 0);
+    for(int i = 0; i < myNumParticles; ++i) {
+      CkAssert(r.getNextDarkParticle(dp)); 
+      myParticles[i].mass = dp.mass;
+      myParticles[i].position = dp.pos;
+      myParticles[i].velocity = dp.vel;
+
+      myParticles[i].order = i+startParticle; 
+      myParticles[i].potential = 0.0;
+      myBox.grow(myParticles[i].position);
+      myBox.mass += myParticles[i].mass;
+      myBox.ke += myParticles[i].mass*myParticles[i].velocity.lengthSquared();
+      myBox.pe = 0.0;
+    }
+    myBox.ke /= 2.0;
+    contributeBoundingBox(cb);
+  }
+
+  /*
+     Use the keys of the particles (as calculated above) 
+     to decompose them onto tree pieces. Each tree piece
+     gets a subvolume of the entire universe. This subvolume
+     is represented in the tree by a particular node (internal
+     or leaf). All particles within this subvolume fall beneath
+     the node, so that the node's key is the common prefix of 
+     all particles enclosed by the subvolume.
+
+     Through the decomposition, we obtain several subsets of 
+     particles, each of which constitutes a subvolume of the 
+     universe. This subvolume corresponds to a tree piece, and
+     the number of particles within it is guaranteed to be less
+     than a user-specified threshold (ppc/particles per chare).
+
+     The decomposition procedure is iterative, similar to
+     histogram sort. In each iteration, a master PE (0) maintains
+     a list of "active" nodes (leaves) which are to be partitioned.
+     The keys of these nodes are broadcast to the workers (PE 0 is 
+     both master and worker). The workers split the corresponding
+     nodes into children and partition the particles previously in
+     the active nodes to the appropriate children. They then contribute
+     the number of particles they hold under each child to a reduction.
+     The master uses the result of this reduction to find which nodes
+     are to be split further: These are made active leaves for the 
+     next iteration; this continues until there are no remaining active
+     leaves.
+
+     Decomposition begins at the root of the global tree, which 
+     represents the bounding box enclosing all particles in the 
+     simulated universe.
+   */
+  entry void decompose(BoundingBox &universe){
+    univBox = universe;
+
+    uside = (univBox.box.greater_corner-univBox.box.lesser_corner).lengthSquared();
+    uside *= 1.00002;
+
+    if(CkMyPe() == 0){
+      phaseTime = CmiWallTimer();
+    }
+
+    // Obtain key for each particle given the extents of the universe.
+    hashParticleCoordinates(univBox.box);
+    // Sort particles so that decomposition can be done in-place.
+    myParticles.quickSort();
+
+    if(CkMyPe()==0){
+      Real deltaE = 0.0;
+      // Check whether total energy remains (about) constant
+      if(iteration == 1){
+        // save this value so that we can compare
+        // against it in future iterations. 
+        compareEnergy = univBox.ke+univBox.pe;
+      }
+      else if(iteration > 1){
+        deltaE = compareEnergy-(univBox.ke+univBox.pe);
+        deltaE /= compareEnergy;
+        if(deltaE < 0.0) deltaE = -deltaE;
+      }
+
+      // Print statistics
+      float memMB = (1.0*CmiMemoryUsage())/(1<<20);
+      ostringstream oss; 
+      CkPrintf("(%d) iteration %d rsize %f energy %f delE/E %f\n", 
+          CkMyPe(),
+          iteration,
+          uside,
+          univBox.ke+univBox.pe, deltaE);
+
+      CkPrintf("(%d) mem %.2f MB prev time %g s\n\n", CkMyPe(), memMB, CmiWallTimer()-prevIterationStart);
+
+      if(iteration > 1){
+        // The energy should grow in magnitude
+        // by less than a tenth of one per cent.
+        //CkAssert(deltaE < 0.01);
+      }
+
+      prevIterationStart = CkWallTimer();
+    }
+
+    if(doSkipDecomposition){
+      skipFlushParticles();
+    }
+    else{
+      // How many particles do I hold?
+      initHistogramParticles();
+      // Send this count to the master PE
+      sendHistogram();
+    }
+  }
+
+  // executed on PE 0
+  entry void receiveHistogram(CkReductionMsg msg){
+    // FIXME - how to get data from reduction msg?
+    int numRecvdBins = msg.getSize()/sizeof(int);
+    int *counts = (int *)msg.getData();
+    CkVec<int> binsToRefine;
+
+    /* 
+       Reserve enough space so that all active leaves 
+       can be partitioned, if necessary
+     */
+    binsToRefine.reserve(numRecvdBins);
+    binsToRefine.length() = 0;
+
+    int particlesHistogrammed = 0;
+    /*
+       The newly created children of the active leaves
+       are now the active leaves themselves. 
+     */
+    CkVec<pair<Node<ForceData>,bool> > active = activeBins.getActive();
+    CkAssert(numRecvdBins == active.length());
+
+    Real thresh = (DECOMP_TOLERANCE*(Real)(globalParams.ppc));
+    // Check which new active leaves need to be partitioned
+    Node<ForceData> node = NULL;
+    for(int i = 0; i < numRecvdBins; i++){
+      node = active[i].first;
+      if((Real)counts[i] > thresh){
+        // Need to refine this leaf (partition)
+        binsToRefine.push_back(i);
+        // By refining this node, we will remove one tree piece
+        // and add BRANCH_FACTOR in its place.
+        //CkPrintf("[%d] Split bin %d num %d thresh %.1f\n", CkMyPe(), i, counts[i], thresh);
+        // use ownerstart as a placeholder for 
+        // global num. particles underneath 'node'
+        node.setOwnerStart(-1);
+      }
+      else{
+        // this node will not be refined; save the
+        // global number of particles underneath it
+        // we will use this count later, to decide
+        // which nodes can be retracted.
+        node.setOwnerStart(counts[i]);
+      }
+
+      particlesHistogrammed += counts[i];
+    }
+
+    // Do any active leaves need to be partitioned?
+    if(binsToRefine.size() > 0) {
+      // Yes, tell workers which ones  
+      myProxy@receiveSplitters(binsToRefine);
+      decompIterations++;
+    }
+    else{
+      // No more leaves to refine; send out particles to tree pieces
+      double t = CmiWallTimer();
+      CkPrintf("[0] Decomposition took %f s iterations %d\n", t-phaseTime, decompIterations);
+      phaseTime = t;
+      decompIterations = 0;
+      doneDecomposition();
+    }
+
+    delete msg;
+  }
+
+  /*
+     The master communicates the active leaves to split
+     to the workers through this method. The activeBins
+     data structure processes the list of leaves to refine,
+     creates new children for them and obtains counts
+     of the number of particles under each child. These
+     children are then made the active leaves for the new
+     iteration and the counts are contributed to a reduction
+     in sendHistogram.
+   */
+  entry void receiveSplitters(CkVec<int> splitBins){
+
+    // Process bins to refine
+    activeBins.processRefine(splitBins.getVec(), splitBins.size());
+
+    // Send counts of particles in active leaves to master PE
+    sendHistogram();
+  }
+
+
+  /*
+     This method is invoked on workers by the master, telling
+     them that it is now OK to send the particles they are
+     holding to the tree pieces that they are meant for.
+
+     It also communicates the ranges of particles held  by each
+     tree piece to every PE. 
+   */
+  entry void sendParticles(CkVec<Key> retractSites){
+    // Flush particles to their owner tree pieces
+    // this will also set the number of tree pieces used
+    // after retracting
+    FlushParticlesStruct fps = new FlushParticlesStruct();
+    numTreePieces = flushParticles(fps);
+    CkAssert(fps.retractIndex == fps.retractSites.length());
+
+    // Fail if not enough tree pieces are provided
+    if(CkMyPe() == 0 && numTreePieces > globalParams.numTreePieces){
+      CkPrintf("have %d treepieces need %d\n",globalParams.numTreePieces,numTreePieces);
+      CkAbort("Need more tree pieces!\n");
+    }
+    else if(CkMyPe() == 0){
+      CkPrintf("Used %d tree pieces\n", numTreePieces);
+    }
+  }
+
+  entry void receiveMoments(MomentsExchangeStruct moments);
+
+  entry void processSubmittedParticles();
+  entry void doneStreaming();
+  entry void startTraversal();
+
+  entry void doneNodeLevelMerge(PointerContainer);
+
+  entry void recvParticles(ParticleReplyMsg msg);
+  entry void recvNode(NodeReplyMsg msg);
+  entry void advance(CkReductionMsg msg);
+  entry void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit);
+
+  entry void recvUnivBoundingBox(CkReductionMsg msg);
+
+  entry void quiescence();
+  entry void resumeFromLB();
+
+  entry void doneRemoteRequests();
+
+  entry void doneParticleFlush(){
+    double t = CmiWallTimer();
+    CkPrintf("[0] Flush took %f s\n", t-phaseTime);
+    phaseTime = t;
+
+    myProxy@resumeProcessSubmittedParticles();
+  }
+
+  entry void resumeProcessSubmittedParticles(){
+    // get the tree pieces (and their particles) on this PE
+    senseTreePieces();
+
+    // sort the local tree pieces by index (and hence lower/upper bound of particle range)
+    localTreePieces.submittedParticles.quickSort();
+    myNumParticles = localTreePieces.numParticles;
+
+    myParticles.length() = 0;
+    myParticles.resize(myNumParticles);
+
+    int offset = 0;
+    numLocalUsefulTreePieces = 0;
+    for(int i = 0; i < localTreePieces.count; i++){
+      TreePieceDescriptor descr = localTreePieces.submittedParticles[i];
+      if(descr.index < numTreePieces) numLocalUsefulTreePieces++;
+
+      // FIXME - how to extract particles from msg?
+      CkVec<ParticleMsg> vec = descr.vec;
+      for(int j = 0; j < vec.length(); j++){
+        ParticleMsg msg = vec[j];
+        if(msg.numParticles > 0) memcpy(myParticles.getVec()+offset,msg.part,sizeof(Particle)*msg.numParticles);
+        offset += msg.numParticles;
+        delete msg;
+      }
+    }
+
+    myParticles.quickSort();
+
+    // The first local TreePiece will always have buckets numbered from 0
+    if(localTreePieces.count > 0) localTreePieces.submittedParticles[0].bucketStartIdx = 0;
+
+    buildTree(root,0,myNumParticles,0,numLocalUsefulTreePieces);
+    doneTreeBuild = true;
+  }
+
+  entry void doneTreeBuilds();
+  entry void resumeDoneNodeLevelMerge();
+  entry void doneForces();
+  entry void resumeFinishIteration();
+
+  // sequential methods
+  void copyMomentsToNode(Node<ForceData> *node, MomentsExchangeStruct mes){
+    CkAssert(node.getKey() == mes.key);
+
+    node.data.moments = mes.moments;
+    node.data.box = mes.box;
+    NodeType type = mes.type;
+    node.setType(Node<ForceData>.makeRemote(type));
+  }
+
+  void initProxies(){
+    // set up my own proxy, local combiner, TP ckarray
+    myProxy = CProxy_DataManager(thisgroup);
+    numRankBits = LOG_BRANCH_FACTOR;
+  }
+
+  /*
+     Obtain a 64-bit key for each particle. This gives us a cheap way to
+     arrange particles within the Barnes-Hut tree. The hash below is a 
+     simple interleaving of the bits of each component of a particle's
+     position vector.
+
+     The idea is to locate each particle within a three-dimensional grid which
+     has BOXES_PER_DIM points in each dimension, and whose extents are
+     the same as those of the simulation universe. Thus, for each particle, 
+     we use its position coordinates to obtain three integer values telling which
+     of those grid points it falls on. The width of each integer is BOXES_PER_DIM,
+     and by interleaving the bits of the three integers, we can tell the position
+     of the particle in the Barnes-Hut tree.
+   */
+  void hashParticleCoordinates(OrientedBox<double> universe){
+    Key prepend;
+    prepend = 1L;
+    prepend <<= (TREE_KEY_BITS-1);
+
+    /*
+       Real xsz = universe.greater_corner.x-universe.lesser_corner.x;
+       Real ysz = universe.greater_corner.y-universe.lesser_corner.y;
+       Real zsz = universe.greater_corner.z-universe.lesser_corner.z;
+     */
+    Vector3D<Real> sz = universe.greater_corner-universe.lesser_corner;
+    Vector3D<Real> prel;
+
+    for(int i = 0; i < myNumParticles; i++){
+      Particle p = myParticles[i];
+      // Obtain the integer grid points on which the particle falls in each dimension
+
+      prel = p.position-universe.lesser_corner;
+      prel /= sz;
+      prel *= (1.0*BOXES_PER_DIM);
+
+      Key xint = (Key) prel.x;
+      Key yint = (Key) prel.y;
+      Key zint = (Key) prel.z;
+
+      /*
+         Key xint = ((Key) (((p->position.x-universe.lesser_corner.x)*(BOXES_PER_DIM*1.0))/xsz)); 
+         Key yint = ((Key) (((p->position.y-universe.lesser_corner.y)*(BOXES_PER_DIM*1.0))/ysz)); 
+         Key zint = ((Key) (((p->position.z-universe.lesser_corner.z)*(BOXES_PER_DIM*1.0))/zsz)); 
+       */
+
+      // Interleave bits
+      Key mask = Key(0x1);
+      Key k = Key(0x0);
+      int shiftBy = 0;
+      for(int j = 0; j < BITS_PER_DIM; j++){
+        k |= ((zint & mask) <<  shiftBy);
+        k |= ((yint & mask) << (shiftBy+1));
+        k |= ((xint & mask) << (shiftBy+2));
+        mask <<= 1;
+        // minus 1 because mask itself has shifted
+        // left by one position
+        shiftBy += (NDIMS-1);
+      }
+      // Prepend the key with a '1' bit.
+      k |= prepend; 
+      p.key = k;
+    }
+  }
+
+
+  /*
+     Find out how many particles held by this PE
+     fall under the root node (i.e. contribute the
+     number of particles held by this PE)
+   */
+  void initHistogramParticles(){
+    int rootDepth = 0;
+
+    root = new Node<ForceData>(Key(1),
+        rootDepth,
+        myParticles.getVec(),
+        myNumParticles);
+    /*
+       The activeBins data structure keeps track of the
+       active leaves (bins) iteration after iteration. 
+       We begin with the root as the only active leaf. 
+       When a worker is told by the master to split an
+       active leaf, it partitions its particles among
+       its children and contributes the number of particles
+       held by each child to a reduction.
+     */
+    activeBins.addNewNode(root);
+
+    // don't access myParticles through ckvec after this
+    // anyway. these must be reset before this DM starts
+    // to receive submitted particles from TPs placed on it
+    myNumParticles = 0;
+    myParticles.length() = 0;
+  }
+
+  void sendHistogram(){
+    CkCallback cb(CkReductionTarget(DataManager,receiveHistogram),0,this->thisgroup);
+    // FIXME - how to contribute arrays?
+    contribute(sizeof(int)*activeBins.getNumCounts(),activeBins.getCounts(),CkReduction::sum_int,cb);
+    activeBins.reset();
+  }
+
+  void doneDecomposition(){
+    CkVec<Key> retractSites = new CkVec<Key>();
+    int globalNumParticles = setGlobalParticleCounts(root);
+    findRetractSites(root,retractSites);
+    //CkPrintf("retractable nodes %d particles %d\n", retractSites.length(), globalNumParticles);
+    /*
+       Tell all PEs that there are no remaining active leaves,
+       i.e. we have obtained a partitioning of particles on to
+       tree pieces such that each tree piece gets no more than 
+       a threshold (ppc) number of particles.
+     */
+    myProxy@sendParticles(retractSites);
+  }
+
+  // must set global num particles for each node before
+  // we mark retractable nodes; otherwise, the retractable
+  // nodes will not be obtained in DFS order
+  int setGlobalParticleCounts(Node<ForceData> node){
+    int globalParticleCount;
+    if(node.getNumChildren() == 0){
+      // must have already set global num particles for leaves
+      globalParticleCount = node.getOwnerStart();
+      CkAssert(globalParticleCount >= 0);
+    }
+    else{
+      // if internal, process children first, so that
+      // their global particle counts are available
+      globalParticleCount = 0;
+      for(int i = 0; i < node.getNumChildren(); i++){
+        globalParticleCount += setGlobalParticleCounts(node.getChild(i));
+      }
+      node.setOwnerStart(globalParticleCount);
+    }
+
+    return globalParticleCount;
+  }
+
+  void findRetractSites(Node<ForceData> node, CkVec<Key> sites){
+    Real thresh = (DECOMP_TOLERANCE*(Real)(globalParams.ppc));
+    // if this node has fewer particles than the threshold for splitting,
+    // check whether its parent also sub-threshold. since we would like the
+    // list of retractable nodes to be minimal, we should put a node in it
+    // iff the node is retractable but its parent isn't
+    // also, it is wasteful to mark leaves as retractable
+    if(node.getNumChildren() > 0 && node.getOwnerStart() <= thresh){ 
+      Node<ForceData> *parent = node.getParent();
+      if(parent != null && 
+          parent.getOwnerStart() > thresh) sites.push_back(node.getKey());
+    }
+    else{
+      for(int i = 0; i < node.getNumChildren(); i++){
+        findRetractSites(node.getChild(i),sites);
+      }
+    }
+  }
+
+  void skipFlushParticles(){
+    int pstart = 0;
+    int pend = myNumParticles;
+    for(int i = 1; i < numTreePieces; i++){
+      Key check = treePieceKeys[i];
+      int prev_start = pstart;
+      pstart = binary_search_ge<Key,Particle>(check,myParticles.getVec(),pstart,pend); 
+
+      int prev_np = pstart-prev_start;
+
+      sendParticleMsg(i-1, myParticles.getVec()+prev_start, prev_np);
+    }
+    sendParticleMsg(numTreePieces-1,myParticles.getVec()+pstart,pend-pstart);
+  }
+
+  /*
+     As a result of the decomposition procedure, the
+     particles held by each PE have been partitioned 
+     among the tree pieces. It is now time to send these
+     particles to their respective tree pieces.
+
+     We do this by traversing the tree that
+     was constructed during the decompostion by the 
+     activeBins data structure.
+
+     Returns number of tree pieces (leaves of the decomposition tree)
+   */
+
+  class FlushParticlesStruct {
+    public CkVec<Key> retractSites;
+    public int retractIndex;
+
+    public FlushParticlesStruct(){
+      retractIndex = 0;
+      retractSites = new CkVec<Key>();
+    }
+  };
+
+  int flushParticles(FlushParticlesStruct fps){
+    treePieceKeys.resize(0);
+    return flushAndMark(root,0,fps);
+  }
+
+  int flushAndMark(Node<ForceData> node, int leafNum, FlushParticlesStruct fps){
+    if(fps.retractIndex < fps.retractSites.length() && 
+        fps.retractSites[retractIndex] == node.getKey()){
+      //CkPrintf("Retract node %llu\n", node->getKey());
+      node.deleteBeneath();
+      fps.retractIndex++;
+    }
+
+    node.setOwnerStart(leafNum);
+    if(node.getNumChildren() > 0){
+      for(int i = 0; i < node.getNumChildren(); i++){
+        // returned value is used by next child
+        leafNum = flushAndMark(node.getChild(i),leafNum,fps);
+      }
+    }
+    else{
+      // sendParticlesToTreePiece whose root is 'node'
+      sendParticlesToTreePiece(node,leafNum);
+      leafNum++;
+    }
+    node.setOwnerEnd(leafNum);
+    return leafNum;
+  }
+
+  /*
+     Send the particles that you are holding for tree piece 'tp' to it.
+   */
+  void sendParticlesToTreePiece(Node<ForceData> nd, int tp) {
+    CkAssert(nd.getNumChildren() == 0);
+    int np = nd.getNumParticles();
+    CkAssert(tp == treePieceKeys.length());
+    treePieceKeys.push_back(Node<ForceData>.getParticleLevelKey(nd));
+    //CkPrintf("(%d) DECOMP TP %d node %llu\n", CkMyPe(), tp, nd->getKey());
+
+    sendParticleMsg(tp,nd.getParticles(),np);
+  }
+
+  void sendParticleMsg(int tp, Particle p, int np){
+    // FIXME - no sizeof; how to chunk particles into
+    // bytes to send?
+    int bytesToSend = np*sizeof(Particle);
+    int curoffset = 0;
+    int curnum;
+    int cursize;
+
+    while(bytesToSend > 0){
+      if(bytesToSend > globalParams.particleMsgMaxSize){
+        cursize = globalParams.particleMsgMaxSize;
+      }
+      else{
+        cursize = bytesToSend;
+      }
+      curnum = cursize/sizeof(Particle);
+      cursize = curnum*sizeof(Particle);
+
+      //CkPrintf("particlemsg num %d size %d\n", curnum, cursize);
+
+      ParticleMsg msg = new (curnum,0) ParticleMsg;
+      // FIXME - how to memcpy without ptr arithmetic?
+      memcpy(msg.part, p+curoffset, cursize);
+      msg.numParticles = curnum;
+      treePieceProxy[tp].receiveParticles(msg);
+
+      bytesToSend -= cursize;
+      curoffset += curnum;
+    }
+
+    CkAssert(bytesToSend == 0);
+  }
+
+  /*
+     How many tree pieces are hosted on this PE? 
+     This tells the PE how many tree pieces it should
+     expect particle contributions from before starting
+     to build the local tree.
+   */
+  void senseTreePieces(){
+    localTreePieces.reset();
+    CkLocMgr mgr = treePieceProxy.ckLocMgr();
+    mgr.iterate(localTreePieces);
+  }
+
+  /*
+     Once the DM has collected particles from all the tree pieces hosted
+     on this PE, it copies these particles into a contiguous buffer,
+     sorts them and partitions them in-place in much the same way as 
+     was done during domain decomposition. The result of this partitioning
+     is a local tree whose leaves are buckets containing particles on
+     the PE. The nodes of this tree are of six types:
+
+     1. Bucket: leaf containing local particles
+     2. EmptyBucket: an empty bucket
+     3. Internal: a node whose every child is either Internal or Bucket or EmptyBucket
+
+     4. RemoteBucket: leaf that is local to some other PE
+     5. EmptyRemoteBucket: empty RemoteBucket
+     6. Remote: a node whose entire subtree is non-local to this PE
+
+     7. Boundary: a node that is none of the above, i.e. is "shared" between several
+     PEs.
+   */
+
+  // Each node should have been marked with the 
+  // min and max tree piece indices that it
+  // hosts beneath it. Use this information to
+  // obtain the roots of the 'localTreePieces' 
+  // and build trees there. 
+  // This procedure only goes
+  // down to the depths of TreePiece roots; after that,
+  // the singleBuildTree function is invoked.
+  void buildTree(Node<ForceData> node, int pstart, int pend, int tpstart, int tpend){
+    TB_DEBUG("(%d) pstart %d pend %d tpstart %d tpend %d node %lu\n", CkMyPe(), pstart, pend, tpstart, tpend, node.getKey());
+
+    int np;
+    nodeTable[node.getKey()] = node;
+
+    if(tpend <= tpstart){
+      // No local tree piece under this node
+      // It is Remote/RemoteBucket/RemoteEmptyBucket
+      // Make request for remote node
+      int numOwners = node.getOwnerEnd()-node.getOwnerStart();
+      int requestOwner = node.getOwnerStart()+(rand()%numOwners);
+      TB_DEBUG("(%d) requestMoments from tree piece %d for node %lu\n", CkMyPe(), requestOwner, node.getKey());
+
+      CkEntryOptions opts;
+      opts.setQueueing(CK_QUEUEING_IFIFO);
+      opts.setPriority(REQUEST_MOMENTS_PRIORITY);
+      treePieceProxy[requestOwner]@requestMoments(node.getKey(),CkMyPe(),opts);
+      numMomentsRequested++;
+
+      // There are no particles on this PE under this node
+      CkAssert(pstart == pend);
+      node.setParticles(null,0);
+      // Delete subtree beneath this node
+      node.deleteBeneath();
+      // Set type when requested moments are received
+      // Don't tell parent that I'm done
+
+      return;
+    }
+    else if(tpend-tpstart == 1 && (node.getOwnerEnd()-node.getOwnerStart()==1)){
+      TreePieceDescriptor currentTP = localTreePieces.submittedParticles[tpstart];
+      np = currentTP.numParticles;
+      TB_DEBUG("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), currentTP.index, node.getKey());
+      // This is the first node that has 
+      // a single tree piece beneath it.
+
+      // Construct the entire tree underneath this node
+      // and report the first particle index that doesn't
+      // lie within it
+      CkAssert(node.getOwnerStart() == currentTP.index);
+      // There must be these many particles under the root of this TreePiece
+      CkAssert(np == pend-pstart);
+
+      if(np > 0) node.setParticles(myParticles.getVec()+pstart,np);
+      else node.setParticles(NULL,0);
+
+      // Set the bucket indices for this TreePiece
+      // If this is not the 0-th local TreePiece to have its bucket indices set,
+      // it can use the last bucket (exclusive) of the one previous to it as its first bucket
+      if(tpstart > 0) currentTP.bucketStartIdx = localTreePieces.submittedParticles[tpstart-1].bucketEndIdx; 
+      // To obtain the last bucket, set it to the first
+      // bucket and increment each time a new bucket is encountered (in singleBuildTree)
+      currentTP.bucketEndIdx = currentTP.bucketStartIdx;
+      // Build the completely local tree underneath the root current TreePiece
+      singleBuildTree(node,currentTP);
+      // Since this node was completely local, its moments must have been computed
+      node.setChildrenMomentsReady();
+      // Tell parent node that one of its children has computed its moments
+      notifyParentMomentsDone(node);
+
+      // Set the root of the TreePiece
+      currentTP.root = node;
+      return;
+    }
+
+
+    np = pend-pstart;
+
+    if(np > 0) node.setParticles(myParticles.getVec()+pstart,pend-pstart);
+    else node.setParticles(null,0);
+
+    // If we are here, this node has at least one local tree piece underneath it
+    CkAssert(tpend > tpstart);
+
+    // Make sure that the range of tree pieces
+    // is contained within this node; otherwise,
+    // we shouldn't have made this call at all.
+    CkAssert(localTreePieces.submittedParticles[tpstart].index >= node.getOwnerStart());
+
+    // Find the first local TreePiece that has
+    // an index beyond the left child's last
+    // contained TreePiece, i.e. equal to or after
+    // the right child's first contained TreePiece 
+    Node<ForceData> child = null;
+    for(int i = 1; i < node.getNumChildren(); i++){
+      child = node.getChild(i);
+      int firstTreePiece = child.getOwnerStart(); 
+      Key particleTestKey = Node<ForceData>::getParticleLevelKey(child);
+
+      int tp = binary_search_ge<int,TreePieceDescriptor>(firstTreePiece,localTreePieces.submittedParticles.getVec(),tpstart,tpend);
+      int pp = binary_search_ge<Key,Particle>(particleTestKey,myParticles.getVec(),pstart,pend); 
+
+      buildTree(node.getChild(i-1),pstart,pp,tpstart,tp);
+
+      tpstart = tp;
+      pstart = pp;
+    }
+    buildTree(node.getChild(BRANCH_FACTOR-1),pstart,pend,tpstart,tpend);
+
+    if(node.allChildrenMomentsReady()){
+      // All descendants were able to construct their subtrees
+      // from data local to this PE: they must all be internal,
+      // and so must this node. Note that this node cannot be
+      // a Bucket or EmptyBucket, since it has more than one
+      // local TreePiece underneath it
+      node.setType(Internal);
+      // Create node's moments from those of children
+      node.getMomentsFromChildren();
+      // Tell node's parent it is done building subtree
+      notifyParentMomentsDone(node);
+    }
+    else{
+      // Some descendants of node were unable to
+      // construct their moments from PE-local data,
+      // i.e. they are Remote: therefore, this node must be 
+      // Boundary. It CANNOT be Remote since tpstart < tpend for it
+      node.setType(Boundary);
+    }
+  }
+
+  void notifyParentMomentsDone(Node<ForceData> node){
+    // Respond to any requestors for the moments of 'node'
+    TB_DEBUG("(%d) Notify parent flushing moments for node %lu\n", CkMyPe(), node.getKey());
+    momentsResponseHelper(node);
+
+    Node<ForceData> parent = node.getParent();
+    if(parent != null) parent.childMomentsReady();
+    else{
+      // The root's moments have been computed,
+      // i.e. all particles were internal to this PE.
+      CkAssert(node.getKey() == Key(1));
+      treeReady();
+    }
+  }
+
+  // Recursive method to build the tree under a single TreePiece.
+  // given an array of particles
+  void singleBuildTree(Node<ForceData> node, TreePieceDescriptor tp){
+    node.setOwners(tp.index,tp.index+1);
+    //nodeTable[node->getKey()] = node;
+
+    int np = node.getNumParticles();
+    if(np <= ((Real)globalParams.ppb*BUCKET_TOLERANCE)){
+      if(np == 0) node.setType(EmptyBucket);
+      else node.setType(Bucket);
+
+      node.getMomentsFromParticles();
+      // Add to the list of buckets on this PE
+      myBuckets.push_back(node);
+      // Record the fact that current tree piece has another bucket
+      tp.bucketEndIdx++;
+
+      // since we might be reusing the tree, it could happen
+      // that this node was internal (not a leaf) in the previous 
+      // iteration. delete descendants, if there are any
+      node.deleteBeneath();
+    }
+    else{
+      node.setType(Internal);
+      // Shouldn't not have allocated any children yet.
+      // !doSkipDecomposition => node->getNumChildren() == 0
+      CkAssert(doSkipDecomposition || (node.getNumChildren() == 0));
+      // Partition the particles under this
+      // node among the two children. To do this,
+      // find the first particle that does not belong
+      // underneath the left child, which is the same
+      // as the first child that does belong under the
+      // right child.
+      if(node.getNumChildren() == 0) node.refine();
+      else node.reuseRefine();
+
+      Node<ForceData> child = null;
+      for(int i = 0; i < node.getNumChildren(); i++){
+        child = node.getChild(i);
+        singleBuildTree(child,tp);
+        // FIXME - use user-defined data table with
+        // add/remove functionality instead of 
+        // map here
+        //nodeTable[child.getKey()] = child;
+        nodeTable.set(child.getKey(),child);
+      }
+
+      node.getMomentsFromChildren();
+    }
+  }
+
+  Node<ForceData> lookupNode(Key k){
+    return nodeTable.find(k);
+  }
+
+  void requestMoments(Key k, int replyTo){
+    pendingMoments.get(k).push_back(replyTo);
+    //pendingMoments[k].push_back(replyTo);
+    TB_DEBUG("(%d) received requestMoments from pe %d node %lu\n", CkMyPe(), replyTo, k);
+
+    if(doneTreeBuild){
+      Node<ForceData> node = lookupNode(k);
+      CkAssert(node != null);
+
+      boolean ready = node.allChildrenMomentsReady();
+      TB_DEBUG("(%d) ready %d node %lu\n", CkMyPe(), ready, k);
+
+      if(ready) momentsResponseHelper(node);
+    }
+  }
+
+  void respondToMomentsRequest(Node<ForceData> node, CkVec<int> replyTo){
+    MomentsExchangeStruct moments = new MomentsExchangeStruct(node);
+    for(int i = 0; i < replyTo.length(); i++){
+      TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), replyTo[i], node.getKey());
+      CkEntryOptions opts;
+      opts.setQueueing(CK_QUEUEING_IFIFO);
+      opts.setPriority(RECV_MOMENTS_PRIORITY);
+      myProxy[replyTo[i]]@receiveMoments(moments, opts);
+    }
+    replyTo.clear();
+    //replyTo.length() = 0;
+  }
+
+  void DataManager::receiveMoments(MomentsExchangeStruct moments){
+    Node<ForceData> node = lookupNode(moments.key);
+    CkAssert(node != null);
+    CkAssert(!treeMomentsReady);
+
+    numMomentsReceived++;
+    // update moments of leaf and pass these on 
+    // to parent recursively; if there are requests
+    // for these nodes, respond to them
+    updateLeafMoments(node,moments);
+  }
+
+  void updateLeafMoments(Node<ForceData> node, MomentsExchangeStruct data){
+    copyMomentsToNode(node,data);
+    TB_DEBUG("(%d) updateLeafMoments %lu\n", CkMyPe(), node.getKey());
+    passMomentsUpward(node);
+  }
+
+  void momentsResponseHelper(Node<ForceData> node){
+    CkVec<int> replyList = pendingMoments.find(node.getKey());
+    if(replyList != null){
+      respondToMomentsRequest(node,replyList);
+      pendingMoments.erase(node.getKey());
+    }
+  }
+
+  void passMomentsUpward(Node<ForceData> node){
+    TB_DEBUG("(%d) passUp %lu\n", CkMyPe(), node.getKey());
+    momentsResponseHelper(node);
+
+    Node<ForceData> parent = node.getParent();
+    if(parent == NULL){
+      CkAssert(node.getKey() == Key(1));
+      treeReady();
+    }else{
+      parent.childMomentsReady();
+      TB_DEBUG("[%d] passup children ready %d for node %lu\n", CkMyPe(), parent.getNumChildrenMomentsReady(), parent.getKey());
+      if(parent.allChildrenMomentsReady()){
+        parent.getMomentsFromChildren();
+        passMomentsUpward(parent);
+      }
+    }
+  }
+
+  void treeReady(){
+    nodeLevelMerge();
+  }
+
+  void nodeLevelMerge(){
+    if(globalParams.doPrintTree){
+      string name("unmerged");
+      doPrintTree(name);
+    }
+    treeMergerProxy.ckLocalBranch().submit(CkMyPe(),root);
+  }
+
+  void doneNodeLevelMerge(PointerContainer container){
+    // FIXME - no generic pointers in charj
+    Node<ForceData> mergedRoot = (Node<ForceData>) container.ptr;
+    // register (i.e. fill into nodeTable)
+    // nodes that are on paths to your useful 
+    // tree pieces
+    if(mergedRoot != root){
+      delete root;
+      root = mergedRoot;
+    }
+
+    if(globalParams.doPrintTree){
+      string name("merged");
+      if(CkMyPe()%numPesPerNode == 0) doPrintTree(name);
+    }
+
+    //CkPrintf("DM %d register\n", CkMyPe());
+    registerTopLevelNodes(root,0,numLocalUsefulTreePieces);
+    treeMomentsReady = true;
+    flushBufferedRemoteDataRequests();
+
+    CkCallback cb(CkReductionTarget(DataManager,doneTreeBuilds),0,myProxy);
+    // FIXME - how to contribute in charj?
+    contribute(cb);
+  }
+
+  void doneTreeBuilds(){
+    double t = CmiWallTimer();
+    CkPrintf("[0] Tree build took %f s\n", t-phaseTime);
+    phaseTime = t;
+
+    myProxy@resumeDoneNodeLevelMerge();
+  }
+
+  void resumeDoneNodeLevelMerge(){
+    startTraversal();
+  }
+
+  void registerTopLevelNodes(Node<ForceData> node, int tpstart, int tpend){
+    nodeTable.set(node.getKey(),node);
+    //nodeTable[node->getKey()] = node;
+    if(tpend <= tpstart){
+      //CkPrintf("%d REGISTER %llu external\n", CkMyPe(), node->getKey());
+      return;
+    }
+    else if(tpend-tpstart == 1 && (node.getOwnerEnd()-node.getOwnerStart()==1)){
+      TreePieceDescriptor tp = localTreePieces.submittedParticles[tpstart];
+
+      // if this node was a bucket and is being registered here,
+      // it could be the merged replacement for a previous node.
+      // therefore we must correct the pointer to this bucket in
+      // myBuckets
+      if(node.getType() == Bucket || node.getType() == EmptyBucket){
+        // since this is the root of a tree piece (because registerTopLevelNodes
+        // does not descend lower than the roots of tree pieces) and a bucket
+        // it must be the only bucket assigned to the tree piece
+        int bucketIdx = tp.bucketStartIdx;
+        CkAssert(tp.bucketStartIdx+1 == tp.bucketEndIdx);
+        //CkPrintf("%d REGISTER %llu bucket idx %d\n", CkMyPe(), node->getKey(), bucketIdx);
+        myBuckets[bucketIdx] = node;
+      }
+
+      tp.root = node;
+    }
+    else{
+      Node<ForceData> child = NULL;
+      for(int i = 1; i < node.getNumChildren(); i++){
+        child = node.getChild(i);
+        int childFirstOwner = child.getOwnerStart();
+        int tp = binary_search_ge<int,TreePieceDescriptor>(childFirstOwner,localTreePieces.submittedParticles.getVec(),tpstart,tpend);
+        registerTopLevelNodes(node.getChild(i-1),tpstart,tp);
+        tpstart = tp;
+      }
+      registerTopLevelNodes(node.getChild(BRANCH_FACTOR-1),tpstart,tpend);
+    }
+  }
+
+  void flushBufferedRemoteDataRequests(){
+    CkAssert(treeMomentsReady);
+    for(int i = 0; i < bufferedNodeRequests.length(); i++){
+      requestNode(bufferedNodeRequests[i].key, bufferedNodeRequests[i].requestor);
+    }
+
+    for(int i = 0; i < bufferedParticleRequests.length(); i++){
+      requestParticles(bufferedParticleRequests[i].key, bufferedParticleRequests[i].requestor);
+    }
+
+    bufferedNodeRequests.length() = 0;
+    bufferedParticleRequests.length() = 0;
+  }
+
+  void startTraversal(){
+    LBTurnInstrumentOn();
+
+    if(numLocalUsefulTreePieces > 0){
+      int dummy=0;
+      for(int i = 0; i < numLocalUsefulTreePieces; i++){
+        TreePieceDescriptor tp = localTreePieces.submittedParticles[i];
+        tp.owner.prepare(root, tp.root, myBuckets[tp.bucketStartIdx], tp.bucketEndIdx-tp.bucketStartIdx);
+
+        CkEntryOptions opts;
+        opts.setPriority(START_TRAVERSAL_PRIORITY);
+        opts.setQueueing(CK_QUEUEING_IFIFO);
+        treePieceProxy[tp.index]@startTraversal(dummy,opts);
+      }
+    }
+    else{
+      finishIteration();
+    }
+  }
+
+  ExternalParticle requestParticles(Node<ForceData> leaf, CutoffWorker<ForceData> worker, State state, Traversal<ForceData> traversal){
+    Key key = leaf.getKey();
+    Request request = particleRequestTable.find(key);
+
+    traceUserEvent(REMOTE_PARTICLE_REQUEST);
+
+    if(request.data != NULL){
+      return (ExternalParticle)request.data;
+    }
+    else if(!request.sent){
+      partReqs.incrRequests();
+
+      request.sent = true;
+      request.parentCached = leaf.isCached();
+      if(leaf.isCached()){
+        request.parent = leaf;
+      }
+      else{
+        request.parent = new Node<ForceData>(leaf);
+        CkAssert(!request.parent.isCached());
+      }
+
+      CkAssert(leaf.getOwnerStart()+1 == leaf.getOwnerEnd());
+      int owner = leaf.getOwnerStart();
+      CkEntryOptions opts;
+      opts.setQueueing(CK_QUEUEING_IFIFO);
+      opts.setPriority(REQUEST_PARTICLES_PRIORITY);
+      treePieceProxy[owner]@requestParticles(key, CkMyPe(), opts);
+
+      RRDEBUG("(%d) REQUEST particles %lu leafCached %d from tp %d\n", CkMyPe(), key, leaf.isCached(), owner);
+    }
+    request.requestors.push_back(Requestor(worker,state,traversal,worker.getContext()));
+    partReqs.incrDeliveries();
+    return null;
+  }
+
+  void requestParticles(Key k, int replyTo) {
+    if(!treeMomentsReady){
+      bufferedParticleRequests.push_back(RequestStructure(k, replyTo));
+      return;
+    }
+
+    RRDEBUG("(%d) REPLY particles key %lu to %d\n", CkMyPe(), k, replyTo);
+
+    //map<Key,Node<ForceData>*>::iterator it = nodeTable.find(k);
+    Node<ForceData> bucket = nodeTable.find(k);
+    CkAssert(bucket != null);
+
+    //CkAssert(it != nodeTable.end());
+    //Node<ForceData> *bucket = it->second;
+    CkAssert(bucket.getType() == Bucket);
+
+    Particle data = bucket.getParticles();
+    int np = bucket.getNumParticles();
+
+    ParticleReplyMsg pmsg = new (np,NUM_PRIORITY_BITS) ParticleReplyMsg;
+    // FIXME - how to set this? extern function?
+    *(int *)CkPriorityPtr(pmsg) = RECV_PARTICLES_PRIORITY;
+    CkSetQueueing(pmsg,CK_QUEUEING_IFIFO);
+
+    pmsg.key = k;
+    pmsg.np = np;
+    for(int i = 0; i < np; i++){
+      pmsg.data[i] = data[i];
+    }
+
+    myProxy[replyTo]@recvParticles(pmsg);
+  }
+
+  Node<ForceData> requestNode(Node<ForceData> leaf, CutoffWorker<ForceData> worker, State *state, Traversal<ForceData> traversal){
+    Key key = leaf.getKey();
+    Request request = nodeRequestTable.find(key);
+
+    traceUserEvent(REMOTE_NODE_REQUEST);
+
+    if(request.data != null){
+      RRDEBUG("(%d) REQUEST node %lu HIT!\n", CkMyPe(), key);
+      return (Node<ForceData>)request.data;
+    }
+    else if(!request.sent){
+      nodeReqs.incrRequests();
+
+      request.sent = true;
+      request.parentCached = leaf.isCached();
+      if(leaf.isCached()){
+        request.parent = leaf;
+      }
+      else{
+        // in order to keep cached tree separate from 
+        // local tree, since we can share trees across 
+        // processors on an SMP node
+        // by default, request.parentCached should be false
+        request.parent = new Node<ForceData>(leaf);
+      }
+
+      int numOwners = leaf.getOwnerEnd()-leaf.getOwnerStart();
+      int requestOwner = leaf.getOwnerStart()+(rand()%numOwners);
+      RRDEBUG("(%d) REQUEST node %lu leafCached %d from tp %d\n", CkMyPe(), key, leaf.isCached(), requestOwner);
+
+      CkEntryOptions opts;
+      opts.setPriority(REQUEST_NODE_PRIORITY);
+      opts.setQueueing(CK_QUEUEING_IFIFO);
+      treePieceProxy[requestOwner]@requestNode(key, CkMyPe(), opts);
+    }
+    request.requestors.push_back(Requestor(worker,state,traversal,worker.getContext()));
+    nodeReqs.incrDeliveries();
+    return NULL;
+  }
+
+  void requestNode(Key k, int replyTo){
+    if(!treeMomentsReady){
+      // FIXME - does charj have stack-allocated variables?
+      bufferedNodeRequests.push_back(RequestStructure(k, replyTo));
+      return;
+    }
+
+    processNodeRequest(k,replyTo);
+  }
+
+  void processNodeRequest(Key key, int replyTo){
+    CkAssert(treeMomentsReady);
+    RRDEBUG("(%d) REPLY node %lu to %d\n", CkMyPe(), key, replyTo);
+
+    //map<Key,Node<ForceData>*>::iterator it = nodeTable.find(key);
+    Node<ForceData> node = nodeTable.find(key);
+    CkAssert(node != null);
+    //CkAssert(it != nodeTable.end());
+    //Node<ForceData> *node = it->second;
+
+    CkAssert(node.getNumChildren() > 0);
+
+    TreeSizeWorker tsz(node.getDepth()+globalParams.cacheLineSize);
+    fillTrav.topDownTraversal_local(node,tsz);
+
+    int nn = tsz.getNumNodes();
+
+    NodeReplyMsg nmsg = new (nn,NUM_PRIORITY_BITS) NodeReplyMsg;
+    // FIXME - how to set priority?
+    //*(int *)CkPriorityPtr(nmsg) = RECV_NODE_PRIORITY;
+    CkSetQueueing(nmsg,CK_QUEUEING_IFIFO);
+
+    nmsg.key = key;
+    nmsg.nn = nn;
+
+    Node<ForceData> emptyBuf = nmsg.data;
+    node.serialize(NULL,emptyBuf,globalParams.cacheLineSize);
+    CkAssert(emptyBuf == nmsg.data+nn);
+
+    myProxy[replyTo]@recvNode(nmsg);
+  }
+
+  void recvParticles(ParticleReplyMsg msg){
+    //map<Key,Request>::iterator it = particleRequestTable.find(msg->key);
+    //CkAssert(it != particleRequestTable.end());
+    Request req = particleRequestTable.find(msg.key);
+    CkAssert(req != null);
+
+    RRDEBUG("(%d) RECVD particle REPLY for key %lu\n", CkMyPe(), msg.key);
+
+    //Request &req = it->second;
+    CkAssert(req.requestors.length() > 0);
+    CkAssert(req.sent);
+    CkAssert(req.msg == NULL);
+
+    req.msg = msg;
+    req.data = msg.data;
+
+    // attach particles to bucket in tree 
+    Node<ForceData> leaf = req.parent;
+    CkAssert(leaf != null);
+    CkAssert(leaf.getType() == RemoteBucket);
+    leaf.setParticles(msg.data,msg.np);
+
+    partReqs.decrRequests();
+    partReqs.decrDeliveries(req.requestors.length());
+    req.deliverParticles(msg.np);
+  }
+
+  void recvNode(NodeReplyMsg msg){
+    //map<Key,Request>::iterator it = nodeRequestTable.find(msg->key);
+    //CkAssert(it != nodeRequestTable.end());
+    Request req = nodeRequestTable.find(msg.key);
+    CkAssert(req != null);
+
+    //Request &req = it->second;
+    CkAssert(req.requestors.length() > 0);
+    CkAssert(req.sent);
+    CkAssert(req.msg == NULL);
+
+    req.msg = msg;
+    req.data = msg.data;
+
+    // attach recvd subtree to appropriate point in local tree
+
+    Node<ForceData> node = req.parent;
+    CkAssert(node != NULL);
+
+    RRDEBUG("(%d) RECVD node REPLY for key %llu parent %llu cached %d\n", CkMyPe(), msg.key, node.getKey(), node.isCached());
+
+    node.deserialize(msg.data, msg.nn);
+
+    nodeReqs.decrRequests();
+    nodeReqs.decrDeliveries(req.requestors.length());
+
+    req.deliverNode();
+  }
+
+  void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit){
+    numTreePiecesDoneTraversals++;
+    numInteractions[0] += pnInter;
+    numInteractions[1] += ppInter;
+    numInteractions[2] += openCrit;
+    if(numTreePiecesDoneTraversals == numLocalUsefulTreePieces){
+      finishIteration();
+    }
+  }
+
+  void finishIteration(){
+    CkCallback cb(CkReductionTarget(DataManager,doneForces),0,myProxy);
+    // FIXME - how to contribute?
+    contribute(cb);
+  }
+
+  void doneForces(){
+    double t = CmiWallTimer();
+    CkPrintf("[0] Traversal took %f s\n", t-phaseTime);
+    phaseTime = t;
+
+    myProxy@resumeFinishIteration();
+  }
+
+  void resumeFinishIteration(){
+    if(CkMyPe()%numPesPerNode == 0){
+      string name("merged");
+      //doPrintTree(name);
+    }
+
+
+    //CkPrintf("DM %d finishIteration\n", CkMyPe());
+    // can't advance particles here, because other PEs 
+    // might not have finished their traversals yet, 
+    // and therefore might need my particles
+
+    CkAssert(nodeReqs.test());
+    CkAssert(partReqs.test());
+
+    //DtReductionStruct dtred;
+
+    CkCallback cb(CkReductionTarget(DataManager,advance),myProxy);
+    // FIXME - how to contribute?
+    contribute(3,numInteractions,CkReduction::sum_long,cb);
+
+  }
+
+  void advance(Array<CmiUInt8> interactions){
+
+    //DtReductionStruct *dtred = (DtReductionStruct *)(msg->getData());
+
+    kickDriftKick();
+    //kickDriftKick(myBox.box,myBox.energy);
+
+    Real pad = 0.00001;
+    myBox.expand(pad);
+    myBox.numParticles = myNumParticles;
+
+    Real pn = interactions[0]/1e6;
+    Real pp = interactions[1]/1e6;
+    Real oc = interactions[2]/1e6;
+
+    if(CkMyPe() == 0){
+      CkPrintf("[STATS] node inter %.3f part inter %.3f open crit %.3f\n", pn, pp, oc);
+    }
+
+    iteration++;
+
+    if(iteration == 13){
+      traceBegin();
+    }
+    else if(iteration == 17){
+      traceEnd();
+    }
+
+    if(iteration % globalParams.decompPeriod != 0){ 
+      doSkipDecomposition = true;
+    }
+    else{
+      doSkipDecomposition = false;
+    }
+
+
+    if(iteration == globalParams.iterations){
+      CkCallback cb = CkCallback(CkReductionTarget(Main,niceExit),mainProxy);
+      contribute(cb);
+    }
+    else if(iteration % globalParams.balancePeriod == 0){
+      if(CkMyPe() == 0) CkPrintf("(%d) INITIATE LB\n", CkMyPe()); 
+      for(int i = 0; i < localTreePieces.submittedParticles.length(); i++){
+        TreePiece tp = localTreePieces.submittedParticles[i].owner;
+        tp.startlb();
+      }
+      // must do decomposition after a load balancing step
+      doSkipDecomposition = false;
+    }
+    else{
+      init();
+      for(int i = 0; i < localTreePieces.submittedParticles.length(); i++){
+        TreePiece tp = localTreePieces.submittedParticles[i].owner;
+        tp.cleanup();
+      }
+
+      CkCallback cb = CkCallback(CkReductionTarget(DataManager,recvUnivBoundingBox),myProxy);
+      contributeBoundingBox(cb);
+      //contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
+    }
+
+    delete msg;
+  }
+
+  void recvUnivBoundingBox(Array<double> bounds){
+    BoundingBox univBB;
+    for(int i = 0; i < 3; i++){
+      univBB.box.lesser_corner[i] = data[i];
+      univBB.box.greater_corner[i] = -data[i+3];
+    }
+    univBB.pe = data[6];
+    univBB.ke = data[7];
+
+    decompose(univBB);
+  }
+
+  void freeCachedData(){
+
+    Table<ParticleRequest>.iterator it;
+    for(it = particleRequestTable.begin(); it != particleRequestTable.end(); it=it.next()){
+      ParticleRequest request = it.get();
+      CkAssert(request.sent);
+      CkAssert(request.data != null);
+      CkAssert(request.requestors.length() == 0);
+      CkAssert(request.msg != null);
+
+      CkAssert(request.parentCached == request.parent.isCached());
+
+      if(!request.parentCached){
+        delete request.parent;
+      }
+
+      delete request.msg;
+    }
+
+    Table<NodeRequest>.iterator it;
+    for(it = nodeRequestTable.begin(); it != nodeRequestTable.end(); it=it.next()){
+      NodeRequest request = it.get();
+      CkAssert(request.sent);
+      CkAssert(request.data != null);
+      CkAssert(request.requestors.length() == 0);
+      CkAssert(request.msg != null);
+
+      CkAssert(request.parentCached == request.parent.isCached());
+
+      if(!request.parentCached){
+        delete request.parent;
+      }
+
+      delete request.msg;
+    }
+
+    nodeRequestTable.clear();
+    particleRequestTable.clear();
+  }
+
+  void quiescence(){
+    CkPrintf("QUIESCENCE dm %d pieces done %d (%d) nodereq %d partreq %d\n",
+        CkMyPe(),
+        numTreePiecesDoneTraversals,
+        localTreePieces.count,
+        nodeReqs.test(),
+        partReqs.test()
+        );
+
+    CkCallback cb(CkReductionTarget(Main,quiescenceExit),mainProxy);
+    contribute(cb);
+  }
+
+  void freeTree(){
+    // delete the trees underneath your tree pieces
+    // this can be done in parallel by all PEs on node
+    for(int i = 0; i < numLocalUsefulTreePieces; i++){
+      Node<ForceData> treePieceRoot = localTreePieces.submittedParticles[i].root;
+      CkAssert(treePieceRoot != null);
+      treePieceRoot.deleteBeneath();
+    }
+
+
+    if(root != null){
+      // FIXME - how to invoke non-entry methods on proxy?
+      treeMergerProxy.ckLocalBranch().freeMergedTree();
+    }
+
+  }
+
+  void reuseTree(){
+    CkAbort("Don't reuse decomposition tree: needs to be fixed for NODE_LEVEL_MERGE");
+    /*
+    Node<ForceData> tproot;
+    for(int i = 0; i < numLocalUsefulTreePieces; i++){
+      tproot = localTreePieces.submittedParticles[i].root;
+      CkAssert(tproot != NULL);
+      tproot->reuseTree();
+    }
+
+    if(root != NULL){
+#ifdef NODE_LEVEL_MERGE
+      treeMergerProxy.ckLocalBranch()->reuseMergedTree();
+#else
+      root->reuseTree();
+#endif
+    }
+      */
+  }
+
+  void kickDriftKick(){
+    Vector3D<Real> dv;
+
+    Particle pstart = myParticles[0];
+    Particle pend = myParticles[myNumParticles-1];
+
+    Real particleEnergy;
+    Real particleKinetic;
+    Real particlePotential;
+
+#ifdef CHECK_INTER
+    int bad = 0;
+    Real tolerance = 1.0/univBox.mass;
+#endif
+
+    myBox.reset();
+
+    if(globalParams.doPrintAccel && (iteration == globalParams.iterations-1)){
+      for(int i = 0; i < myParticles.length(); i++){
+        Vector3D<Real> p = myParticles[i].position;
+        Vector3D<Real> v = myParticles[i].velocity;
+        CkPrintf("[%d] part %d p %f %f %f v %f %f %f\n", CkMyPe(), myParticles[i].order, 
+            p.x, 
+            p.y, 
+            p.z,
+            v.x, 
+            v.y, 
+            v.z
+            );
+      }
+    }
+
+    if(iteration > 0){
+      for(int i = 0; i < myParticles.length(); i++){
+        Particle p = myParticles[i];
+        p.velocity += globalParams.dthf*p.acceleration;
+      }
+    }
+
+
+    for(int i = 0; i < myParticles.length(); i++){
+      Particle p = myParticles[i];
+      particlePotential = p.mass*p.potential;
+      particleKinetic = 0.5*p.mass*p.velocity.lengthSquared();
+      myBox.pe += particlePotential;
+      myBox.ke += particleKinetic;
+
+      p.position += globalParams.dtime*p.velocity 
+        + 0.5*globalParams.dtime*globalParams.dtime*p.acceleration;
+
+      p.velocity += globalParams.dthf*p.acceleration;
+
+      p.interMass += p.mass;
+      p.interMass -= univBox.mass;
+      if(p.interMass < 0.0) p.interMass = -p.interMass;
+      if(p.interMass > tolerance && bad < 100){
+        CkPrintf("[%d] particle with interMass %g should be 0.0\n", CkMyPe(), p.interMass);
+        bad++;
+      }
+      p.interMass = 0.0;
+
+      myBox.grow(p.position);
+      myBox.mass += p.mass;
+
+      p.acceleration = Vector3D<Real>(0.0);
+      p.potential = 0.0;
+    }
+
+    CkAssert(bad == 0);
+  }
+
+  void init(){
+    LBTurnInstrumentOff();
+    CkAssert(pendingMoments.empty());
+    // safe to reset here, since all tree pieces 
+    // must have finished iteration
+    freeCachedData();
+
+    decompIterations = 0;
+
+    doneTreeBuild = false;
+    myBuckets.length() = 0;
+    treeMomentsReady = false;
+    numTreePiecesDoneTraversals = 0;
+    numTreePiecesDoneRemoteRequests = 0;
+
+    if(doSkipDecomposition){
+      reuseTree();
+    }
+    else{
+      freeTree();
+      nodeTable.clear();
+    }
+
+    CkAssert(activeBins.getNumCounts() == 0);
+
+    numInteractions[0] = 0;
+    numInteractions[1] = 0;
+    numInteractions[2] = 0;
+
+    numMomentsRequested = numMomentsReceived = 0;
+  }
+
+  void resumeFromLB(){
+    /* we delay the freeing of data structures to this point
+     * because we want the tree pieces to be able to use the
+     * tree, and in particular their roots for load balancing
+     * */
+    init();
+    CkCallback cb(CkReductionTarget(DataManager,recvUnivBoundingBox),myProxy);
+    contributeBoundingBox(cb);
+  }
+
+  void contributeBoundingBox(CkCallback cb){
+    Array<Real> data(8);
+    if(myNumParticles > 0){
+      for(int i = 0; i < 3; i++){
+        data[i] = myBox.box.lesser_corner[i];
+        data[i+3] = -myBox.box.greater_corner[i];
+      }
+    }
+    else{
+      for(int i = 0; i < 3; i++){
+        data[i] = LARGEST;
+        data[i+3] = -SMALLEST;
+      }
+    }
+    data[6] = myBox.pe;
+    data[7] = myBox.ke;
+    // FIXME - do custom reducers work?
+    contribute(8,data,BoundingBoxGrowReductionType,cb);
+  }
+
+  void printTree(Node<ForceData> nd, ostream os){
+    os << nd.getKey() 
+      << "[label=\""<< nd.getKey() 
+      << "," << nd.getNumParticles() 
+      << "," << nd.getOwnerStart() << ":" << nd.getOwnerEnd() 
+      << "\\n" << nd.data.moments.cm
+      << "\","
+      << "style=\"filled\""
+      << "color=\"" << NodeTypeColor[nd.getType()] << "\""
+      << "]" << endl;
+    //if(nd->getOwnerEnd()-1 == nd->getOwnerStart()) return;
+    for(int i = 0; i < nd.getNumChildren(); i++){
+      Node<ForceData> *child = nd.getChildren()+i;
+      CkAssert(child != NULL);
+      os << nd.getKey() << " -> " << child.getKey() << endl;
+      printTree(child,os);
+    }
+  }
+
+  void doPrintTree(string name){
+    ostringstream oss;
+    // FIXME - can we use streams?
+    CkPrintf("[%d] printing tree\n", CkMyPe());
+    oss << name << "." << CkMyPe() << "." << iteration << ".dot";
+    ofstream ofs(oss.str().c_str());
+    ofs << "digraph " << name << "_" << CkMyPe() << "_" << iteration << " {" << endl;
+    if(root != NULL) printTree(root,ofs);
+    ofs << "}" << endl;
+    ofs.close();
+  }
+
+  void pup(PUP::er &p){
+    // FIXME - how to pup in charj?
+    p|numRankBits;
+    p|prevIterationStart;
+
+    p|myParticles;
+    p|myNumParticles;
+    p|myBox;
+
+    p|numTreePieces;
+    p|iteration;
+
+    p|compareEnergy;
+
+    p|myProxy;
+  }
+
+};
+
+
+
+/* 
+  Particles are decomposed onto TreePieces. Each
+  TreePiece traverses the global tree (possibly creating
+  communication requests) to compute the forces on its
+  particles.
+*/
+array[1D] TreePiece {
+  entry TreePiece(){
+    usesAtSync = CmiTrue;
+    iteration = 0;
+    findOrbLB();
+    init();
+  }
+
+  entry void receiveParticles(ParticleMsg msg){
+    int msgNumParticles = msg.numParticles;
+    decompMsgsRecvd.push_back(msg);
+    myNumParticles += msgNumParticles;
+  }
+
+  entry void requestMoments(Key k, int replyTo){
+    myDM.requestMoments(k,replyTo);
+  }
+
+  entry void startTraversal(int dummy){
+    trav.setDataManager(myDM);
+
+      if(myNumBuckets == 0){
+        doneRemoteRequests();
+        finishIteration();
+        return;
+      }
+
+    remoteTraversalState.reset(this,myNumBuckets,myBuckets);
+    remoteTraversalWorker.reset(this,remoteTraversalState,myBuckets[0]);
+
+    RescheduleMsg msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
+    *(int *)CkPriorityPtr(msg) = REMOTE_GRAVITY_PRIORITY;
+    CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+    thisProxy[thisIndex].doRemoteGravity(msg);
+
+    localTraversalState.reset(this,myNumBuckets,myBuckets);
+    localTraversalWorker.reset(this,&localTraversalState,*myBuckets);
+
+    msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
+    *(int *)CkPriorityPtr(msg) = LOCAL_GRAVITY_PRIORITY;
+    CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+    thisProxy[thisIndex].doLocalGravity(msg);
+  }
+
+  //entry void doLocalGravity();
+  //entry void doRemoteGravity();
+  entry void doLocalGravity(RescheduleMsg msg){
+    int i;
+    int limit;
+    limit = myNumBuckets;
+    for(i = 0; i < globalParams.yieldPeriod && 
+        localTraversalState.current < limit; 
+        i++){
+      trav.topDownTraversal(root,localTraversalWorker,localTraversalState);
+      localTraversalState.current++;
+      localTraversalState.currentBucketPtr++;
+      localTraversalWorker.setContext(localTraversalState.currentBucketPtr[0]);
+    }
+
+    localTraversalState.decrPending(i);
+    //CkPrintf("[%d] localGravity cur %d pending %d\n",thisIndex, localTraversalState.current, localTraversalState.pending);
+    if(localTraversalState.current < limit){
+      CkAssert(!localTraversalState.complete());
+      thisProxy[thisIndex].doLocalGravity(msg);
+    }
+    else{
+      delete msg;
+      if(localTraversalState.complete()){
+        //CkPrintf("tree piece %d traversal done local\n", thisIndex);
+        traversalDone();
+      }
+    }
+  }
+
+  entry void TreePiece::doRemoteGravity(RescheduleMsg msg){
+    int i;
+    int limit;
+    limit = myNumBuckets;
+    for(i = 0; i < globalParams.yieldPeriod &&
+        remoteTraversalState.current < limit;
+        i++){
+      trav.topDownTraversal(root,remoteTraversalWorker,remoteTraversalState);
+      remoteTraversalState.current++;
+      remoteTraversalState.currentBucketPtr++;
+      remoteTraversalWorker.setContext(remoteTraversalState.currentBucketPtr[0]);
+    }
+
+    remoteTraversalState.decrPending(i);
+    // CkPrintf("[%d] remoteGravity cur %d pending %d\n", thisIndex, remoteTraversalState.current, remoteTraversalState.pending);
+    if(remoteTraversalState.current < limit){
+      CkAssert(!remoteTraversalState.complete());
+      thisProxy[thisIndex].doRemoteGravity(msg);
+    }
+    else{
+      delete msg;
+      if(remoteTraversalState.complete()){
+        doneRemoteRequests();
+        //CkPrintf("tree piece %d traversal done remote\n", thisIndex);
+        traversalDone();
+      }
+    }
+  }
+
+  entry void requestParticles(std::pair<Key, int> request) {
+    // forward the request to the DM, since TPs don't
+    // really own particles or nodes
+    myDM.requestParticles(request);
+  }
+
+  entry void requestNode(std::pair<Key, int> &request) {
+    myDM.requestNode(request);
+  }
+
+  entry void quiescence(){
+    CkPrintf("QUIESCENCE tree piece %d proc %d submitted %d numBuckets %d trav_done %d outstanding local %d remote %d\n", 
+        thisIndex,
+        CkMyPe(),
+        myNumParticles,
+        myNumBuckets,
+        totalNumTraversals,
+        localTraversalState.pending,
+        remoteTraversalState.pending);
+
+    CkCallback cb(CkIndex_Main::quiescenceExit(),mainProxy);
+    contribute(0,0,CkReduction::sum_int,cb);
+  }
+
+  entry void doAtSync(){
+    AtSync();
+  }
+
+  void ResumeFromSync() {
+    //if(thisIndex == 0) CkPrintf("tree piece %d ResumeFromSync\n", thisIndex);
+
+    CkCallback cb(CkIndex_DataManager::resumeFromLB(),dataManagerProxy);
+    contribute(0,0,CkReduction::sum_int,cb);
+  }
+
+  // sequential functions
+void findOrbLB(){
+  LBDatabase *lbdb = LBDatabaseObj();
+  numLB = lbdb->getNLoadBalancers();
+  BaseLB **lb = lbdb->getLoadBalancers();
+  haveOrbLB = false;
+  for(int i = 0; i < numLB; i++){
+    if(string(lb[i]->lbName()) == "Orb3dLB_notopo"){
+      orbLBProxy = lb[i]->getGroupID();
+      haveOrbLB = true;
+      break;
+    }
+  }
+}
+
+void init(){
+  decompMsgsRecvd.length() = 0;
+  totalNumTraversals = 2;
+  myDM = dataManagerProxy.ckLocalBranch();
+  root = null;
+  myBuckets = null;
+  myNumBuckets = 0;
+  myNumParticles = 0;
+  myRoot = null;
+  localTraversalState.finishedIteration();
+  remoteTraversalState.finishedIteration();
+
+}
+
+void checkTraversals(){
+}
+
+void clearBucketsDebug(){
+}
+
+void TreePiece::prepare(Node<ForceData> _root, Node<ForceData> _myRoot, Node<ForceData> **buckets, int _numBuckets)
+{
+  root = _root;
+  myRoot = _myRoot;
+  CkAssert(myRoot.getNumParticles() == myNumParticles);
+  myBuckets = buckets;
+  myNumBuckets = _numBuckets;
+}
+
+
+
+
+};
+
+include "Node.h";
+
+
+nodegroup TreeMerger {
+  entry TreeMerger();
+};
+
+};
