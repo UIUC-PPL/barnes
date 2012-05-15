@@ -1757,7 +1757,7 @@ void DataManager::resumeFromLB(){
 }
 
 void DataManager::contributeBoundingBox(CkCallback &cb){
-  Real data[7];
+  Real data[8];
   if(myNumParticles > 0){
     for(int i = 0; i < 3; i++){
       data[i] = myBox.box.lesser_corner[i];
