@@ -17,7 +17,7 @@ message ParticleMsg {
 
 // To respond to remote request for particles 
 message ParticleReplyMsg {
-  ExternalParticle data[];
+  Array<ExternalParticle> data;
   Key key;
   int np;
 };
@@ -866,9 +866,9 @@ group DataManager {
   }
 
   void sendHistogram(){
-    CkCallback cb(CkReductionTarget(DataManager,receiveHistogram),0,this->thisgroup);
+    CkCallback cb(CkReductionTarget(DataManager,receiveHistogram),0,this.thisgroup);
     // FIXME - how to contribute arrays?
-    contribute(sizeof(int)*activeBins.getNumCounts(),activeBins.getCounts(),CkReduction::sum_int,cb);
+    contribute(activeBins.getNumCounts(),CkReduction::sum_int,cb);
     activeBins.reset();
   }
 
@@ -1357,9 +1357,9 @@ group DataManager {
     treeMergerProxy.ckLocalBranch().submit(CkMyPe(),root);
   }
 
-  void doneNodeLevelMerge(PointerContainer container){
+  void doneNodeLevelMerge(Node<ForceData> rootFromNodeGroup){
     // FIXME - no generic pointers in charj
-    Node<ForceData> mergedRoot = (Node<ForceData>) container.ptr;
+    Node<ForceData> mergedRoot = rootFromNodeGroup;
     // register (i.e. fill into nodeTable)
     // nodes that are on paths to your useful 
     // tree pieces
@@ -1523,6 +1523,7 @@ group DataManager {
     Particle data = bucket.getParticles();
     int np = bucket.getNumParticles();
 
+    // FIXME - no varsize messages in charj
     ParticleReplyMsg pmsg = new (np,NUM_PRIORITY_BITS) ParticleReplyMsg;
     // FIXME - how to set this? extern function?
     *(int *)CkPriorityPtr(pmsg) = RECV_PARTICLES_PRIORITY;
@@ -1580,7 +1581,7 @@ group DataManager {
   void requestNode(Key k, int replyTo){
     if(!treeMomentsReady){
       // FIXME - does charj have stack-allocated variables?
-      bufferedNodeRequests.push_back(RequestStructure(k, replyTo));
+      bufferedNodeRequests.push_back(new RequestStructure(k, replyTo));
       return;
     }
 
@@ -1718,7 +1719,7 @@ group DataManager {
 
     CkCallback cb(CkReductionTarget(DataManager,advance),myProxy);
     // FIXME - how to contribute?
-    contribute(3,numInteractions,CkReduction::sum_long,cb);
+    contribute(numInteractions,CkReduction::sum_long,cb);
 
   }
 
@@ -2052,7 +2053,7 @@ group DataManager {
     ofs.close();
   }
 
-  void pup(PUP::er &p){
+  void pup(PUPer p){
     // FIXME - how to pup in charj?
     p|numRankBits;
     p|prevIterationStart;
