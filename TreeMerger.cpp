@@ -25,19 +25,23 @@ void TreeMerger::submit(int pe, Node<ForceData>* root){
       pe = myDataManagers[i].first;
       if(root->getChildren() != NULL) toMerge.push_back(MergeStruct(root,root->getChildren(),pe)); 
     }
-    root = merge(toMerge);
-    if(root->getNumChildren() > 0){
-      bool allChildrenInternal = true;
-      int numParticles = 0;
-      Node<ForceData> *child = root->getChildren();
-      for(int i = 0; i < root->getNumChildren(); i++){
-        numParticles += child->getNumParticles();
-        if(!child->isInternal()) allChildrenInternal = false;
-        child++;
+    
+    // might have no useful tree pieces on this SMP node at all
+    if(toMerge.length() > 0){
+      root = merge(toMerge);
+      if(root->getNumChildren() > 0){
+        bool allChildrenInternal = true;
+        int numParticles = 0;
+        Node<ForceData> *child = root->getChildren();
+        for(int i = 0; i < root->getNumChildren(); i++){
+          numParticles += child->getNumParticles();
+          if(!child->isInternal()) allChildrenInternal = false;
+          child++;
+        }
+        root->setNumParticles(numParticles);
+        if(allChildrenInternal) root->setType(Internal);
+        else root->setType(Boundary);
       }
-      root->setNumParticles(numParticles);
-      if(allChildrenInternal) root->setType(Internal);
-      else root->setType(Boundary);
     }
 
     mergedRoot = root;
