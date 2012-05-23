@@ -17,7 +17,7 @@ class State {
   // Pointer to current bucket 
   Node<ForceData> currentBucketPtr;
   // The tree piece that initiated the traversal being tracked
-  TreePiece *ownerTreePiece;
+  TreePiece ownerTreePiece;
 
   // Number of interactions and opening tests performed during the traversal
   CmiUInt8 numInteractions[3];
@@ -33,7 +33,7 @@ class State {
 
   // A traversal is complete when it has no pending remote data requests and
   // all buckets have finished traversal
-  public bool complete() { return (pending == 0); }
+  public boolean complete() { return (pending == 0); }
 
   public State() : 
     pending(-1), 

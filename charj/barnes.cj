@@ -7,42 +7,27 @@ readonly TreeMerger@ treeMergerProxy;
 readonly Main@ mainProxy;
 readonly Parameters globalParams;
 
-class Parameters;
-class MultipoleMoments;
-
+// used while decomposing particles onto tree pieces
 message ParticleMsg {
-  Array<Particle> part;
-  int numParticles;
+  CkVec<Particle> part;
 };
 
 // To respond to remote request for particles 
 message ParticleReplyMsg {
-  Array<ExternalParticle> data;
   Key key;
-  int np;
-};
-
-message RequestMsg{
-  Key key;
-  int replyTo;
-  RequestMsg(Key _key, int _replyTo){
-    key = _key;
-    replyTo = _replyTo;
-  }
+  CkVec<ExternalParticle> data;
 };
 
 // To respond to remote request for subtree under node
 message NodeReplyMsg {
-  Node<ForceData> data[];
+  // key of parent of the subtrees sent 
+  // via this message
   Key key;
-  int nn;
+  CkVec<Node<ForceData> > roots;
 };
 
 // To continuously reschedule local and remote work
-message RescheduleMsg{
-};
-
-include "Descriptor.h";
+message RescheduleMsg;
 
 // Main chare initiates computation and ends it
 mainchare Main {
@@ -321,8 +306,6 @@ mainchare Main {
   int numQuiescenceRecvd;
 };
 
-
-include "Particle.h";
 
   /*
     There is one DataManager per PE. It has several functions: 
@@ -2107,44 +2090,40 @@ array[1D] TreePiece {
       return;
     }
 
-    remoteTraversalState.reset(this,myNumBuckets,myBuckets);
+    remoteTraversalState.reset(this,myNumBuckets,myBuckets[0]);
     remoteTraversalWorker.reset(this,remoteTraversalState,myBuckets[0]);
 
     RescheduleMsg msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
-    // FIXME - how to do this?
-    *(int *)CkPriorityPtr(msg) = REMOTE_GRAVITY_PRIORITY;
-    CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+    SetMsgPriorityQueueing(msg,REMOTE_GRAVITY_PRIORITY);
     thisProxy[thisIndex]@doRemoteGravity(msg);
 
-    localTraversalState.reset(this,myNumBuckets,myBuckets);
-    localTraversalWorker.reset(this,localTraversalState,*myBuckets);
+    localTraversalState.reset(this,myNumBuckets,myBuckets[0]);
+    localTraversalWorker.reset(this,localTraversalState,myBuckets[0]);
 
     msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
-    // FIXME - how to do this?
-    *(int *)CkPriorityPtr(msg) = LOCAL_GRAVITY_PRIORITY;
-    CkSetQueueing(msg, CK_QUEUEING_IFIFO);
+    SetMsgPriorityQueueing(msg,LOCAL_GRAVITY_PRIORITY);
     thisProxy[thisIndex]@doLocalGravity(msg);
   }
 
-  // FIXME - start here
   entry void doLocalGravity(RescheduleMsg msg){
     int i;
     int limit;
     limit = myNumBuckets;
-    for(i = 0; i < globalParams.yieldPeriod && 
-        localTraversalState.current < limit; 
+    for(i = 0; 
+        i < globalParams.yieldPeriod && 
+                   localTraversalState.currentBucketIdx < limit; 
         i++){
       trav.topDownTraversal(root,localTraversalWorker,localTraversalState);
-      localTraversalState.current++;
-      localTraversalState.currentBucketPtr++;
-      localTraversalWorker.setContext(localTraversalState.currentBucketPtr[0]);
+      localTraversalState.currentBucketIdx++;
+      localTraversalState.currentBucketPtr = myBuckets[localTraversalState.currentBucketIdx];
+      localTraversalWorker.setContext(localTraversalState.currentBucketPtr);
     }
 
     localTraversalState.decrPending(i);
     //CkPrintf("[%d] localGravity cur %d pending %d\n",thisIndex, localTraversalState.current, localTraversalState.pending);
     if(localTraversalState.current < limit){
       CkAssert(!localTraversalState.complete());
-      thisProxy[thisIndex].doLocalGravity(msg);
+      thisProxy[thisIndex]@doLocalGravity(msg);
     }
     else{
       delete msg;
@@ -2159,20 +2138,21 @@ array[1D] TreePiece {
     int i;
     int limit;
     limit = myNumBuckets;
-    for(i = 0; i < globalParams.yieldPeriod &&
-        remoteTraversalState.current < limit;
+    for(i = 0; 
+        i < globalParams.yieldPeriod &&
+              remoteTraversalState.currentBucketIdx < limit;
         i++){
       trav.topDownTraversal(root,remoteTraversalWorker,remoteTraversalState);
-      remoteTraversalState.current++;
-      remoteTraversalState.currentBucketPtr++;
-      remoteTraversalWorker.setContext(remoteTraversalState.currentBucketPtr[0]);
+      remoteTraversalState.currentBucketIdx++;
+      remoteTraversalState.currentBucketPtr = myBuckets[remoteTraversalState.currentBucketIdx];
+      remoteTraversalWorker.setContext(remoteTraversalState.currentBucketPtr);
     }
 
     remoteTraversalState.decrPending(i);
     // CkPrintf("[%d] remoteGravity cur %d pending %d\n", thisIndex, remoteTraversalState.current, remoteTraversalState.pending);
     if(remoteTraversalState.current < limit){
       CkAssert(!remoteTraversalState.complete());
-      thisProxy[thisIndex].doRemoteGravity(msg);
+      thisProxy[thisIndex]@doRemoteGravity(msg);
     }
     else{
       delete msg;
@@ -2214,24 +2194,7 @@ array[1D] TreePiece {
 
   void ResumeFromSync() {
     //if(thisIndex == 0) CkPrintf("tree piece %d ResumeFromSync\n", thisIndex);
-
-    CkCallback cb(CkIndex_DataManager::resumeFromLB(),dataManagerProxy);
-    contribute(0,0,CkReduction::sum_int,cb);
-  }
-
-  // sequential functions
-  void findOrbLB(){
-    LBDatabase *lbdb = LBDatabaseObj();
-    numLB = lbdb->getNLoadBalancers();
-    BaseLB **lb = lbdb->getLoadBalancers();
-    haveOrbLB = false;
-    for(int i = 0; i < numLB; i++){
-      if(string(lb[i]->lbName()) == "Orb3dLB_notopo"){
-        orbLBProxy = lb[i]->getGroupID();
-        haveOrbLB = true;
-        break;
-      }
-    }
+    contribute(CkCallback(CkReductionTarget(DataManager,resumeFromLB()),dataManagerProxy));
   }
 
   void init(){
@@ -2263,16 +2226,122 @@ array[1D] TreePiece {
     myNumBuckets = _numBuckets;
   }
 
-
-
-
 };
 
 include "Node.h";
 
 
 nodegroup TreeMerger {
-  entry TreeMerger();
-};
+  int numPesPerNode;
+  int numSyncd;
+
+  CkVec<TreeRootContainer> myDataManagers;
+  Node<ForceData> mergedRoot;
+
+  public TreeMerger(){
+    numPesPerNode = CkNumPes()/CkNumNodes();
+    numSyncd = 0;
+    mergedRoot = NULL;
+  }
+
+  public void init(){
+    myDataManagers.resize(0);
+  }
+
+  public void submit(TreeRootContainer container){
+    CmiLock(__nodelock);
+    CkAssert(root != NULL);
+    myDataManagers.add(container);
+    if(myDataManagers.length() == numPesPerNode){
+      //CkPrintf("Merger %d merging\n", CkMyNode());
+      CkVec<Node<ForceData> > toMerge = new CkVec<Node<ForceData> >();
+      for(int i = 0; i < myDataManagers.length(); i++){
+        TreeRootContainer container = myDataManagers[i];
+        toMerge.push_back(container.root);
+      }
+
+      // might have no useful tree pieces on this SMP node
+      CkAssert(toMerge.size() > 0);
+      root = merge(toMerge);
+      if(root.getNumChildren() > 0){
+        boolean allChildrenInternal = true;
+        int numParticles = 0;
+        for(int i = 0; i < root.getNumChildren(); i++){
+          numParticles += root.getChild(i).getNumParticles();
+          if(!root.getChild(i).isInternal()) allChildrenInternal = false;
+        }
+        root.setNumParticles(numParticles);
+      }
+
+      mergedRoot = root;
+      for(int i = 0; i < myDataManagers.length(); i++){
+        // leave it to data managers to delete their previous roots
+        dataManagerProxy[myDataManagers[i].pe]@doneNodeLevelMerge(TreeRootContainer(root));
+      }
+      //CkPrintf("Merger %d merge DONE\n", CkMyNode());
+      init();
+    }
+    CmiUnlock(__nodelock);
+  }
+
+  private Node<ForceData> merge(CkVec<Node<ForceData> > toMerge){
+    // there is only one valid node: return that; everything
+    // beneath this node will be found only in the corresponding
+    // tree
+    Node<ForceData> toReturn = toMerge[0];
+    if(toMerge.size() == 1){
+      return toReturn;
+    }
+
+    int numChildren = 0;
+    for(int i = 0; i < toMerge.size(); i++){
+      if(toMerge[i].getNumChildren() > numChildren){
+        numChildren = toMerge[i].getNumChildren();
+        break;
+      }
+    }
+
+    CkVec<Node<ForceData> > nextLevelToMerge = new CkVec<Node<ForceData> >();
+
+    for(int i = 0; i < numChildren; i++){
+      nextLevelToMerge.length() = 0;
+      for(int j = 0; j < toMerge.size(); j++){
+        if(toMerge[j].getNumChildren() > 0){
+          nextLevelToMerge.push_back(toMerge[i].getChild(i));
+        }
+        if(toMerge[j] != toReturn) delete toMerge[j];
+      }
+      toReturn.setChild(i,merge(nextLevelToMerge));
+    }
+
+    delete nextLevelToMerge;
+    return toReturn;
+  }
+
+  public void freeMergedTree(){
+    CmiLock(__nodelock);
+    numSyncd++;
+    if(numSyncd == numPesPerNode){
+      //CkPrintf("Merger %d freeing\n", CkMyNode());
+      numSyncd = 0;
+      mergedRoot.deleteBeneath();
+      delete mergedRoot;
+      mergedRoot = null;
+      //CkPrintf("Merger %d free DONE\n", CkMyNode());
+    }
+    CmiUnlock(__nodelock);
+  }
+
+  public void reuseMergedTree(){
+    CmiLock(__nodelock);
+    numSyncd++;
+    if(numSyncd == numPesPerNode){
+      //CkPrintf("Merger %d reusing\n", CkMyNode());
+      numSyncd = 0;
+      mergedRoot.reuseTree();
+      //CkPrintf("Merger %d reuse DONE\n", CkMyNode());
+    }
+    CmiUnlock(__nodelock);
+  }
 
 };
