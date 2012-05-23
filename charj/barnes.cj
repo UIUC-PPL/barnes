@@ -23,7 +23,11 @@ message NodeReplyMsg {
   // key of parent of the subtrees sent 
   // via this message
   Key key;
-  CkVec<Node<ForceData> > roots;
+  Array<Node<ForceData> > roots = new Array<Node<ForceData> >(BRANCH_FACTOR);
+
+  NodeReplyMsg(Key key_){
+    key = key_;
+  }
 };
 
 // To continuously reschedule local and remote work

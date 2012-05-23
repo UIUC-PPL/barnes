@@ -44,7 +44,7 @@ enum NodeType {
  * and pointer to children (all BRANCH_FACTOR of which are allocated
  * in a single array) and the node's parent (NULL for root). 
  */
-class Node<T> {
+class Node{
   Key key;
   NodeType type = Invalid;
 
@@ -55,6 +55,7 @@ class Node<T> {
   int numParticles;
 
   Array<Node> children = null; 
+  int numChildren = 0;
 
   // TreePieces [ownerStart,ownerEnd) own this node
   int ownerStart = -1;
@@ -71,7 +72,7 @@ class Node<T> {
    */
   bool cached = false;
 
-  Node<T> parent;
+  Node parent;
 
   /* 
    * Used during tree building to ascertain whether the moments of all
@@ -88,9 +89,9 @@ class Node<T> {
    * traversal and force computation, it is of type ForceData, and
    * contains the MultipoleMoments of the node.
    */
-  T data;
+  ForceData data;
 
-  Node(Key k, int d, Array<Particle> p, int start, int np, Node<T> par) {
+  Node(Key k, int d, Array<Particle> p, int start, int np, Node par) {
     key = k;
     depth = d;
     particles = p;
@@ -103,7 +104,7 @@ class Node<T> {
   }
 
   // What is the key of the first particle that can be enclosed by this node?
-  static Key getParticleLevelKey(Node<T> node){
+  static Key getParticleLevelKey(Node node){
     Key k = node.getKey();
     int depth = node.getDepth();
 
@@ -111,7 +112,7 @@ class Node<T> {
   }
 
   // ditto for last particle enclosed.
-  static Key getLastParticleLevelKey(Node<T> node){
+  static Key getLastParticleLevelKey(Node node){
     Key k = node.getKey();
     int depth = node.getDepth();
 
@@ -141,16 +142,16 @@ class Node<T> {
    */
 
   int getNumChildren() {
-    return children.size();
+    return numChildren;
   }
 
-  void setChildren(Array<Node<T> > ch, int n) {
+  void setChildren(Array<Node> ch, int n) {
     children = ch;
     numChildren = n;
   }
 
-  Array<Node<T> > getChildren() { return children; }
-  Node<T> getChild(int i) { return children[i]; }
+  Array<Node> getChildren() { return children; }
+  Node getChild(int i) { return children[i]; }
   int getNumParticles() { return numParticles; }
   Array<Particle> getParticle(int i) { return particles[i]; }
   Key getKey() { return key; }
@@ -161,11 +162,11 @@ class Node<T> {
   bool isInternal() {
     return (type == EmptyBucket || type == Bucket || type == Internal);
   }
-  Node<T> getParent() { return parent; }
+  Node getParent() { return parent; }
   void setKey(Key k){ key = k; }
   void setDepth(int d){ depth = d; }
   void setType(NodeType t){ type = t; }
-  void setParent(Node<T> par){ parent = par; }
+  void setParent(Node par){ parent = par; }
 
   void setOwners(int lb, int ub){
     ownerStart = lb;
@@ -213,7 +214,7 @@ class Node<T> {
 
     // Allocate children
     numChildren = BRANCH_FACTOR;
-    children = new Array<Node<T> >(BRANCH_FACTOR);
+    children = new Array<Node>(BRANCH_FACTOR);
 
     Key myKey = getKey();
 
@@ -249,11 +250,11 @@ class Node<T> {
   // this version is used during decomposition, 
   // in order to maintain a list of "active" nodes
   // for the next iteration of histogramming
-  void refine(CkVec<int> counts, CkVec<PossiblySplitNode<T> > active){
+  void refine(CkVec<int> counts, CkVec<PossiblySplitNode > active){
     refine(counts,active,1);
   }
 
-  void refine(CkVec<int> counts, CkVec<PossiblySplitNode<T> > active, int levels){
+  void refine(CkVec<int> counts, CkVec<PossiblySplitNode > active, int levels){
     if(levels == 0){
       active.push_back(new PossiblySplitNode(this));
       counts.push_back(getNumParticles());
@@ -268,7 +269,7 @@ class Node<T> {
 
     // Allocate children
     numChildren = BRANCH_FACTOR;
-    children = new Array<Node<T> >(BRANCH_FACTOR);
+    children = new Array<Node>(BRANCH_FACTOR);
 
     Key myKey = getKey();
 
@@ -311,7 +312,7 @@ class Node<T> {
 
     Array<int> splitters = new Array<int>(BRANCH_FACTOR+1);
     findSplitters(p,start,end,splitters,childKey,childDepth);
-    Array<Node<T> > child = getChildren();
+    Array<Node> child = getChildren();
     for(int i = 0; i < BRANCH_FACTOR; i++){
       start = splitters[i];
       end = splitters[i+1];
@@ -322,7 +323,7 @@ class Node<T> {
 
   // Initialize various fields of child based on those of parent.
   void initChild(int i, Array<int> splitters, Key childKey, int childDepth){
-    Node<T> child = getChild(i);
+    Node child = getChild(i);
     // The splitters array was filled in by findSplitters()
     int childPartStart = splitters[i]; 
     int childPartEnd = splitters[i+1]; 
@@ -339,127 +340,30 @@ class Node<T> {
     child.setChildren(null,0);
   }
 
-  /* 
-   * serialize():
-   * Called when the subtree under a node has to be communicated to a 
-   * requestor DM. The method is recursive. Explanations of the code are
-   * provided below.
-   */
-  void serialize(Node<T> *placeInBuf, Node<T> *&emptyBuf, int subtreeDepth){
-    /* 
-     * serialize() works by having each node copy its children into
-     * the serialization buffer, and invoking serialize() on them
-     * recursively. The procedure terminates when the entire subtree 
-     * up to a certain depth under the original node has been placed
-     * in the buffer, or if a node has no children.
-     * 'emptybuf' points to that part of the array that hasn't yet 
-     * been filled with nodes. This is where the children of this 
-     * node will be placed. 'placeInBuf' is the pointer to the 
-     * serialized copy of this node.
-     */
-    CmiUInt8 childOffset = emptyBuf-placeInBuf;
-    // We have reached the depth cutoff for the subtree
-    if(subtreeDepth == 0){
-      // if subtreeDepth is 0 and placeInBuf is NULL, then
-      // we have been asked to place all of the node's
-      // successors up to depth 0, but not the root itself.
-      // this is a nonsensical request.
-      CkAssert(placeInBuf != NULL);
-      // my children are not to be included
-      placeInBuf->setChildren((Node<T>*)childOffset,0);
-      return;
+  NodeReplyMsg serialize(int subtreeDepth){
+    NodeReplyMsg msg = new NodeReplyMsg(getKey());
+    for(int i = 0; i < BRANCH_FACTOR; i++){
+      msg.roots[i] = getChild(i).copy(subtreeDepth);
     }
+  }
 
-    // PlaceInBuf is NULL for the root, since we don't want
-    // to place the root itself in the serialization buffer, 
-    // only the subtree under it, starting from its children.
-    if(placeInBuf != NULL){
-      // We exclude the root from the buffer 
-      placeInBuf->setChildren((Node<T>*)childOffset,getNumChildren());
-    }
-
-    // Copy children into empty portion of buffer
-    memcpy(emptyBuf,getChildren(),sizeof(Node<T>)*getNumChildren());
-    // Set the parent pointers (in integer offsets) of your children
-    // We don't do this for the serialized children of the subtree root, 
-    // since they are being transported to a different PE.
-    if(placeInBuf != NULL){
-      Node<T> *childInBuf = emptyBuf;
+  Node copy(int depth){
+    Node root = new Node(this);
+    if(depth > 0 && getNumChildren() > 0){
+      root.setChildren(new Array<Node>(BRANCH_FACTOR),BRANCH_FACTOR);
       for(int i = 0; i < getNumChildren(); i++){
-        childInBuf->setParent((Node<T>*)(placeInBuf-childInBuf));
-        childInBuf++;
+        root.getChild(i) = copy(getChild(i),depth-1);
       }
     }
-    // This is where I put the serialized copy of my first child
-    placeInBuf = emptyBuf;
-    // we have used up some of the empty space in the buffer
-    emptyBuf += getNumChildren();
-
-    // invoke serialize on each of the children in turn
-    for(int i = 0; i < getNumChildren(); i++){
-      getChild(i)->serialize(placeInBuf,emptyBuf,subtreeDepth-1);
-      // move placeInBuf to point to the serialized copy of the next
-      // child; emptyBuf is updated by serialize() recursively
-      placeInBuf++;
+    else{
+      root.setChildren(null,0);
     }
+    return root;
   }
 
-  /*
-   * This is the reverse of the serialize() procedure; it is invoked
-   * on the DM (PE) that previously sent a request to the owner for 
-   * (the subtree under) a node. Its purpose is to translate the 
-   * integer offsets encoding parent-child relationships into normal
-   * pointers so that these nodes can be traversed as a pointer-linked
-   * tree data structure.
-   * Here, 'start' points to the buffer of serialized nodes, and 'nn' 
-   * is the number of nodes in that buffer. The method is invoked on
-   * the parent on the requesting DM, whose children were requested 
-   * in the first place. 
-   */
-  void deserialize(Node<T> *start, int nn){
-    /*
-     * Set the children of this node to be the first BRANCH_FACTOR 
-       nodes in the buffer. This works because on the owner PE, the
-       corresponding root of this subtree would have copied its 
-       children into the serialization buffer first.
-     */
-    setChildren(start,BRANCH_FACTOR); 
-    Node<T> *buf = start;
-    // Go through all the nodes in the buffer and update their pointers
-    for(int i = 0; i < nn; i++){
-      // Set this node to be the parent of the first BRANCH_FACTOR nodes
-      if(i < BRANCH_FACTOR){
-        buf->setParent(this);
-      }
-      else{
-        CmiUInt8 parentOffset = (CmiUInt8)(buf->getParent());
-        // Add base address of this buffer to the relative offset
-        // that was saved during serialization. This gives the absolute
-        // address of the parent.
-        buf->setParent(buf+parentOffset);
-      }
-      // Similar relative-to-absolute address conversion for pointers to
-      // children 
-      CmiUInt8 childrenOffset = (CmiUInt8)(buf->getChildren());
-      buf->setChildren(buf+childrenOffset,buf->getNumChildren());
-
-      // There are no particles under this remotely fetched node yet.
-      buf->setParticles(NULL,0);
-      // Translate type from what it was on the owner PE. e.g. a node that
-      // was Internal on the owner PE becomes a Remote here, a Bucket becomes
-      // a RemoteBucket, etc.
-      buf->setType(makeRemote(buf->getType()));
-      // This node has been fetched from a remote location, and is part of an
-      // array that includes not just its siblings, other nodes too.
-      buf->setCached();
-
-      // Move to next node in serialized buffer.
-      buf++;
-    }
-  }
-
-  void setCached(bool val=true){ core.cached = val; }
-  bool isCached(){ return core.cached; }
+  void setCached(){ setCached(true); }
+  void setCached(boolean val){ cached = val; }
+  bool isCached(){ return cached; }
 
   /*
    * Translate the type of a remotely fetched node.
@@ -484,114 +388,85 @@ class Node<T> {
    * Used during tree building. Calculate the moments of a node
    * from the moments of its children. 
    */
-#ifdef SPLASH_COMPATIBLE
-  void getMomentsFromChildren(Real bside)
-#else
-  void getMomentsFromChildren()
-#endif
-  {
-    OrientedBox<double> &bb = data.box;
-    Real &mass = data.moments.totalMass;
+  void getMomentsFromChildren(){
+    OrientedBox<double> bb = data.box;
+    Real mass = data.moments.totalMass;
     Vector3D<Real> &cm = data.moments.cm;
 
-    for(Node<ForceData> *c = getChildren(); c != getChildren()+getNumChildren(); c++){
-      MultipoleMoments &childMoments = c->data.moments;
+    for(int i = 0; i < getNumChildren(); i++){
+      Node child = getChild(i);
+      MultipoleMoments childMoments = child.data.moments;
       // My mass is the sum of the mass of each child
       mass += childMoments.totalMass;
       // My center of mass is the weighted average of the centers of mass 
       // of my children
+      // FIXME += allowed?
       cm += childMoments.totalMass*childMoments.cm;
       // Grow my bounding box to enclose that of my child.
-      bb.grow(c->data.box);
+      bb.grow(child.data.box);
     }
     if(mass > 0.0) cm /= mass;
 
-#ifdef SPLASH_COMPATIBLE
-    data.moments.rsq = bside;
-#else
     // Radius: distance between center of mass and the corner that is
     // farthest from it.
+    // FIXME 
     Vector3D<Real> delta1 = data.moments.cm - data.box.lesser_corner;	
     Vector3D<Real> delta2 = data.box.greater_corner - data.moments.cm;
     delta1.x = (delta1.x > delta2.x ? delta1.x : delta2.x);
     delta1.y = (delta1.y > delta2.y ? delta1.y : delta2.y);
     delta1.z = (delta1.z > delta2.z ? delta1.z : delta2.z);
     data.moments.rsq = delta1.lengthSquared();
-#endif
   }
 
   /*
    * If this node is a leaf, obtain its moments from 
    * the particles that it encloses.
    */
-#ifdef SPLASH_COMPATIBLE
-  void getMomentsFromParticles(Real bside)
-#else
-  void getMomentsFromParticles()
-#endif
-  {
-    OrientedBox<double> &bb = data.box;
-    Real &mass = data.moments.totalMass;
-    Vector3D<Real> &cm = data.moments.cm;
+  void getMomentsFromParticles(){
+    OrientedBox<double> bb = data.box;
+    Real mass = data.moments.totalMass;
+    Vector3D<Real> cm = data.moments.cm;
 
-    Particle *p;
-    for(p = getParticles(); p != getParticles()+getNumParticles(); p++) {
-      mass += p->mass;
+    Array<Particle> p = getParticles();
+    for(int i = 0; i < getNumParticles(); i++){
+      mass += p.mass;
       // Center of mass is weighted avg of particles' centers of mass
-      cm += p->mass*p->position;
-      bb.grow(p->position);
+      cm += p.mass*p.position;
+      bb.grow(p.position);
     }
     if(mass > 0.0) cm /= mass;
 
-#ifdef SPLASH_COMPATIBLE
-    data.moments.rsq = bside;
-#else
     Real d;
     // Radius: distance between center of mass and particle farthest from it
     data.moments.rsq = 0;
     for(p = getParticles(); p != getParticles()+getNumParticles(); p++) {
-      d = (cm - p->position).lengthSquared();
+      d = (cm - position).lengthSquared();
       if(d > data.moments.rsq) data.moments.rsq = d;
     }
-#endif
 
   }
-
-#if 0
-  Node<T> *getLeftChild(){
-    return getChildren();
-  }
-
-  Node<T> *getRightChild(){
-    return getChildren()+1;
-  }
-#endif
 
   void deleteBeneath(){
     if(getNumChildren() == 0) return;
-    Node<T> *child = getChildren(); 
     for(int i = 0; i < getNumChildren(); i++){
-      child->deleteBeneath();
-      child++;
+      getChild(i).deleteBeneath();
     }
-    delete[] getChildren();
-    setChildren(NULL,0);
+    delete getChildren();
+    setChildren(null,-1,0);
   }
 
   void reuseTree(){
     if(getType() == Invalid) return;
     reset();
     if(getNumChildren() == 0) return;
-    Node<T> *child = getChildren(); 
     for(int i = 0; i < getNumChildren(); i++){
-      child->reuseTree();
-      child++;
+      getChild(i).reuseTree();
     }
   }
 
   void reset(){
     setType(Invalid);
-    setParticles(NULL,0);
+    setParticles(null,-1,0);
     numChildrenMomentsReady = 0;
     data = T();
   }
@@ -602,20 +477,28 @@ class Node<T> {
  * When a DM requests the information of a Remote node during tree building, 
  * it only needs certain fields, as embodied by this structure.
  */
-struct MomentsExchangeStruct {
-  MultipoleMoments moments;
-  OrientedBox<double> box;
-  Key key;
-  NodeType type;
+class MomentsExchangeStruct {
+  public MultipoleMoments moments = new MultipoleMoments();
+  public OrientedBox<double> box = new OrientedBox<double>();
+  public Key key;
+  public NodeType type = Invalid;
 
-  MomentsExchangeStruct() {}
-  MomentsExchangeStruct(const Node<ForceData> &node):
-    moments(node.data.moments), box(node.data.box),
-    key(node.getKey()), type(node.getType()) {}
+  MomentsExchangeStruct(Node<ForceData> node){
+    moments = node.data.moments;
+    box = node.data.box;
+    key = node.getKey()
+    type = node.getType();
+  }
+
+  void pup(PUPer p){
+    p|moments;
+    p|box;
+    p|key;
+    p|type;
+  }
 };
-PUPbytes(MomentsExchangeStruct)
 
-struct NodeRequest {
+class NodeRequest {
   Key key;
   int replyTo;
 
@@ -624,8 +507,7 @@ struct NodeRequest {
     key = _key;
     replyTo = _replyTo;
   }
+
+  Key getKey() { return key; }
+  int getReplyTo() { return replyTo; }
 };
-PUPbytes(NodeRequest)
-
-
-#endif
