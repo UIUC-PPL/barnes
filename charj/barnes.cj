@@ -33,6 +33,9 @@ message NodeReplyMsg {
 // To continuously reschedule local and remote work
 message RescheduleMsg;
 
+extern "C++" void setParameters(CkArgMsg *msg, Parameters &globalParams);
+extern Parameters;
+
 // Main chare initiates computation and ends it
 mainchare Main {
   entry Main(CkArgMsg msg){
@@ -68,154 +71,9 @@ mainchare Main {
     /*
        Begin actual computation
      */
-    thisProxy.commence();
+    thisProxy@commence();
 
     delete msg;
-  }
-
-  void setParameters(CkArgMsg m){
-    map<string,string> table;
-    params.extractParameters(m.argc, m.argv, table); 
-
-    map<string,string>::iterator it = table.find("in");
-    if(it == table.end()){
-      CkPrintf("[Main] Must specify input particle file:\n");
-      usage();
-      CkAbort("bad command line arguments\n");
-    }
-
-    /* Input file */
-    string filename = params.getsparam("in", table);
-    globalParams.nchars = filename.length();
-    globalParams.filename = new char[globalParams.nchars+1];
-    filename.copy(globalParams.filename,globalParams.nchars);
-    globalParams.filename[globalParams.nchars] = '\0';
-
-    /* Opening angle */
-    globalParams.theta = params.getrparam("theta", DEFAULT_THETA, table);
-    CkPrintf("theta: %f\n", globalParams.theta);
-
-    /* Step time */
-    globalParams.dtime = params.getrparam("dtime", DEFAULT_DTIME, table);
-    CkPrintf("dtime: %f\n", globalParams.dtime);
-
-    /* Half of step time; used in leapfrog "kick" */
-    globalParams.dthf = globalParams.dtime/2.0;
-
-    /* Softening parameter */
-    globalParams.epssq = params.getrparam("eps", DEFAULT_EPS, table);
-    CkPrintf("eps: %f\n", globalParams.epssq);
-    globalParams.epssq = globalParams.epssq*globalParams.epssq;
-
-    globalParams.tolsq = globalParams.theta;
-    CkPrintf("tol: %f\n", globalParams.tolsq);
-    globalParams.tolsq = globalParams.tolsq*globalParams.tolsq;
-
-    /* Particles per chare (number of particles per tree piece) */
-    globalParams.ppc = params.getiparam("ppc", DEFAULT_PPC, table); 
-    CkPrintf("ppc: %d\n", globalParams.ppc);
-
-    globalParams.ppb = params.getiparam("b", DEFAULT_PPB, table);
-    CkPrintf("bucketSize: %d\n", globalParams.ppb);
-
-    /* Number of steps to run the simulation for */
-    globalParams.iterations = params.getiparam("killat", DEFAULT_KILLAT, table);
-    CkPrintf("killat: %d\n", globalParams.iterations);
-
-    /* 
-       When a remote node is requested, the subtree beneath
-       it up to "cacheLineSize" is communicated alongwith the
-       node itself. This helps to coarsen the grain of communication.
-     */
-    globalParams.cacheLineSize = params.getiparam("chunkdepth", DEFAULT_CHUNK_DEPTH, table);
-    CkPrintf("chunkdepth: %d\n", globalParams.cacheLineSize);
-
-    /*
-       When traversing the global tree for each bucket of particles, 
-       do "yield" number of buckets before returning to the scheduler
-       to look for outstanding request messages, etc.
-     */
-    globalParams.yieldPeriod = params.getiparam("yield", DEFAULT_YIELD_PERIOD, table);
-    CkPrintf("yieldPeriod: %d\n", globalParams.yieldPeriod);
-
-    /*
-       Do load balancing every "balancePeriod" iterations.
-     */
-    globalParams.balancePeriod = params.getiparam("balancePeriod", DEFAULT_BALANCE_PERIOD, table);
-    CkPrintf("balancePeriod: %d\n", globalParams.balancePeriod);
-
-    globalParams.doPrintAccel = false;
-    if(table.find("printAccel") != table.end()) globalParams.doPrintAccel = true;
-    CkPrintf("doPrintAccel: %d\n", globalParams.doPrintAccel);
-
-    globalParams.doPrintTree = false;
-    if(table.find("printTree") != table.end()) globalParams.doPrintTree = true;
-    CkPrintf("doPrintTree: %d\n", globalParams.doPrintTree);
-
-    /* Number of steps between decompositions */
-    globalParams.decompPeriod = params.getiparam("decompPeriod", DEFAULT_DECOMP_PERIOD, table); 
-    CkPrintf("decompPeriod: %d\n", globalParams.decompPeriod);
-
-    /* To prevent sending of very large messages after decomposition */
-    globalParams.particleMsgMaxSize = params.getiparam("particleMsgMaxSize", DEFAULT_PARTICLE_MSG_MAX_SIZE, table); 
-    CkPrintf("particleMsgMaxSize: %d\n", globalParams.particleMsgMaxSize);
-
-    /* Decide several bits in one iteration when decomposing */
-    globalParams.decompLevels = params.getiparam("decompLevels", DEFAULT_DECOMP_BITS, table); 
-    CkPrintf("decompLevels: %d\n", globalParams.decompLevels);
-
-
-    /*
-       Use the filename obtained previously to read just the 
-       number of particles from the input file.
-     */
-    getNumParticles();
-
-    /* 
-       Find the appropriate number of tree pieces to generate.
-     */
-    it = table.find("p");
-    /* 
-       Find the appropriate number of tree pieces to generate.
-     */
-    if(it == table.end()){
-      /*
-         If the number of pieces is not specified by the user, 
-         calculate it from the number of particles per chare and
-         the total number of particles.
-       */
-      globalParams.numTreePieces = CkNumPes()*8;
-    }
-    else{
-      /*
-         If the number of pieces is specified by the user, use that.
-       */
-      globalParams.numTreePieces = atoi(it.second.c_str());
-    }
-
-    CkPrintf("tree pieces: %d\n", globalParams.numTreePieces);
-
-
-  }
-
-  void getNumParticles(){
-    CkPrintf("[Main] file %s\n", globalParams.filename);
-
-    string filename(globalParams.filename);
-    Tipsy::TipsyReader r(filename);
-    if(!r.status()) {
-      cerr << CkMyPe() << ": Fatal: Couldn't open tipsy file! " << filename << endl;
-      CkExit();
-      return;
-    }
-
-    Tipsy::header tipsyHeader = r.getHeader();
-    int nTotalParticles = tipsyHeader.nbodies;
-    int nTotalSPH = tipsyHeader.nsph;
-    int nTotalDark = tipsyHeader.ndark;
-    int nTotalStar = tipsyHeader.nstar;
-
-    CkPrintf("[Main] nsph %d ndark %d nstar %d\n", tipsyHeader.nsph, tipsyHeader.ndark, tipsyHeader.nstar);
   }
 
   entry void commence(){
@@ -384,9 +242,9 @@ group DataManager {
   Real compareEnergy;
 
   CmiUInt8 numInteractions[3];
-  CProxy_DataManager myProxy;
 
   entry DataManager(){
+    numRankBits = LOG_BRANCH_FACTOR;
     iteration = 0;
     prevIterationStart = 0.0;
     root = null; 
@@ -397,22 +255,16 @@ group DataManager {
   }
 
   entry void loadTipsy(CkCallback cb){
-    initProxies();
-
     string filename(globalParams.filename);
-    Tipsy.TipsyReader r(filename);
+    Tipsy.TipsyReader r = new Tipsy.TipsyReader(filename);
     if(!r.status()) {
       CkPrintf("[%d] : Fatal: Couldn't open tipsy file (%s)\n", CkMyPe(), filename);
       CkExit();
       return;
     }
 
-    Tipsy::header tipsyHeader = r.getHeader();
-    int nTotalParticles = tipsyHeader.nbodies;
-    int nTotalSPH = tipsyHeader.nsph;
-    int nTotalDark = tipsyHeader.ndark;
-    int nTotalStar = tipsyHeader.nstar;
-    int dStartTime = tipsyHeader.time;
+    
+    int nTotalParticles = getTipsyNBodies(r);
     int excess;
     int startParticle;
 
@@ -438,27 +290,15 @@ group DataManager {
       return;
     }
 
-    // namespace Tipsy
-    Tipsy.gas_particle gp;
-    Tipsy.dark_particle dp;
-    Tipsy.star_particle sp;
-
-    int iSPH = 0;
-    int iStar = 0;
     myBox.reset();
     myBox.pe = 0.0;
     myBox.ke = 0.0;
 
-    CkAssert(nTotalSPH == 0);
-    CkAssert(nTotalStar == 0);
     for(int i = 0; i < myNumParticles; ++i) {
-      CkAssert(r.getNextDarkParticle(dp)); 
-      myParticles[i].mass = dp.mass;
-      myParticles[i].position = dp.pos;
-      myParticles[i].velocity = dp.vel;
-
+      setTipsyDarkParticle(myParticles[i],r);
       myParticles[i].order = i+startParticle; 
       myParticles[i].potential = 0.0;
+
       myBox.grow(myParticles[i].position);
       myBox.mass += myParticles[i].mass;
       myBox.ke += myParticles[i].mass*myParticles[i].velocity.lengthSquared();
@@ -466,6 +306,8 @@ group DataManager {
     }
     myBox.ke /= 2.0;
     contributeBoundingBox(cb);
+
+    delete r;
   }
 
   /*
@@ -500,7 +342,7 @@ group DataManager {
      represents the bounding box enclosing all particles in the 
      simulated universe.
    */
-  entry void decompose(BoundingBox &universe){
+  entry void decompose(BoundingBox universe){
     univBox = universe;
 
     uside = (univBox.box.greater_corner-univBox.box.lesser_corner).lengthSquared();
@@ -611,7 +453,7 @@ group DataManager {
     // Do any active leaves need to be partitioned?
     if(binsToRefine.size() > 0) {
       // Yes, tell workers which ones  
-      myProxy@receiveSplitters(binsToRefine);
+      thisProxy@receiveSplitters(binsToRefine);
       decompIterations++;
     }
     else{
@@ -697,7 +539,7 @@ group DataManager {
     CkPrintf("[0] Flush took %f s\n", t-phaseTime);
     phaseTime = t;
 
-    myProxy@resumeProcessSubmittedParticles();
+    thisProxy@resumeProcessSubmittedParticles();
   }
 
   entry void resumeProcessSubmittedParticles(){
@@ -749,12 +591,6 @@ group DataManager {
     node.data.box = mes.box;
     NodeType type = mes.type;
     node.setType(Node<ForceData>.makeRemote(type));
-  }
-
-  void initProxies(){
-    // set up my own proxy, local combiner, TP ckarray
-    myProxy = CProxy_DataManager(thisgroup);
-    numRankBits = LOG_BRANCH_FACTOR;
   }
 
   /*
@@ -870,7 +706,7 @@ group DataManager {
        tree pieces such that each tree piece gets no more than 
        a threshold (ppc) number of particles.
      */
-    myProxy@sendParticles(retractSites);
+    thisProxy@sendParticles(retractSites);
   }
 
   // must set global num particles for each node before
@@ -1282,7 +1118,7 @@ group DataManager {
       CkEntryOptions opts;
       opts.setQueueing(CK_QUEUEING_IFIFO);
       opts.setPriority(RECV_MOMENTS_PRIORITY);
-      myProxy[replyTo[i]]@receiveMoments(moments, opts);
+      thisProxy[replyTo[i]]@receiveMoments(moments, opts);
     }
     replyTo.clear();
     //replyTo.length() = 0;
@@ -1365,7 +1201,7 @@ group DataManager {
     treeMomentsReady = true;
     flushBufferedRemoteDataRequests();
 
-    CkCallback cb(CkReductionTarget(DataManager,doneTreeBuilds),0,myProxy);
+    CkCallback cb(CkReductionTarget(DataManager,doneTreeBuilds),0,thisProxy);
     // FIXME - how to contribute in charj?
     contribute(cb);
   }
@@ -1375,7 +1211,7 @@ group DataManager {
     CkPrintf("[0] Tree build took %f s\n", t-phaseTime);
     phaseTime = t;
 
-    myProxy@resumeDoneNodeLevelMerge();
+    thisProxy@resumeDoneNodeLevelMerge();
   }
 
   void resumeDoneNodeLevelMerge(){
@@ -1522,7 +1358,7 @@ group DataManager {
       pmsg.data[i] = data[i];
     }
 
-    myProxy[replyTo]@recvParticles(pmsg);
+    thisProxy[replyTo]@recvParticles(pmsg);
   }
 
   Node<ForceData> requestNode(Node<ForceData> leaf, CutoffWorker<ForceData> worker, State *state, Traversal<ForceData> traversal){
@@ -1604,7 +1440,7 @@ group DataManager {
     node.serialize(NULL,emptyBuf,globalParams.cacheLineSize);
     CkAssert(emptyBuf == nmsg.data+nn);
 
-    myProxy[replyTo]@recvNode(nmsg);
+    thisProxy[replyTo]@recvNode(nmsg);
   }
 
   void recvParticles(ParticleReplyMsg msg){
@@ -1674,7 +1510,7 @@ group DataManager {
   }
 
   void finishIteration(){
-    CkCallback cb(CkReductionTarget(DataManager,doneForces),0,myProxy);
+    CkCallback cb(CkReductionTarget(DataManager,doneForces),0,thisProxy);
     // FIXME - how to contribute?
     contribute(cb);
   }
@@ -1684,7 +1520,7 @@ group DataManager {
     CkPrintf("[0] Traversal took %f s\n", t-phaseTime);
     phaseTime = t;
 
-    myProxy@resumeFinishIteration();
+    thisProxy@resumeFinishIteration();
   }
 
   void resumeFinishIteration(){
@@ -1704,7 +1540,7 @@ group DataManager {
 
     //DtReductionStruct dtred;
 
-    CkCallback cb(CkReductionTarget(DataManager,advance),myProxy);
+    CkCallback cb(CkReductionTarget(DataManager,advance),thisProxy);
     // FIXME - how to contribute?
     contribute(numInteractions,CkReduction::sum_long,cb);
 
@@ -1766,7 +1602,7 @@ group DataManager {
         tp.cleanup();
       }
 
-      CkCallback cb = CkCallback(CkReductionTarget(DataManager,recvUnivBoundingBox),myProxy);
+      CkCallback cb = CkCallback(CkReductionTarget(DataManager,recvUnivBoundingBox),thisProxy);
       contributeBoundingBox(cb);
       //contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
     }
@@ -1985,12 +1821,12 @@ group DataManager {
      * tree, and in particular their roots for load balancing
      * */
     init();
-    CkCallback cb(CkReductionTarget(DataManager,recvUnivBoundingBox),myProxy);
+    CkCallback cb(CkReductionTarget(DataManager,recvUnivBoundingBox),thisProxy);
     contributeBoundingBox(cb);
   }
 
   void contributeBoundingBox(CkCallback cb){
-    Array<Real> data(8);
+    Array<Real> data = new Array<Real>(8);
     if(myNumParticles > 0){
       for(int i = 0; i < 3; i++){
         data[i] = myBox.box.lesser_corner[i];
@@ -2005,43 +1841,10 @@ group DataManager {
     }
     data[6] = myBox.pe;
     data[7] = myBox.ke;
-    // FIXME - do custom reducers work?
-    contribute(8,data,BoundingBoxGrowReductionType,cb);
-  }
-
-  void printTree(Node<ForceData> nd, ostream os){
-    os << nd.getKey() 
-      << "[label=\""<< nd.getKey() 
-      << "," << nd.getNumParticles() 
-      << "," << nd.getOwnerStart() << ":" << nd.getOwnerEnd() 
-      << "\\n" << nd.data.moments.cm
-      << "\","
-      << "style=\"filled\""
-      << "color=\"" << NodeTypeColor[nd.getType()] << "\""
-      << "]" << endl;
-    //if(nd->getOwnerEnd()-1 == nd->getOwnerStart()) return;
-    for(int i = 0; i < nd.getNumChildren(); i++){
-      Node<ForceData> *child = nd.getChildren()+i;
-      CkAssert(child != NULL);
-      os << nd.getKey() << " -> " << child.getKey() << endl;
-      printTree(child,os);
-    }
-  }
-
-  void doPrintTree(string name){
-    ostringstream oss;
-    // FIXME - can we use streams?
-    CkPrintf("[%d] printing tree\n", CkMyPe());
-    oss << name << "." << CkMyPe() << "." << iteration << ".dot";
-    ofstream ofs(oss.str().c_str());
-    ofs << "digraph " << name << "_" << CkMyPe() << "_" << iteration << " {" << endl;
-    if(root != NULL) printTree(root,ofs);
-    ofs << "}" << endl;
-    ofs.close();
+    contribute(data,CkReduction.max_int,cb);
   }
 
   void pup(PUPer p){
-    // FIXME - how to pup in charj?
     p|numRankBits;
     p|prevIterationStart;
 
@@ -2053,8 +1856,6 @@ group DataManager {
     p|iteration;
 
     p|compareEnergy;
-
-    p|myProxy;
   }
 
 };
