@@ -16,6 +16,27 @@ void findOrbLB(){
   }
 }
 
+void usage(){
+  map<string,string> usage;
+  usage["in"] = "input file";
+  usage["ppc"] = "particles per chare";
+  usage["b"] = "particles per bucket (leaf)";
+  usage["theta"] = "opening angle";
+  usage["killat"] = "num single steps";
+  usage["chunkDepth"] = "when fetching remote data, what depth of subtree to fetch";
+  usage["yield"] = "how many buckets to process before yielding processor";
+  usage["ppc"] = "particleschare";
+
+
+  map<string,string>::iterator it;
+  CkPrintf("Usage: ./charmrun +p<numproc> ./barnes <options>\n");
+  CkPrintf("Options take the form -<name>=<value>\n");
+  CkPrintf("Options are described below:\n");
+  for(it = usage.begin(); it != usage.end(); it++){
+    CkPrintf("%s : %s\n", it.first.c_str(), it.second.c_str());
+  }
+}
+
 void getNumParticles();
 void setParameters(CkArgMsg *m, Parameters &params){
   map<string,string> table;
@@ -164,12 +185,12 @@ int getTipsyNBodies(Tipsy::TipsyReader *r){
   return r->getHeader().nbodies;
 }
 
-void setTipsyDarkParticle(Particle &p, Tipsy::TipsyReader &r){
+void setTipsyDarkParticle(Particle *p, Tipsy::TipsyReader &r){
   Tipsy::dark_particle dp;
   CkAssert(r.getNextDarkParticle(dp)); 
-  p.mass = dp.mass;
-  p.position = dp.pos;
-  p.velocity = dp.vel;
+  p->mass = dp.mass;
+  p->position = dp.pos;
+  p->velocity = dp.vel;
 }
 
 void doPrintTree(string name){
@@ -226,6 +247,14 @@ int binary_search_ge(const KEY_TYPE &check, const OBJ_TYPE *particles, int start
     }
   }
   return lo;
+}
+
+int binary_search_ge_v1(const Key &check, const Particle *particles, int start, int end){
+  return binary_search_ge(check,particles,start,end);
+}
+
+int binary_search_ge_v2(const int &check, const TreePieceDescriptor *particles, int start, int end){
+  return binary_search_ge(check,particles,start,end);
 }
 
 int log2ceil(int n){
@@ -306,3 +335,106 @@ ExternalParticle &ExternalParticle::operator=(const Particle &p){
   return *this;
 }
 
+  // Initialize various fields of child based on those of parent.
+void initChild(Node *child, Node *parent, int *splitters, Key childKey, int childDepth){
+  // The splitters array was filled in by findSplitters()
+  int childPartStart = splitters[i]; 
+  int childPartEnd = splitters[i+1]; 
+  int childNumParticles = childPartEnd-childPartStart;
+
+  // set child's key and depth
+  child->setKey(childKey);
+  child->setDepth(childDepth);
+  child->setParent(parent);
+
+  // findSplitters distributed particles over
+  // different children
+  child->setParticles(parent->getParticles()+childPartStart,childNumParticles);
+}
+
+/*
+ * Used during tree building. Calculate the moments of a node
+ * from the moments of its children. 
+ */
+void getMomentsFromChildren(Node *node){
+  ForceData *nodeData = node->getData();
+  MultipoleMoments &nodeMoments = nodeData->moments;
+  OrientedBox<double> &nodeBox = nodeData->box;
+  Real &nodeMass = nodeMoments.totalMass;
+  nodeMass = 0.0;
+
+  CkAssert(node->getNumChildren() > 0);
+
+  Node *leftChild = node->getLeftChild();
+  ForceData *leftData = leftChild->getData();
+  MultipoleMoments &leftMoments = leftData->moments;
+  nodeMass += leftMoments.totalMass;
+  nodeMoments.cm += leftMoments.totalMass*leftMoments.cm;
+  nodeBox.grow(leftData->box);
+
+  Node *rightChild = node->getRightChild();
+  ForceData *rightData = rightChild->getData();
+  MultipoleMoments &rightMoments = rightData->moments;
+  nodeMass += rightMoments.totalMass;
+  nodeMoments.cm += rightMoments.totalMass*rightMoments.cm;
+  nodeBox.grow(rightData->box);
+
+  if(nodeMass > 0.0) nodeMoments.cm /= nodeMass;
+
+  // Radius: distance between center of mass and the corner that is
+  // farthest from it.
+  Vector3D<Real> delta1 = nodeMoments.cm - nodeBox.lesser_corner;	
+  Vector3D<Real> delta2 = nodeBox.greater_corner - nodeMoments.cm;
+  delta1.x = (delta1.x > delta2.x ? delta1.x : delta2.x);
+  delta1.y = (delta1.y > delta2.y ? delta1.y : delta2.y);
+  delta1.z = (delta1.z > delta2.z ? delta1.z : delta2.z);
+  nodeMoments.rsq = delta1.lengthSquared();
+}
+
+/*
+ * If this node is a leaf, obtain its moments from 
+ * the particles that it encloses.
+ */
+void getMomentsFromParticles(Node *node){
+  ForceData *nodeData = node->getData();
+  OrientedBox<double> &nodeBox = nodeData->box;
+  Vector3D<Real> &nodeCm = nodeData->moments.cm;
+  Real &nodeMass = nodeData->moments.totalMass;
+  nodeMass = 0.0;
+
+  Particle *p = node->getParticles();
+  for(int i = 0; i < node->getNumParticles(); i++){
+    nodeMass += p->mass;
+    // Center of mass is weighted avg of particles' centers of mass
+    nodeCm += p->mass*p->position;
+    nodeBox.grow(p->position);
+    p++;
+  }
+  if(nodeMass > 0.0) nodeCm /= nodeMass;
+
+  Real d;
+  // Radius: distance between center of mass and particle farthest from it
+  nodeData->moments.rsq = 0;
+  p = node->getParticles();
+  for(int i = 0; i < node->getNumParticles(); i++){
+    d = (nodeCm - p->position).lengthSquared();
+    if(d > nodeData->moments.rsq) nodeData->moments.rsq = d;
+    p++;
+  }
+}
+
+int copyParticlesFromTreePieceDescriptor(Particle *copyTo, TreePieceDescriptor *descr){
+  int numParticlesCopied = 0;
+  CkVec<ParticleMsg*> *vec = descr->vec;
+  for(int j = 0; j < vec->length(); j++){
+    ParticleMsg *msg = (*vec)[j];
+    if(msg->numParticles > 0) memcpy(copyTo,msg->part,sizeof(Particle)*msg->numParticles);
+    delete msg;
+    numParticlesCopied += msg->numParticles;
+  }
+  return numParticlesCopied;
+}
+
+void iterateOverLocMgr(CkLocMgr *mgr, TreePieceCounter *localTreePieces){
+  mgr->iterate(*localTreePieces);
+}

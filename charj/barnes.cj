@@ -142,27 +142,6 @@ mainchare Main {
     }
   }
 
-  void usage(){
-    map<string,string> usage;
-    usage["in"] = "input file";
-    usage["ppc"] = "particles per chare";
-    usage["b"] = "particles per bucket (leaf)";
-    usage["theta"] = "opening angle";
-    usage["killat"] = "num single steps";
-    usage["chunkDepth"] = "when fetching remote data, what depth of subtree to fetch";
-    usage["yield"] = "how many buckets to process before yielding processor";
-    usage["ppc"] = "particleschare";
-
-
-    map<string,string>::iterator it;
-    CkPrintf("Usage: ./charmrun +p<numproc> ./barnes <options>\n");
-    CkPrintf("Options take the form -<name>=<value>\n");
-    CkPrintf("Options are described below:\n");
-    for(it = usage.begin(); it != usage.end(); it++){
-      CkPrintf("%s : %s\n", it.first.c_str(), it.second.c_str());
-    }
-  }
-
 
   Parameters params;
   int numQuiescenceRecvd;
@@ -187,7 +166,7 @@ group DataManager {
 
   double phaseTime;
 
-  CkVec<Particle> myParticles;
+  ParticleArray myParticles;
   int myNumParticles;
   BoundingBox myBox;
   BoundingBox univBox;
@@ -202,37 +181,39 @@ group DataManager {
 
   int iteration;
   int decompIterations;
-  ActiveBinInfo<ForceData> activeBins;
+  ActiveBinInfo activeBins;
   // Root of particles on this PE
   // Used in both decomposition and traversal
-  Node<ForceData> *root;
+  Node root;
 
-  CkVec<Node<ForceData>*> myBuckets;
+  CkVec<Node> myBuckets;
 
   // I am done constructing the tree 
   // from particles present on this PE
+  // However, in general, there will still be nodes whose
+  // moments haven't yet been computed, since they might require 
+  // remote information
   bool doneTreeBuild;
-  map<Key,Node<ForceData>*> nodeTable;
+  map<Key,Node> nodeTable;
 
-  map<Key,CkVec<int> > pendingMoments;
+  map<Key,CkVec<int>> pendingMoments;
 
   // I have processed the moment 
   // contributions from all other PEs, so that
   // the tree on this PE is now ready for 
   // traversal
   bool treeMomentsReady;
-  //CkVec<RequestMsg*> bufferedNodeRequests;
-  CkVec< std::pair<Key, int> > bufferedNodeRequests;
-  CkVec< std::pair<Key, int> > bufferedParticleRequests;
+  NodeRequestArray bufferedNodeRequests;
+  NodeRequestArray bufferedParticleRequests;
 
-  map<Key,Request> nodeRequestTable;
-  map<Key,Request> particleRequestTable;
+  RequestTable nodeRequestTable;
+  RequestTable particleRequestTable;
 
   // needed for skipping decomposition
-  CkVec<Key> treePieceKeys;
-  bool doSkipDecomposition;
+  KeyArray treePieceKeys;
+  boolean doSkipDecomposition;
 
-  Traversal<ForceData> fillTrav;
+  Traversal fillTrav;
   int numTreePiecesDoneTraversals;
   int numTreePiecesDoneRemoteRequests;
   CacheStats nodeReqs;
@@ -241,7 +222,8 @@ group DataManager {
   /* used only on PE 0 to track drift in energy */ 
   Real compareEnergy;
 
-  CmiUInt8 numInteractions[3];
+  // FIXME is this 64-bit?
+  long numInteractions[3];
 
   entry DataManager(){
     numRankBits = LOG_BRANCH_FACTOR;
@@ -295,13 +277,14 @@ group DataManager {
     myBox.ke = 0.0;
 
     for(int i = 0; i < myNumParticles; ++i) {
-      setTipsyDarkParticle(myParticles[i],r);
-      myParticles[i].order = i+startParticle; 
-      myParticles[i].potential = 0.0;
+      Particle p = myParticles.get(i);
+      setTipsyDarkParticle(p,r);
+      p.order = i+startParticle; 
+      p.potential = 0.0;
 
-      myBox.grow(myParticles[i].position);
-      myBox.mass += myParticles[i].mass;
-      myBox.ke += myParticles[i].mass*myParticles[i].velocity.lengthSquared();
+      myBox.grow(p.position);
+      myBox.mass += p.mass;
+      myBox.ke += p.mass*p.velocity.lengthSquared();
       myBox.pe = 0.0;
     }
     myBox.ke /= 2.0;
@@ -366,21 +349,26 @@ group DataManager {
         compareEnergy = univBox.ke+univBox.pe;
       }
       else if(iteration > 1){
+        // FIXME - disabled until we use custom reducer for bounding box
+        /*
         deltaE = compareEnergy-(univBox.ke+univBox.pe);
         deltaE /= compareEnergy;
         if(deltaE < 0.0) deltaE = -deltaE;
+        */
       }
 
       // Print statistics
       float memMB = (1.0*CmiMemoryUsage())/(1<<20);
+      /*
       ostringstream oss; 
       CkPrintf("(%d) iteration %d rsize %f energy %f delE/E %f\n", 
           CkMyPe(),
           iteration,
           uside,
           univBox.ke+univBox.pe, deltaE);
+      */
 
-      CkPrintf("(%d) mem %.2f MB prev time %g s\n\n", CkMyPe(), memMB, CmiWallTimer()-prevIterationStart);
+      CkPrintf("(%d) iteration %d rsize %f mem %.2f MB prev time %g s\n\n", CkMyPe(), iteration, uside, memMB, CmiWallTimer()-prevIterationStart);
 
       if(iteration > 1){
         // The energy should grow in magnitude
@@ -403,11 +391,9 @@ group DataManager {
   }
 
   // executed on PE 0
-  entry void receiveHistogram(CkReductionMsg msg){
-    // FIXME - how to get data from reduction msg?
-    int numRecvdBins = msg.getSize()/sizeof(int);
-    int *counts = (int *)msg.getData();
-    CkVec<int> binsToRefine;
+  entry void receiveHistogram(Array<int> counts){
+    int numRecvdBins = counts.size(0);
+    CkVec<int> binsToRefine = new CkVec<int>;
 
     /* 
        Reserve enough space so that all active leaves 
@@ -421,21 +407,21 @@ group DataManager {
        The newly created children of the active leaves
        are now the active leaves themselves. 
      */
-    CkVec<pair<Node<ForceData>,bool> > active = activeBins.getActive();
+    PossiblySplitNodeArray active = activeBins.getActive();
     CkAssert(numRecvdBins == active.length());
 
     Real thresh = (DECOMP_TOLERANCE*(Real)(globalParams.ppc));
     // Check which new active leaves need to be partitioned
-    Node<ForceData> node = NULL;
     for(int i = 0; i < numRecvdBins; i++){
-      node = active[i].first;
+      PossiblySplitNode possiblySplitNode = active.get(i);
+      Node node = possiblySplitNode.node;
       if((Real)counts[i] > thresh){
         // Need to refine this leaf (partition)
         binsToRefine.push_back(i);
         // By refining this node, we will remove one tree piece
         // and add BRANCH_FACTOR in its place.
         //CkPrintf("[%d] Split bin %d num %d thresh %.1f\n", CkMyPe(), i, counts[i], thresh);
-        // use ownerstart as a placeholder for 
+        // IMPORTANT: we use ownerstart as a placeholder for 
         // global num. particles underneath 'node'
         node.setOwnerStart(-1);
       }
@@ -465,7 +451,9 @@ group DataManager {
       doneDecomposition();
     }
 
-    delete msg;
+    delete binsToRefine;
+    // FIXME - do i have to delete counts?
+    delete counts;
   }
 
   /*
@@ -481,7 +469,7 @@ group DataManager {
   entry void receiveSplitters(CkVec<int> splitBins){
 
     // Process bins to refine
-    activeBins.processRefine(splitBins.getVec(), splitBins.size());
+    activeBins.processRefine(splitBins);
 
     // Send counts of particles in active leaves to master PE
     sendHistogram();
@@ -500,7 +488,7 @@ group DataManager {
     // Flush particles to their owner tree pieces
     // this will also set the number of tree pieces used
     // after retracting
-    FlushParticlesStruct fps = new FlushParticlesStruct();
+    FlushParticlesStruct fps = new FlushParticlesStruct(retractSites);
     numTreePieces = flushParticles(fps);
     CkAssert(fps.retractIndex == fps.retractSites.length());
 
@@ -547,7 +535,7 @@ group DataManager {
     senseTreePieces();
 
     // sort the local tree pieces by index (and hence lower/upper bound of particle range)
-    localTreePieces.submittedParticles.quickSort();
+    localTreePieces.sortTreePieceDescriptors();
     myNumParticles = localTreePieces.numParticles;
 
     myParticles.length() = 0;
@@ -556,23 +544,16 @@ group DataManager {
     int offset = 0;
     numLocalUsefulTreePieces = 0;
     for(int i = 0; i < localTreePieces.count; i++){
-      TreePieceDescriptor descr = localTreePieces.submittedParticles[i];
+      TreePieceDescriptor descr = localTreePieces.get(i);
       if(descr.index < numTreePieces) numLocalUsefulTreePieces++;
 
-      // FIXME - how to extract particles from msg?
-      CkVec<ParticleMsg> vec = descr.vec;
-      for(int j = 0; j < vec.length(); j++){
-        ParticleMsg msg = vec[j];
-        if(msg.numParticles > 0) memcpy(myParticles.getVec()+offset,msg.part,sizeof(Particle)*msg.numParticles);
-        offset += msg.numParticles;
-        delete msg;
-      }
+      offset += copyParticlesFromTreePieceDescriptor(myParticles.get(offset),descr);
     }
 
-    myParticles.quickSort();
+    myParticles.sort();
 
     // The first local TreePiece will always have buckets numbered from 0
-    if(localTreePieces.count > 0) localTreePieces.submittedParticles[0].bucketStartIdx = 0;
+    if(localTreePieces.count > 0) localTreePieces.get(0).bucketStartIdx = 0;
 
     buildTree(root,0,myNumParticles,0,numLocalUsefulTreePieces);
     doneTreeBuild = true;
@@ -666,10 +647,10 @@ group DataManager {
   void initHistogramParticles(){
     int rootDepth = 0;
 
-    root = new Node<ForceData>(Key(1),
-        rootDepth,
-        myParticles.getVec(),
-        myNumParticles);
+    root = new Node<ForceData>(1,
+                               rootDepth,
+                               myParticles.get(0),
+                               myNumParticles);
     /*
        The activeBins data structure keeps track of the
        active leaves (bins) iteration after iteration. 
@@ -689,10 +670,15 @@ group DataManager {
   }
 
   void sendHistogram(){
-    CkCallback cb(CkReductionTarget(DataManager,receiveHistogram),0,this.thisgroup);
-    // FIXME - how to contribute arrays?
-    contribute(activeBins.getNumCounts(),CkReduction::sum_int,cb);
+    CkCallback cb = new CkCallback(CkReductionTarget(DataManager,receiveHistogram),0,this.thisgroup);
+    Array<int> tmp = new Array<int>(activeBins.getNumCounts()]);
+    for(int i = 0; i < activeBins.getNumCounts(); i++){
+      tmp[i] = activeBins.getCount(i);
+    }
+    contribute(tmp,CkReduction.sum_int,cb);
     activeBins.reset();
+    delete cb;
+    delete tmp;
   }
 
   void doneDecomposition(){
@@ -707,12 +693,14 @@ group DataManager {
        a threshold (ppc) number of particles.
      */
     thisProxy@sendParticles(retractSites);
+    // FIXME - do i have to delete this?
+    delete retractSites;
   }
 
   // must set global num particles for each node before
   // we mark retractable nodes; otherwise, the retractable
   // nodes will not be obtained in DFS order
-  int setGlobalParticleCounts(Node<ForceData> node){
+  int setGlobalParticleCounts(Node node){
     int globalParticleCount;
     if(node.getNumChildren() == 0){
       // must have already set global num particles for leaves
@@ -723,16 +711,15 @@ group DataManager {
       // if internal, process children first, so that
       // their global particle counts are available
       globalParticleCount = 0;
-      for(int i = 0; i < node.getNumChildren(); i++){
-        globalParticleCount += setGlobalParticleCounts(node.getChild(i));
-      }
+      globalParticleCount += setGlobalParticleCounts(node.getLeftChild());
+      globalParticleCount += setGlobalParticleCounts(node.getRightChild());
       node.setOwnerStart(globalParticleCount);
     }
 
     return globalParticleCount;
   }
 
-  void findRetractSites(Node<ForceData> node, CkVec<Key> sites){
+  void findRetractSites(Node node, CkVec<Key> sites){
     Real thresh = (DECOMP_TOLERANCE*(Real)(globalParams.ppc));
     // if this node has fewer particles than the threshold for splitting,
     // check whether its parent also sub-threshold. since we would like the
@@ -740,14 +727,14 @@ group DataManager {
     // iff the node is retractable but its parent isn't
     // also, it is wasteful to mark leaves as retractable
     if(node.getNumChildren() > 0 && node.getOwnerStart() <= thresh){ 
-      Node<ForceData> *parent = node.getParent();
+      // FIXME - set parent correctly while refining
+      Node parent = node.getParent();
       if(parent != null && 
           parent.getOwnerStart() > thresh) sites.push_back(node.getKey());
     }
-    else{
-      for(int i = 0; i < node.getNumChildren(); i++){
-        findRetractSites(node.getChild(i),sites);
-      }
+    else if(node.getNumChildren() > 0){
+      findRetractSites(node.getLeftChild(i),sites);
+      findRetractSites(node.getRightChild(i),sites);
     }
   }
 
@@ -755,15 +742,15 @@ group DataManager {
     int pstart = 0;
     int pend = myNumParticles;
     for(int i = 1; i < numTreePieces; i++){
-      Key check = treePieceKeys[i];
+      Key check = treePieceKeys.get(i);
       int prev_start = pstart;
-      pstart = binary_search_ge<Key,Particle>(check,myParticles.getVec(),pstart,pend); 
+      pstart = binary_search_ge_v1(check,myParticles.getVec(),pstart,pend); 
 
       int prev_np = pstart-prev_start;
 
-      sendParticleMsg(i-1, myParticles.getVec()+prev_start, prev_np);
+      sendParticleMsg(i-1, myParticles.get(prev_start), prev_np);
     }
-    sendParticleMsg(numTreePieces-1,myParticles.getVec()+pstart,pend-pstart);
+    sendParticleMsg(numTreePieces-1,myParticles.get(pstart),pend-pstart);
   }
 
   /*
@@ -779,35 +766,24 @@ group DataManager {
      Returns number of tree pieces (leaves of the decomposition tree)
    */
 
-  class FlushParticlesStruct {
-    public CkVec<Key> retractSites;
-    public int retractIndex;
-
-    public FlushParticlesStruct(){
-      retractIndex = 0;
-      retractSites = new CkVec<Key>();
-    }
-  };
-
   int flushParticles(FlushParticlesStruct fps){
     treePieceKeys.resize(0);
     return flushAndMark(root,0,fps);
   }
 
-  int flushAndMark(Node<ForceData> node, int leafNum, FlushParticlesStruct fps){
-    if(fps.retractIndex < fps.retractSites.length() && 
-        fps.retractSites[retractIndex] == node.getKey()){
+  int flushAndMark(Node node, int leafNum, FlushParticlesStruct fps){
+    int
+    if(fps.doRetract(node.getKey())){
       //CkPrintf("Retract node %llu\n", node->getKey());
       node.deleteBeneath();
-      fps.retractIndex++;
+      fps.advance();
     }
 
     node.setOwnerStart(leafNum);
     if(node.getNumChildren() > 0){
-      for(int i = 0; i < node.getNumChildren(); i++){
-        // returned value is used by next child
-        leafNum = flushAndMark(node.getChild(i),leafNum,fps);
-      }
+      leafNum = flushAndMark(node.getLeftChild(),leafNum,fps);
+      // returned value is used by next child
+      leafNum = flushAndMark(node.getRightChild(),leafNum,fps);
     }
     else{
       // sendParticlesToTreePiece whose root is 'node'
@@ -821,7 +797,7 @@ group DataManager {
   /*
      Send the particles that you are holding for tree piece 'tp' to it.
    */
-  void sendParticlesToTreePiece(Node<ForceData> nd, int tp) {
+  void sendParticlesToTreePiece(Node nd, int tp) {
     CkAssert(nd.getNumChildren() == 0);
     int np = nd.getNumParticles();
     CkAssert(tp == treePieceKeys.length());
@@ -832,36 +808,10 @@ group DataManager {
   }
 
   void sendParticleMsg(int tp, Particle p, int np){
-    // FIXME - no sizeof; how to chunk particles into
-    // bytes to send?
-    int bytesToSend = np*sizeof(Particle);
-    int curoffset = 0;
-    int curnum;
-    int cursize;
-
-    while(bytesToSend > 0){
-      if(bytesToSend > globalParams.particleMsgMaxSize){
-        cursize = globalParams.particleMsgMaxSize;
-      }
-      else{
-        cursize = bytesToSend;
-      }
-      curnum = cursize/sizeof(Particle);
-      cursize = curnum*sizeof(Particle);
-
-      //CkPrintf("particlemsg num %d size %d\n", curnum, cursize);
-
-      ParticleMsg msg = new (curnum,0) ParticleMsg;
-      // FIXME - how to memcpy without ptr arithmetic?
-      memcpy(msg.part, p+curoffset, cursize);
-      msg.numParticles = curnum;
-      treePieceProxy[tp].receiveParticles(msg);
-
-      bytesToSend -= cursize;
-      curoffset += curnum;
-    }
-
-    CkAssert(bytesToSend == 0);
+    ParticleArray arrayToSend = new ParticleArray(p,np);
+    ParticleMsg msg = new ParticleMsg(arrayToSend);
+    treePieceProxy[tp]@receiveParticles(msg);
+    delete arrayToSend;
   }
 
   /*
@@ -872,8 +822,8 @@ group DataManager {
    */
   void senseTreePieces(){
     localTreePieces.reset();
-    CkLocMgr mgr = treePieceProxy.ckLocMgr();
-    mgr.iterate(localTreePieces);
+    CkLocMgr mgr = treePieceProxy@ckLocMgr();
+    iterateOverLocMgr(mgr,localTreePieces);
   }
 
   /*
@@ -904,11 +854,11 @@ group DataManager {
   // This procedure only goes
   // down to the depths of TreePiece roots; after that,
   // the singleBuildTree function is invoked.
-  void buildTree(Node<ForceData> node, int pstart, int pend, int tpstart, int tpend){
+  void buildTree(Node node, int pstart, int pend, int tpstart, int tpend){
     TB_DEBUG("(%d) pstart %d pend %d tpstart %d tpend %d node %lu\n", CkMyPe(), pstart, pend, tpstart, tpend, node.getKey());
 
     int np;
-    nodeTable[node.getKey()] = node;
+    nodeTable.insert(make_pair(node.getKey(),node));
 
     if(tpend <= tpstart){
       // No local tree piece under this node
@@ -918,11 +868,12 @@ group DataManager {
       int requestOwner = node.getOwnerStart()+(rand()%numOwners);
       TB_DEBUG("(%d) requestMoments from tree piece %d for node %lu\n", CkMyPe(), requestOwner, node.getKey());
 
-      CkEntryOptions opts;
+      CkEntryOptions opts = new CkEntryOptions();
       opts.setQueueing(CK_QUEUEING_IFIFO);
       opts.setPriority(REQUEST_MOMENTS_PRIORITY);
       treePieceProxy[requestOwner]@requestMoments(node.getKey(),CkMyPe(),opts);
       numMomentsRequested++;
+      delete opts;
 
       // There are no particles on this PE under this node
       CkAssert(pstart == pend);
@@ -935,7 +886,7 @@ group DataManager {
       return;
     }
     else if(tpend-tpstart == 1 && (node.getOwnerEnd()-node.getOwnerStart()==1)){
-      TreePieceDescriptor currentTP = localTreePieces.submittedParticles[tpstart];
+      TreePieceDescriptor currentTP = localTreePieces.get(tpstart);
       np = currentTP.numParticles;
       TB_DEBUG("(%d) SINGLE LOCAL tree piece %d for node %lu\n", CkMyPe(), currentTP.index, node.getKey());
       // This is the first node that has 
@@ -948,13 +899,13 @@ group DataManager {
       // There must be these many particles under the root of this TreePiece
       CkAssert(np == pend-pstart);
 
-      if(np > 0) node.setParticles(myParticles.getVec()+pstart,np);
-      else node.setParticles(NULL,0);
+      if(np > 0) node.setParticles(myParticles.get(pstart),np);
+      else node.setParticles(null,0);
 
       // Set the bucket indices for this TreePiece
       // If this is not the 0-th local TreePiece to have its bucket indices set,
       // it can use the last bucket (exclusive) of the one previous to it as its first bucket
-      if(tpstart > 0) currentTP.bucketStartIdx = localTreePieces.submittedParticles[tpstart-1].bucketEndIdx; 
+      if(tpstart > 0) currentTP.bucketStartIdx = localTreePieces.get(tpstart-1).bucketEndIdx; 
       // To obtain the last bucket, set it to the first
       // bucket and increment each time a new bucket is encountered (in singleBuildTree)
       currentTP.bucketEndIdx = currentTP.bucketStartIdx;
@@ -970,10 +921,9 @@ group DataManager {
       return;
     }
 
-
     np = pend-pstart;
 
-    if(np > 0) node.setParticles(myParticles.getVec()+pstart,pend-pstart);
+    if(np > 0) node.setParticles(myParticles.get(pstart),pend-pstart);
     else node.setParticles(null,0);
 
     // If we are here, this node has at least one local tree piece underneath it
@@ -982,27 +932,22 @@ group DataManager {
     // Make sure that the range of tree pieces
     // is contained within this node; otherwise,
     // we shouldn't have made this call at all.
-    CkAssert(localTreePieces.submittedParticles[tpstart].index >= node.getOwnerStart());
+    CkAssert(localTreePieces.get(tpstart).index >= node.getOwnerStart());
 
     // Find the first local TreePiece that has
     // an index beyond the left child's last
     // contained TreePiece, i.e. equal to or after
     // the right child's first contained TreePiece 
-    Node<ForceData> child = null;
-    for(int i = 1; i < node.getNumChildren(); i++){
-      child = node.getChild(i);
-      int firstTreePiece = child.getOwnerStart(); 
-      Key particleTestKey = Node<ForceData>::getParticleLevelKey(child);
+    int firstTreePiece = node.getRightChild().getOwnerStart();
+    Key particleTestKey = Node::getParticleLevelKey(node.getRightChild());
+    int tp = binary_search_ge_v2(firstTreePiece,localTreePieces.get(0),tpstart,tpend);
+    int pp = binary_search_ge_v1(particleTestKey,myParticles.get(0),pstart,pend);
+    buildTree(node.getLeftChild(),pstart,pp,tpstart,pp);
 
-      int tp = binary_search_ge<int,TreePieceDescriptor>(firstTreePiece,localTreePieces.submittedParticles.getVec(),tpstart,tpend);
-      int pp = binary_search_ge<Key,Particle>(particleTestKey,myParticles.getVec(),pstart,pend); 
+    tpstart = tp;
+    pstart = pp;
 
-      buildTree(node.getChild(i-1),pstart,pp,tpstart,tp);
-
-      tpstart = tp;
-      pstart = pp;
-    }
-    buildTree(node.getChild(BRANCH_FACTOR-1),pstart,pend,tpstart,tpend);
+    buildTree(node.getRightChild(),pstart,pend,tpstart,tpend);
 
     if(node.allChildrenMomentsReady()){
       // All descendants were able to construct their subtrees
@@ -1249,7 +1194,7 @@ group DataManager {
       for(int i = 1; i < node.getNumChildren(); i++){
         child = node.getChild(i);
         int childFirstOwner = child.getOwnerStart();
-        int tp = binary_search_ge<int,TreePieceDescriptor>(childFirstOwner,localTreePieces.submittedParticles.getVec(),tpstart,tpend);
+        int tp = binary_search_ge_v2(childFirstOwner,localTreePieces.submittedParticles.getVec(),tpstart,tpend);
         registerTopLevelNodes(node.getChild(i-1),tpstart,tp);
         tpstart = tp;
       }
@@ -1623,43 +1568,8 @@ group DataManager {
   }
 
   void freeCachedData(){
-
-    Table<ParticleRequest>.iterator it;
-    for(it = particleRequestTable.begin(); it != particleRequestTable.end(); it=it.next()){
-      ParticleRequest request = it.get();
-      CkAssert(request.sent);
-      CkAssert(request.data != null);
-      CkAssert(request.requestors.length() == 0);
-      CkAssert(request.msg != null);
-
-      CkAssert(request.parentCached == request.parent.isCached());
-
-      if(!request.parentCached){
-        delete request.parent;
-      }
-
-      delete request.msg;
-    }
-
-    Table<NodeRequest>.iterator it;
-    for(it = nodeRequestTable.begin(); it != nodeRequestTable.end(); it=it.next()){
-      NodeRequest request = it.get();
-      CkAssert(request.sent);
-      CkAssert(request.data != null);
-      CkAssert(request.requestors.length() == 0);
-      CkAssert(request.msg != null);
-
-      CkAssert(request.parentCached == request.parent.isCached());
-
-      if(!request.parentCached){
-        delete request.parent;
-      }
-
-      delete request.msg;
-    }
-
-    nodeRequestTable.clear();
-    particleRequestTable.clear();
+    particleRequestTable.free();
+    nodeRequestTable.free();
   }
 
   void quiescence(){
@@ -1679,17 +1589,13 @@ group DataManager {
     // delete the trees underneath your tree pieces
     // this can be done in parallel by all PEs on node
     for(int i = 0; i < numLocalUsefulTreePieces; i++){
-      Node<ForceData> treePieceRoot = localTreePieces.submittedParticles[i].root;
+      Node treePieceRoot = localTreePieces.submittedParticles[i].root;
       CkAssert(treePieceRoot != null);
       treePieceRoot.deleteBeneath();
     }
 
-
-    if(root != null){
-      // FIXME - how to invoke non-entry methods on proxy?
-      treeMergerProxy.ckLocalBranch().freeMergedTree();
-    }
-
+    CkAssert(root != null);
+    treeMergerProxy@ckLocalBranch().freeMergedTree();
   }
 
   void reuseTree(){
@@ -1713,47 +1619,39 @@ group DataManager {
   }
 
   void kickDriftKick(){
-    Vector3D<Real> dv;
-
-    Particle pstart = myParticles[0];
-    Particle pend = myParticles[myNumParticles-1];
+    Particle pstart = myParticles.get(0);
+    Particle pend = myParticles.get(myNumParticles-1);
 
     Real particleEnergy;
     Real particleKinetic;
     Real particlePotential;
 
-#ifdef CHECK_INTER
-    int bad = 0;
-    Real tolerance = 1.0/univBox.mass;
-#endif
-
     myBox.reset();
 
     if(globalParams.doPrintAccel && (iteration == globalParams.iterations-1)){
       for(int i = 0; i < myParticles.length(); i++){
-        Vector3D<Real> p = myParticles[i].position;
-        Vector3D<Real> v = myParticles[i].velocity;
-        CkPrintf("[%d] part %d p %f %f %f v %f %f %f\n", CkMyPe(), myParticles[i].order, 
-            p.x, 
-            p.y, 
-            p.z,
-            v.x, 
-            v.y, 
-            v.z
+        CkPrintf("[%d] part %d p %f %f %f v %f %f %f\n", CkMyPe(), 
+            myParticles.get(i).order, 
+            myParticles.get(i).position.x, 
+            myParticles.get(i).position.y, 
+            myParticles.get(i).position.z,
+            myParticles.get(i).velocity.x, 
+            myParticles.get(i).velocity.y, 
+            myParticles.get(i).velocity.z
             );
       }
     }
 
     if(iteration > 0){
       for(int i = 0; i < myParticles.length(); i++){
-        Particle p = myParticles[i];
+        Particle p = myParticles.get(i);
         p.velocity += globalParams.dthf*p.acceleration;
       }
     }
 
 
     for(int i = 0; i < myParticles.length(); i++){
-      Particle p = myParticles[i];
+      Particle p = myParticles.get(i);
       particlePotential = p.mass*p.potential;
       particleKinetic = 0.5*p.mass*p.velocity.lengthSquared();
       myBox.pe += particlePotential;
@@ -1776,7 +1674,9 @@ group DataManager {
       myBox.grow(p.position);
       myBox.mass += p.mass;
 
-      p.acceleration = Vector3D<Real>(0.0);
+      p.acceleration.x = 0.0;
+      p.acceleration.y = 0.0;
+      p.acceleration.z = 0.0;
       p.potential = 0.0;
     }
 
