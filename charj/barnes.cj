@@ -196,7 +196,7 @@ group DataManager {
   bool doneTreeBuild;
   map<Key,Node> nodeTable;
 
-  map<Key,CkVec<int>> pendingMoments;
+  PendingMoments pendingMoments;
 
   // I have processed the moment 
   // contributions from all other PEs, so that
@@ -970,12 +970,12 @@ group DataManager {
     }
   }
 
-  void notifyParentMomentsDone(Node<ForceData> node){
+  void notifyParentMomentsDone(Node node){
     // Respond to any requestors for the moments of 'node'
     TB_DEBUG("(%d) Notify parent flushing moments for node %lu\n", CkMyPe(), node.getKey());
     momentsResponseHelper(node);
 
-    Node<ForceData> parent = node.getParent();
+    Node parent = node.getParent();
     if(parent != null) parent.childMomentsReady();
     else{
       // The root's moments have been computed,
@@ -987,7 +987,7 @@ group DataManager {
 
   // Recursive method to build the tree under a single TreePiece.
   // given an array of particles
-  void singleBuildTree(Node<ForceData> node, TreePieceDescriptor tp){
+  void singleBuildTree(Node node, TreePieceDescriptor tp){
     node.setOwners(tp.index,tp.index+1);
     //nodeTable[node->getKey()] = node;
 
@@ -1021,32 +1021,30 @@ group DataManager {
       if(node.getNumChildren() == 0) node.refine();
       else node.reuseRefine();
 
-      Node<ForceData> child = null;
-      for(int i = 0; i < node.getNumChildren(); i++){
-        child = node.getChild(i);
-        singleBuildTree(child,tp);
-        // FIXME - use user-defined data table with
-        // add/remove functionality instead of 
-        // map here
-        //nodeTable[child.getKey()] = child;
-        nodeTable.set(child.getKey(),child);
-      }
+      Node child = node.getLeftChild();
+      singleBuildTree(child,tp);
+      nodeTable.insert(make_pair(child.getKey(),child));
+
+      child = node.getRightChild();
+      singleBuildTree(child,tp);
+      nodeTable.insert(make_pair(child.getKey(),child));
 
       node.getMomentsFromChildren();
     }
   }
 
-  Node<ForceData> lookupNode(Key k){
+  Node lookupNode(Key k){
     return nodeTable.find(k);
   }
 
   void requestMoments(Key k, int replyTo){
-    pendingMoments.get(k).push_back(replyTo);
     //pendingMoments[k].push_back(replyTo);
+    CkVec<int> requests = pendingMoments.find(k);
+    requests.push_back(replyTo);
     TB_DEBUG("(%d) received requestMoments from pe %d node %lu\n", CkMyPe(), replyTo, k);
 
     if(doneTreeBuild){
-      Node<ForceData> node = lookupNode(k);
+      Node node = lookupNode(k);
       CkAssert(node != null);
 
       boolean ready = node.allChildrenMomentsReady();
@@ -1056,21 +1054,23 @@ group DataManager {
     }
   }
 
-  void respondToMomentsRequest(Node<ForceData> node, CkVec<int> replyTo){
+  void respondToMomentsRequest(Node node, CkVec<int> replyTo){
     MomentsExchangeStruct moments = new MomentsExchangeStruct(node);
+    CkEntryOptions opts = new CkEntryOptions();
+    opts.setQueueing(CK_QUEUEING_IFIFO);
+    opts.setPriority(RECV_MOMENTS_PRIORITY);
+
     for(int i = 0; i < replyTo.length(); i++){
-      TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), replyTo[i], node.getKey());
-      CkEntryOptions opts;
-      opts.setQueueing(CK_QUEUEING_IFIFO);
-      opts.setPriority(RECV_MOMENTS_PRIORITY);
-      thisProxy[replyTo[i]]@receiveMoments(moments, opts);
+      TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), ckVecReadPrimitive(replyTo,i), node.getKey());
+      thisProxy[ckVecReadPrimitive(replyTo,i)]@receiveMoments(moments, opts);
     }
-    replyTo.clear();
-    //replyTo.length() = 0;
+    replyTo.length() = 0;
+    delete opts;
+    delete moments;
   }
 
   void DataManager::receiveMoments(MomentsExchangeStruct moments){
-    Node<ForceData> node = lookupNode(moments.key);
+    Node node = lookupNode(moments.key);
     CkAssert(node != null);
     CkAssert(!treeMomentsReady);
 
@@ -1081,13 +1081,13 @@ group DataManager {
     updateLeafMoments(node,moments);
   }
 
-  void updateLeafMoments(Node<ForceData> node, MomentsExchangeStruct data){
+  void updateLeafMoments(Node node, MomentsExchangeStruct data){
     copyMomentsToNode(node,data);
     TB_DEBUG("(%d) updateLeafMoments %lu\n", CkMyPe(), node.getKey());
     passMomentsUpward(node);
   }
 
-  void momentsResponseHelper(Node<ForceData> node){
+  void momentsResponseHelper(Node node){
     CkVec<int> replyList = pendingMoments.find(node.getKey());
     if(replyList != null){
       respondToMomentsRequest(node,replyList);
@@ -1095,13 +1095,14 @@ group DataManager {
     }
   }
 
-  void passMomentsUpward(Node<ForceData> node){
+  void passMomentsUpward(Node node){
     TB_DEBUG("(%d) passUp %lu\n", CkMyPe(), node.getKey());
     momentsResponseHelper(node);
 
-    Node<ForceData> parent = node.getParent();
-    if(parent == NULL){
-      CkAssert(node.getKey() == Key(1));
+    // FIXME - remember to check out setting of parent
+    Node parent = node.getParent();
+    if(parent == null){
+      CkAssert(node.getKey() == 1);
       treeReady();
     }else{
       parent.childMomentsReady();
@@ -1122,9 +1123,11 @@ group DataManager {
       string name("unmerged");
       doPrintTree(name);
     }
-    treeMergerProxy.ckLocalBranch().submit(CkMyPe(),root);
+    // FIXME - remember to delete this at merger end
+    treeMergerProxy@ckLocalBranch().submit(new TreeRootContainer(root,CkMyPe()));
   }
 
+  // FIXME - start here
   void doneNodeLevelMerge(Node<ForceData> rootFromNodeGroup){
     // FIXME - no generic pointers in charj
     Node<ForceData> mergedRoot = rootFromNodeGroup;

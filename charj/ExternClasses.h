@@ -109,11 +109,11 @@ class MomentsExchangeStruct {
   public NodeType type;
 
   MomentsExchangeStruct() {}
-  MomentsExchangeStruct(const Node &node){
-    moments = node.data.moments;
-    box = node.data.box;
-    key = node.getKey()
-    type = node.getType();
+  MomentsExchangeStruct(const Node *node){
+    moments = node->data.moments;
+    box = node->data.box;
+    key = node->getKey()
+    type = node->getType();
   }
 
   void pup(PUPer p){
@@ -420,5 +420,21 @@ class TreePieceCounter : public CkLocIterator {
 
   TreePieceDescriptor *get(int i){
     return submittedParticles.get(i);
+  }
+};
+
+class PendingMoments {
+  std::map<Key,CkVec<int> > table;
+
+  public:
+  CkVec<int> *find(Key k){
+    std::map<Key,CkVec<int> >::iterator it;
+    it = table.find(k);
+    if(it == table.end()) return NULL;
+    else return &(it->second);
+  }
+
+  void erase(Key k){
+    table.erase(k);
   }
 };

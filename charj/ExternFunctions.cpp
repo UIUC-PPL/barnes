@@ -438,3 +438,8 @@ int copyParticlesFromTreePieceDescriptor(Particle *copyTo, TreePieceDescriptor *
 void iterateOverLocMgr(CkLocMgr *mgr, TreePieceCounter *localTreePieces){
   mgr->iterate(*localTreePieces);
 }
+
+template<typename T>
+T ckVecPrimitiveRead(CkVec<T> *vec, int pos){
+  return (*vec)[pos];
+}
