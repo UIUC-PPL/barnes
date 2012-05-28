@@ -1,22 +1,13 @@
 class Requestor {
-  CutoffWorker<ForceData> worker;
-  State state;
-  Traversal<ForceData> traversal;
-  Node<ForceData> currentBucket;
+  CutoffWorker worker = null;
+  State state = null;
+  Traversal traversal = null;
+  Node currentBucket = null;
 
-  Requestor(CutoffWorker<ForceData> w, State s, Traversal<ForceData> t, Node<ForceData> b){
+  Requestor(CutoffWorker w, State s, Traversal t, Node b){
     worker = w;
     state = s;
     traversal = t;
     currentBucket = b;
   }
-
-  Requestor(){
-    worker = null;
-    state = null;
-    traversal = null
-    currentBucket = null;
-  }
 };
-
-
