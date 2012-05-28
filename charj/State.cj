@@ -15,7 +15,7 @@ class State {
   // TreePiece::doRemoteGravity 
   int currentBucketIdx;
   // Pointer to current bucket 
-  Node<ForceData> currentBucketPtr;
+  Node currentBucketPtr;
   // The tree piece that initiated the traversal being tracked
   TreePiece ownerTreePiece;
 
@@ -48,8 +48,7 @@ class State {
   }
   
   // Reinitialize state
-  public void reset(TreePiece owner, int p, Node<ForceData> bucketPtr){
-  //void reset(TreePiece *owner, string &id, int p, Node<ForceData> **bucketPtr){
+  public void reset(TreePiece owner, int p, Node bucketPtr){
     ownerTreePiece = owner;
     //description = id;
     pending = p;
@@ -57,7 +56,7 @@ class State {
     currentBucketPtr = bucketPtr;
   }
 
-  public void nodeEncountered(Key bucketKey, Node<ForceData> node){
+  public void nodeEncountered(Key bucketKey, Node node){
     /*
 #ifdef VERBOSE_TRAVERSAL
   CkPrintf("(%d,%d) bucket %lu node %lu 0 encountered %s type %s radius %f\n", ownerTreePiece->getIndex(), ownerTreePiece->getIteration(), bucketKey, node->getKey(), getDescription().c_str(), NodeTypeString[node->getType()].c_str(), node->data.moments.rsq);
@@ -65,7 +64,7 @@ class State {
   */
   }
 
-  public void nodeOpened(Key bucketKey, Node<ForceData> node){
+  public void nodeOpened(Key bucketKey, Node node){
   /*
 #ifdef VERBOSE_TRAVERSAL
   CkPrintf("(%d,%d) bucket %lu node %lu 1 opened %s type %s \n", ownerTreePiece->getIndex(), ownerTreePiece->getIteration(), bucketKey, node->getKey(), getDescription().c_str(), NodeTypeString[node->getType()].c_str());
@@ -73,7 +72,7 @@ class State {
   */
   }
 
-  public void nodeDiscarded(Key bucketKey, Node<ForceData> node){
+  public void nodeDiscarded(Key bucketKey, Node node){
     /*
 #ifdef VERBOSE_TRAVERSAL
     CkPrintf("(%d,%d) bucket %lu node %lu 2 discarding %s\n", ownerTreePiece->getIndex(), ownerTreePiece->getIteration(), bucketKey, node->getKey(), getDescription().c_str());
@@ -83,7 +82,7 @@ class State {
     //insert(bucketKey,node->getKey());
   }
 
-  public void beforeForces(Node<ForceData> bucket, Key k){
+  public void beforeForces(Node bucket, Key k){
     /*
 #ifdef VERBOSE_TRAVERSAL_INTERACTION
     //CkPrintf("beforeforces bucket %lu key %lu\n", bucket->getKey(), k);
@@ -95,7 +94,7 @@ class State {
     */
   }
 
-  void nodeComputed(Node<ForceData> bucket, Key nodeKey){
+  void nodeComputed(Node bucket, Key nodeKey){
     /*
 #ifdef VERBOSE_TRAVERSAL_INTERACTION
     ostringstream oss;
@@ -110,7 +109,7 @@ class State {
     insert(bucket.getKey(),nodeKey);
   }
 
-  void bucketComputed(Node<ForceData> bucket, Key k){
+  void bucketComputed(Node bucket, Key k){
     /*
 #ifdef VERBOSE_TRAVERSAL_INTERACTION
     ostringstream oss;

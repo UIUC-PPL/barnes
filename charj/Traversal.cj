@@ -1,9 +1,9 @@
-class Traversal<T> {
+class Traversal {
 
   // to request particles/nodes from
   DataManager dm = null;
 
-  Node<T> processLeaf(Node<T> node, CutoffWorker<T> worker, State state);
+  Node processLeaf(Node node, CutoffWorker worker, State state);
 
   public:
 
@@ -11,7 +11,7 @@ class Traversal<T> {
     dm = mgr;
   }
 
-  void topDownTraversal_local(Node<T> root, CutoffWorker<T> worker){
+  void topDownTraversal_local(Node root, CutoffWorker worker){
     if(worker.work(root)){
       for(int i = 0; i < root.getNumChildren(); i++){
         topDownTraversal_local(root.getChild(i),worker);
@@ -19,13 +19,13 @@ class Traversal<T> {
     }
   }
 
-  void topDownTraversal(Node<T> root, CutoffWorker<T> worker, State state){
+  void topDownTraversal(Node root, CutoffWorker worker, State state){
     if(worker.work(root)){
       if(root.getNumChildren() == 0){
         // we might have a leaf that is a remote node, such that
         // the children of the remote node have been fetched for this
         // PE previously
-        CkVec<Node<T> > children = processLeaf(root,worker,state);
+        CkVec<Node> children = processLeaf(root,worker,state);
         if(children != null){
           for(int i = 0; i < children.size(); i++){
             topDownTraversal(children[i],worker,state);

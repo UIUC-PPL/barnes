@@ -124,7 +124,7 @@ class MomentsExchangeStruct {
   }
 };
 
-class NodeRequest {
+struct NodeRequest {
   Key key;
   int replyTo;
 
@@ -133,66 +133,9 @@ class NodeRequest {
     key = _key;
     replyTo = _replyTo;
   }
-
-  Key getKey() { return key; }
-  int getReplyTo() { return replyTo; }
 };
-
-class ParticleRequestTable {
-  private:
-  std::map<Key,ParticleRequest> table;
-
-  public:
-  void add(){
-    // FIXME - flesh out
-  }
-
-  void free(){
-    std::map<ParticleRequest>::iterator it;
-    for(it = table.begin(); it != table.end(); it++){
-      ParticleRequest &request = *it;
-      CkAssert(request.sent);
-      CkAssert(request.data != NULL);
-      CkAssert(request.requestors.length() == 0);
-      CkAssert(request.msg != NULL);
-
-      CkAssert(request.parentCached == request.parent->isCached());
-
-      if(!request.parentCached){
-        delete request.parent;
-      }
-
-      delete request.msg;
-    }
-  }
-  table.clear();
-};
-
-class NodeRequestTable {
-  private:
-  std::map<Key,NodeRequest> table;
-
-  public:
-  void free(){
-    std::map<Key,NodeRequest>::iterator it;
-    for(it = table.begin(); it != table.end(); it++){
-      NodeRequest &request = *it;
-      CkAssert(request.sent);
-      CkAssert(request.data != NULL);
-      CkAssert(request.requestors.length() == 0);
-      CkAssert(request.msg != NULL);
-
-      CkAssert(request.parentCached == request.parent->isCached());
-
-      if(!request.parentCached){
-        delete request.parent;
-      }
-
-      delete request.msg;
-    }
-    table.clear();
-  }
-};
+typedef HackArray<NodeRequest> NodeRequestArray;
+const NodeRequest &make_NodeRequest(Key k, int reply);
 
 template<typename T>
 class HackArray {
@@ -220,9 +163,14 @@ class HackArray {
   void sort(){
     array.quickSort();
   }
+
+  void pup(PUP::er &p){
+    array.pup(p);
+  }
 };
 
 typedef HackArray<Particle> ParticleArray;
+typedef HackArray<ExternalParticle> ExternalParticleArray;
 
 struct PossiblySplitNode {
   Node *node;
@@ -387,6 +335,10 @@ class TreePieceDescriptor {
   bool operator>=(const int &t) const {
     return index >= t;
   }
+
+  void prepare(Node *root_, CkVec<Node*> *buckets){
+    owner->prepare(root_,root,buckets,bucketStartIdx,bucketEndIdx);
+  }
 };
 
 
@@ -421,20 +373,122 @@ class TreePieceCounter : public CkLocIterator {
   TreePieceDescriptor *get(int i){
     return submittedParticles.get(i);
   }
+
+  int &length(){
+    return submittedParticles.length();
+  }
 };
 
-class PendingMoments {
-  std::map<Key,CkVec<int> > table;
+struct NodeCacheLine {
+  NodeReplyMsg *msg
 
-  public:
-  CkVec<int> *find(Key k){
-    std::map<Key,CkVec<int> >::iterator it;
+  bool sent;
+  CkVec<Requestor> requestors;
+
+  Node *parent; 
+  bool parentCached;
+
+  NodeCacheLine() : 
+    sent(false),
+    msg(NULL),
+    parent(NULL)
+  {
+  }
+
+  void reset(){
+    sent = false;
+  }
+
+  void deliver();
+
+  void free(){
+      CkAssert(sent);
+      CkAssert(requestors.length() == 0);
+      CkAssert(msg != NULL);
+
+      CkAssert(parentCached == parent->isCached());
+
+      // FIXME - might have to delete subtree 
+      // in this cache line, depending on what
+      // happens when msg is deleted
+      if(!request.parentCached){
+        delete request.parent;
+      }
+
+      delete request.msg;
+  }
+};
+
+struct ParticleCacheLine {
+  ParticleReplyMsg *msg
+
+  bool sent;
+  CkVec<Requestor> requestors;
+
+  Node *parent; 
+  bool parentCached;
+
+  ParticleCacheLine() : 
+    sent(false),
+    msg(NULL),
+    parent(NULL)
+  {
+  }
+
+  void reset(){
+    sent = false;
+  }
+
+  void deliver();
+
+  void free(){
+      CkAssert(sent);
+      CkAssert(requestors.length() == 0);
+      CkAssert(msg != NULL);
+
+      CkAssert(parentCached == parent->isCached());
+
+      if(!parentCached){
+        delete request.parent;
+      }
+
+      delete request.msg;
+    }
+  }
+};
+
+template <typename K, typename V>
+class HackTable {
+  std::map<K,V> table;
+
+  V *get(K &k){
+    std::map<K,V>::iterator it;
     it = table.find(k);
-    if(it == table.end()) return NULL;
-    else return &(it->second);
+    if(it == table.end()){
+      return NULL;
+    }
+    else{
+      return &(it->second);
+    }
   }
 
-  void erase(Key k){
-    table.erase(k);
+  V *put(K &k, const V &v = V()){
+    std::pair<std::map<K,V>::iterator,bool> pr;
+    pr = table.insert(make_pair(k,v));
+    return &(pr.first->second);
+  }
+
+  void free(){
+    std::map<K,V>::iterator it;
+    for(it = table.begin(); it != table.end(); it++){
+      V &value = *it;
+      value.free();
+    }
+    table.clear();
   }
 };
+
+typedef HackTable<Key,NodeCacheLine> NodeCache;
+typedef HackTable<Key,ParticleCacheLine> ParticleCache; 
+typedef HackTable<Key,CkVec<int> > PendingMoments;
+

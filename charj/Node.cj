@@ -317,7 +317,7 @@ class Node {
     delete splitters;
   }
 
-  NodeReplyMsg serialize(int subtreeDepth){
+  public NodeReplyMsg serialize(int subtreeDepth){
     NodeReplyMsg msg = new NodeReplyMsg(getKey());
     msg.roots[0] = getLeftChild().copy(subtreeDepth);
     msg.roots[1] = getRightChild().copy(subtreeDepth);
@@ -326,9 +326,9 @@ class Node {
   Node copy(int depth){
     Node root = new Node();
     root.copyFieldsFromNode(this);
-    if(depth > 0){
-      if(getLeftChild() != null) root.setLeftChild(copy(this.getLeftChild(),depth-1));
-      if(getRightChild() != null) root.setRightChild(copy(this.getRightChild(),depth-1));
+    if(depth > 0 && getNumChildren() > 0){
+      root.setLeftChild(getLeftChild().copy(depth-1));
+      root.setRightChild(getRightChild().copy(depth-1));
     }
     return root;
   }
@@ -394,6 +394,23 @@ class Node {
     setParticles(null,-1);
     numChildrenMomentsReady = 0;
     data.reset();
+  }
+
+  boolean isLocal(){
+    return (getType() == Internal ||
+            getType() == Bucket   ||
+            getType() == EmptyBucket);
+            
+  }
+
+  boolean isBoundary(){
+    return getType() == Boundary;
+  }
+
+  boolean isRemote(){
+    return (getType() == Remote          ||
+            getType() == RemoteBucket    ||
+            getType() == RemoteEmptyBucket);
   }
 
   // FIXME - remember to set particles of node to null

@@ -9,23 +9,28 @@ readonly Parameters globalParams;
 
 // used while decomposing particles onto tree pieces
 message ParticleMsg {
-  CkVec<Particle> part;
+  ParticleArray part;
 };
 
 // To respond to remote request for particles 
 message ParticleReplyMsg {
   Key key;
-  CkVec<ExternalParticle> data;
+  ExternalParticleArray particles;
+
+  ParticleReplyMsg(Key k, ExternalParticleArray p){
+    key = k;
+    particles = p;
+  }
 };
 
 // To respond to remote request for subtree under node
 message NodeReplyMsg {
   // key of parent of the subtrees sent 
   // via this message
-  Key key;
-  Array<Node<ForceData> > roots = new Array<Node<ForceData> >(BRANCH_FACTOR);
+  public Key key;
+  public Array<Node> roots = new Array<Node>(BRANCH_FACTOR);
 
-  NodeReplyMsg(Key key_){
+  public NodeReplyMsg(Key key_){
     key = key_;
   }
 };
@@ -194,7 +199,7 @@ group DataManager {
   // moments haven't yet been computed, since they might require 
   // remote information
   bool doneTreeBuild;
-  map<Key,Node> nodeTable;
+  std.map<Key,Node> nodeTable;
 
   PendingMoments pendingMoments;
 
@@ -203,17 +208,22 @@ group DataManager {
   // the tree on this PE is now ready for 
   // traversal
   bool treeMomentsReady;
+  // requests received from remote tree pieces
+  // for node moments during tree building phase
   NodeRequestArray bufferedNodeRequests;
   NodeRequestArray bufferedParticleRequests;
 
-  RequestTable nodeRequestTable;
-  RequestTable particleRequestTable;
+  // requests made by local tree pieces for 
+  // remote data during tree traversal
+  NodeCache nodeCache;
+  ParticleCache particleCache;
 
   // needed for skipping decomposition
   KeyArray treePieceKeys;
   boolean doSkipDecomposition;
 
-  Traversal fillTrav;
+  TreeSizeWorker treeSizeWorker = new TreeSizeWorker();
+  Traversal fillTrav = new Traversal();
   int numTreePiecesDoneTraversals;
   int numTreePiecesDoneRemoteRequests;
   CacheStats nodeReqs;
@@ -223,7 +233,7 @@ group DataManager {
   Real compareEnergy;
 
   // FIXME is this 64-bit?
-  long numInteractions[3];
+  Array<long> numInteractions = new Array<long>([3]);
 
   entry DataManager(){
     numRankBits = LOG_BRANCH_FACTOR;
@@ -507,8 +517,6 @@ group DataManager {
   entry void processSubmittedParticles();
   entry void doneStreaming();
   entry void startTraversal();
-
-  entry void doneNodeLevelMerge(PointerContainer);
 
   entry void recvParticles(ParticleReplyMsg msg);
   entry void recvNode(NodeReplyMsg msg);
@@ -1039,7 +1047,7 @@ group DataManager {
 
   void requestMoments(Key k, int replyTo){
     //pendingMoments[k].push_back(replyTo);
-    CkVec<int> requests = pendingMoments.find(k);
+    CkVec<int> requests = pendingMoments.get(k);
     requests.push_back(replyTo);
     TB_DEBUG("(%d) received requestMoments from pe %d node %lu\n", CkMyPe(), replyTo, k);
 
@@ -1061,8 +1069,8 @@ group DataManager {
     opts.setPriority(RECV_MOMENTS_PRIORITY);
 
     for(int i = 0; i < replyTo.length(); i++){
-      TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), ckVecReadPrimitive(replyTo,i), node.getKey());
-      thisProxy[ckVecReadPrimitive(replyTo,i)]@receiveMoments(moments, opts);
+      TB_DEBUG("(%d) responding to %d with node %lu\n", CkMyPe(), ckVecRead(replyTo,i), node.getKey());
+      thisProxy[ckVecRead(replyTo,i)]@receiveMoments(moments, opts);
     }
     replyTo.length() = 0;
     delete opts;
@@ -1123,34 +1131,27 @@ group DataManager {
       string name("unmerged");
       doPrintTree(name);
     }
-    // FIXME - remember to delete this at merger end
-    treeMergerProxy@ckLocalBranch().submit(new TreeRootContainer(root,CkMyPe()));
+    // FIXME - do i have to delete this?
+    treeMergerProxy@ckLocalBranch().submitPeRoot(new TreeRootContainer(root,CkMyPe()));
   }
 
   // FIXME - start here
-  void doneNodeLevelMerge(Node<ForceData> rootFromNodeGroup){
-    // FIXME - no generic pointers in charj
-    Node<ForceData> mergedRoot = rootFromNodeGroup;
-    // register (i.e. fill into nodeTable)
-    // nodes that are on paths to your useful 
-    // tree pieces
-    if(mergedRoot != root){
-      delete root;
-      root = mergedRoot;
-    }
-
+  entry void doneNodeLevelMerge(TreeRootContainer container){
+    root = container.root;
     if(globalParams.doPrintTree){
       string name("merged");
       if(CkMyPe()%numPesPerNode == 0) doPrintTree(name);
     }
 
+    // register (i.e. fill into nodeTable)
+    // nodes that are on paths to your useful 
+    // tree pieces
     //CkPrintf("DM %d register\n", CkMyPe());
     registerTopLevelNodes(root,0,numLocalUsefulTreePieces);
     treeMomentsReady = true;
     flushBufferedRemoteDataRequests();
 
     CkCallback cb(CkReductionTarget(DataManager,doneTreeBuilds),0,thisProxy);
-    // FIXME - how to contribute in charj?
     contribute(cb);
   }
 
@@ -1166,15 +1167,15 @@ group DataManager {
     startTraversal();
   }
 
-  void registerTopLevelNodes(Node<ForceData> node, int tpstart, int tpend){
-    nodeTable.set(node.getKey(),node);
+  void registerTopLevelNodes(Node node, int tpstart, int tpend){
+    nodeTable.insert(make_pair(node.getKey(),node));
     //nodeTable[node->getKey()] = node;
     if(tpend <= tpstart){
       //CkPrintf("%d REGISTER %llu external\n", CkMyPe(), node->getKey());
       return;
     }
     else if(tpend-tpstart == 1 && (node.getOwnerEnd()-node.getOwnerStart()==1)){
-      TreePieceDescriptor tp = localTreePieces.submittedParticles[tpstart];
+      TreePieceDescriptor tp = localTreePieces.get(tpstart);
 
       // if this node was a bucket and is being registered here,
       // it could be the merged replacement for a previous node.
@@ -1187,32 +1188,33 @@ group DataManager {
         int bucketIdx = tp.bucketStartIdx;
         CkAssert(tp.bucketStartIdx+1 == tp.bucketEndIdx);
         //CkPrintf("%d REGISTER %llu bucket idx %d\n", CkMyPe(), node->getKey(), bucketIdx);
-        myBuckets[bucketIdx] = node;
+        ckVecWrite(myBuckets,bucketIdx,node);
       }
 
       tp.root = node;
     }
-    else{
-      Node<ForceData> child = NULL;
-      for(int i = 1; i < node.getNumChildren(); i++){
-        child = node.getChild(i);
-        int childFirstOwner = child.getOwnerStart();
-        int tp = binary_search_ge_v2(childFirstOwner,localTreePieces.submittedParticles.getVec(),tpstart,tpend);
-        registerTopLevelNodes(node.getChild(i-1),tpstart,tp);
-        tpstart = tp;
-      }
-      registerTopLevelNodes(node.getChild(BRANCH_FACTOR-1),tpstart,tpend);
+    else if(node.getNumChildren() > 0){
+      Node leftChild = node.getLeftChild();
+      Node rightChild = node.getRightChild();
+
+      int firstGlobalTpUnderRight = rightChild.getOwnerStart();
+      int idxFirstLocalTpUnderRight = binary_search_ge_v2(firstGlobalTpUnderRight,localTreePieces.get(0),tpstart,tpend); 
+
+      registerTopLevelNodes(leftChild,tpstart,idxFirstLocalTpUnderRight);
+      registerTopLevelNodes(rightChild,idxFirstLocalTpUnderRight,tpend);
     }
   }
 
   void flushBufferedRemoteDataRequests(){
     CkAssert(treeMomentsReady);
     for(int i = 0; i < bufferedNodeRequests.length(); i++){
-      requestNode(bufferedNodeRequests[i].key, bufferedNodeRequests[i].requestor);
+      NodeRequest req = bufferedNodeRequests.get(i);
+      requestNode(req.key, req.replyTo);
     }
 
     for(int i = 0; i < bufferedParticleRequests.length(); i++){
-      requestParticles(bufferedParticleRequests[i].key, bufferedParticleRequests[i].requestor);
+      NodeRequest req = bufferedParticleRequests.get(i);
+      requestParticles(req.key, req.replyTo);
     }
 
     bufferedNodeRequests.length() = 0;
@@ -1225,10 +1227,10 @@ group DataManager {
     if(numLocalUsefulTreePieces > 0){
       int dummy=0;
       for(int i = 0; i < numLocalUsefulTreePieces; i++){
-        TreePieceDescriptor tp = localTreePieces.submittedParticles[i];
-        tp.owner.prepare(root, tp.root, myBuckets[tp.bucketStartIdx], tp.bucketEndIdx-tp.bucketStartIdx);
+        TreePieceDescriptor tp = localTreePieces.get(i);
+        tp.prepare(root,myBuckets);
 
-        CkEntryOptions opts;
+        CkEntryOptions opts = new CkEntryOptions();
         opts.setPriority(START_TRAVERSAL_PRIORITY);
         opts.setQueueing(CK_QUEUEING_IFIFO);
         treePieceProxy[tp.index]@startTraversal(dummy,opts);
@@ -1239,26 +1241,28 @@ group DataManager {
     }
   }
 
-  ExternalParticle requestParticles(Node<ForceData> leaf, CutoffWorker<ForceData> worker, State state, Traversal<ForceData> traversal){
+  ExternalParticle requestParticles(Node leaf, CutoffWorker worker, State state, Traversal traversal){
     Key key = leaf.getKey();
-    Request request = particleRequestTable.find(key);
+    ParticleCacheLine cacheLine = particleCache.get(key);
+    if(cacheLine == null) cacheLine = particleCache.put(key);
 
     traceUserEvent(REMOTE_PARTICLE_REQUEST);
 
-    if(request.data != NULL){
-      return (ExternalParticle)request.data;
+    if(cacheLine.data != null){
+      return cacheLine.data;
     }
-    else if(!request.sent){
+    else if(!cacheLine.sent){
       partReqs.incrRequests();
 
-      request.sent = true;
-      request.parentCached = leaf.isCached();
+      cacheLine.sent = true;
+      cacheLine.parentCached = leaf.isCached();
       if(leaf.isCached()){
-        request.parent = leaf;
+        cacheLine.parent = leaf;
       }
       else{
-        request.parent = new Node<ForceData>(leaf);
-        CkAssert(!request.parent.isCached());
+        Node unsharedParent = leaf.copy(0);
+        CkAssert(!unsharedParent.isCached());
+        cacheLine.parent = unsharedParent;
       }
 
       CkAssert(leaf.getOwnerStart()+1 == leaf.getOwnerEnd());
@@ -1270,60 +1274,54 @@ group DataManager {
 
       RRDEBUG("(%d) REQUEST particles %lu leafCached %d from tp %d\n", CkMyPe(), key, leaf.isCached(), owner);
     }
-    request.requestors.push_back(Requestor(worker,state,traversal,worker.getContext()));
+    cacheLine.requestors.push_back(make_Requestor(worker,state,traversal,worker.getContext()));
     partReqs.incrDeliveries();
     return null;
   }
 
   void requestParticles(Key k, int replyTo) {
     if(!treeMomentsReady){
-      bufferedParticleRequests.push_back(RequestStructure(k, replyTo));
+      bufferedParticleRequests.push_back(make_NodeRequest(k, replyTo));
       return;
     }
 
     RRDEBUG("(%d) REPLY particles key %lu to %d\n", CkMyPe(), k, replyTo);
 
     //map<Key,Node<ForceData>*>::iterator it = nodeTable.find(k);
-    Node<ForceData> bucket = nodeTable.find(k);
+    Node bucket = readTable(nodeTable,k);
     CkAssert(bucket != null);
 
     //CkAssert(it != nodeTable.end());
     //Node<ForceData> *bucket = it->second;
     CkAssert(bucket.getType() == Bucket);
 
-    Particle data = bucket.getParticles();
-    int np = bucket.getNumParticles();
-
-    // FIXME - no varsize messages in charj
-    ParticleReplyMsg pmsg = new (np,NUM_PRIORITY_BITS) ParticleReplyMsg;
-    // FIXME - how to set this? extern function?
+    ExternalParticleArray externalParticleArray = makeExternalParticleArray(bucket);
+    // FIXME - how to set priority?
+    ParticleReplyMsg pmsg = new ParticleReplyMsg(k,externalParticleArray);
+    /*
     *(int *)CkPriorityPtr(pmsg) = RECV_PARTICLES_PRIORITY;
     CkSetQueueing(pmsg,CK_QUEUEING_IFIFO);
-
-    pmsg.key = k;
-    pmsg.np = np;
-    for(int i = 0; i < np; i++){
-      pmsg.data[i] = data[i];
-    }
+    */
 
     thisProxy[replyTo]@recvParticles(pmsg);
   }
 
-  Node<ForceData> requestNode(Node<ForceData> leaf, CutoffWorker<ForceData> worker, State *state, Traversal<ForceData> traversal){
+  Node requestNode(Node leaf, CutoffWorker worker, State state, Traversal traversal){
     Key key = leaf.getKey();
-    Request request = nodeRequestTable.find(key);
+    NodeCacheLine nodeCacheLine = nodeCache.get(key);
+    if(nodeCacheLine == null) nodeCacheLine = nodeCache.put(key);
 
     traceUserEvent(REMOTE_NODE_REQUEST);
 
-    if(request.data != null){
+    if(nodeCacheLine.data != null){
       RRDEBUG("(%d) REQUEST node %lu HIT!\n", CkMyPe(), key);
-      return (Node<ForceData>)request.data;
+      return nodeCacheLine.data;
     }
-    else if(!request.sent){
+    else if(!nodeCacheLine.sent){
       nodeReqs.incrRequests();
 
-      request.sent = true;
-      request.parentCached = leaf.isCached();
+      nodeCacheLine.sent = true;
+      nodeCacheLine.parentCached = leaf.isCached();
       if(leaf.isCached()){
         request.parent = leaf;
       }
@@ -1332,27 +1330,27 @@ group DataManager {
         // local tree, since we can share trees across 
         // processors on an SMP node
         // by default, request.parentCached should be false
-        request.parent = new Node<ForceData>(leaf);
+        request.parent = leaf.copy(0);
       }
 
       int numOwners = leaf.getOwnerEnd()-leaf.getOwnerStart();
       int requestOwner = leaf.getOwnerStart()+(rand()%numOwners);
       RRDEBUG("(%d) REQUEST node %lu leafCached %d from tp %d\n", CkMyPe(), key, leaf.isCached(), requestOwner);
 
-      CkEntryOptions opts;
+      CkEntryOptions opts = new CkEntryOptions();
       opts.setPriority(REQUEST_NODE_PRIORITY);
       opts.setQueueing(CK_QUEUEING_IFIFO);
       treePieceProxy[requestOwner]@requestNode(key, CkMyPe(), opts);
+      delete opts;
     }
-    request.requestors.push_back(Requestor(worker,state,traversal,worker.getContext()));
+    nodeCacheLine.requestors.push_back(make_Requestor(worker,state,traversal,worker.getContext()));
     nodeReqs.incrDeliveries();
-    return NULL;
+    return null;
   }
 
   void requestNode(Key k, int replyTo){
     if(!treeMomentsReady){
-      // FIXME - does charj have stack-allocated variables?
-      bufferedNodeRequests.push_back(new RequestStructure(k, replyTo));
+      bufferedNodeRequests.add(make_NodeRequest(k,replyTo));
       return;
     }
 
@@ -1364,90 +1362,73 @@ group DataManager {
     RRDEBUG("(%d) REPLY node %lu to %d\n", CkMyPe(), key, replyTo);
 
     //map<Key,Node<ForceData>*>::iterator it = nodeTable.find(key);
-    Node<ForceData> node = nodeTable.find(key);
+    Node node = readTable(nodeTable,key);
     CkAssert(node != null);
     //CkAssert(it != nodeTable.end());
     //Node<ForceData> *node = it->second;
 
     CkAssert(node.getNumChildren() > 0);
 
-    TreeSizeWorker tsz(node.getDepth()+globalParams.cacheLineSize);
-    fillTrav.topDownTraversal_local(node,tsz);
-
-    int nn = tsz.getNumNodes();
-
-    NodeReplyMsg nmsg = new (nn,NUM_PRIORITY_BITS) NodeReplyMsg;
     // FIXME - how to set priority?
+    NodeReplyMsg nmsg = node.serialize(globalParams.cacheLineSize);
+
     //*(int *)CkPriorityPtr(nmsg) = RECV_NODE_PRIORITY;
-    CkSetQueueing(nmsg,CK_QUEUEING_IFIFO);
-
-    nmsg.key = key;
-    nmsg.nn = nn;
-
-    Node<ForceData> emptyBuf = nmsg.data;
-    node.serialize(NULL,emptyBuf,globalParams.cacheLineSize);
-    CkAssert(emptyBuf == nmsg.data+nn);
+    //CkSetQueueing(nmsg,CK_QUEUEING_IFIFO);
 
     thisProxy[replyTo]@recvNode(nmsg);
   }
 
   void recvParticles(ParticleReplyMsg msg){
-    //map<Key,Request>::iterator it = particleRequestTable.find(msg->key);
-    //CkAssert(it != particleRequestTable.end());
-    Request req = particleRequestTable.find(msg.key);
-    CkAssert(req != null);
+    ParticleCacheLine line = particleCache.get(msg.key);
+    CkAssert(line != null);
 
     RRDEBUG("(%d) RECVD particle REPLY for key %lu\n", CkMyPe(), msg.key);
 
-    //Request &req = it->second;
-    CkAssert(req.requestors.length() > 0);
-    CkAssert(req.sent);
-    CkAssert(req.msg == NULL);
+    CkAssert(line.requestors.length() > 0);
+    CkAssert(line.sent);
+    CkAssert(line.msg == NULL);
 
-    req.msg = msg;
-    req.data = msg.data;
+    line.msg = msg;
 
     // attach particles to bucket in tree 
-    Node<ForceData> leaf = req.parent;
+    Node leaf = req.parent;
     CkAssert(leaf != null);
     CkAssert(leaf.getType() == RemoteBucket);
-    leaf.setParticles(msg.data,msg.np);
+    leaf.setParticles(msg.particles.get(0),msg.particles.size());
 
     partReqs.decrRequests();
-    partReqs.decrDeliveries(req.requestors.length());
-    req.deliverParticles(msg.np);
+    partReqs.decrDeliveries(line.requestors.length());
+    line.deliver();
   }
 
   void recvNode(NodeReplyMsg msg){
-    //map<Key,Request>::iterator it = nodeRequestTable.find(msg->key);
-    //CkAssert(it != nodeRequestTable.end());
-    Request req = nodeRequestTable.find(msg.key);
-    CkAssert(req != null);
+    NodeCacheLine line = nodeCache.find(msg.key);
+    CkAssert(line != null);
 
     //Request &req = it->second;
-    CkAssert(req.requestors.length() > 0);
-    CkAssert(req.sent);
-    CkAssert(req.msg == NULL);
+    CkAssert(line.requestors.length() > 0);
+    CkAssert(line.sent);
+    CkAssert(line.msg == null);
 
-    req.msg = msg;
-    req.data = msg.data;
+    line.msg = msg;
 
     // attach recvd subtree to appropriate point in local tree
 
-    Node<ForceData> node = req.parent;
+    Node node = line.parent;
     CkAssert(node != NULL);
 
     RRDEBUG("(%d) RECVD node REPLY for key %llu parent %llu cached %d\n", CkMyPe(), msg.key, node.getKey(), node.isCached());
 
-    node.deserialize(msg.data, msg.nn);
+    node.setLeftChild(msg.roots[0]);
+    node.setRightChild(msg.roots[1]);
 
     nodeReqs.decrRequests();
-    nodeReqs.decrDeliveries(req.requestors.length());
+    nodeReqs.decrDeliveries(line.requestors.length());
 
-    req.deliverNode();
+    line.deliverNode();
   }
 
-  void traversalsDone(CmiUInt8 pnInter, CmiUInt8 ppInter, CmiUInt8 openCrit){
+  void traversalsDone(long pnInter, long ppInter, long openCrit){
     numTreePiecesDoneTraversals++;
     numInteractions[0] += pnInter;
     numInteractions[1] += ppInter;
@@ -1459,7 +1440,6 @@ group DataManager {
 
   void finishIteration(){
     CkCallback cb(CkReductionTarget(DataManager,doneForces),0,thisProxy);
-    // FIXME - how to contribute?
     contribute(cb);
   }
 
@@ -1489,12 +1469,11 @@ group DataManager {
     //DtReductionStruct dtred;
 
     CkCallback cb(CkReductionTarget(DataManager,advance),thisProxy);
-    // FIXME - how to contribute?
     contribute(numInteractions,CkReduction::sum_long,cb);
 
   }
 
-  void advance(Array<CmiUInt8> interactions){
+  void advance(Array<long> interactions){
 
     //DtReductionStruct *dtred = (DtReductionStruct *)(msg->getData());
 
@@ -1545,8 +1524,9 @@ group DataManager {
     }
     else{
       init();
-      for(int i = 0; i < localTreePieces.submittedParticles.length(); i++){
-        TreePiece tp = localTreePieces.submittedParticles[i].owner;
+      for(int i = 0; i < localTreePieces.length(); i++){
+        TreePieceDescriptor tpDescriptor = localTreePieces.get(i);
+        TreePiece tp = tpDescriptor.owner;
         tp.cleanup();
       }
 
@@ -1554,12 +1534,11 @@ group DataManager {
       contributeBoundingBox(cb);
       //contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
     }
-
-    delete msg;
   }
 
+  // FIXME - whose responsibility is it to delete input references?
   void recvUnivBoundingBox(Array<double> bounds){
-    BoundingBox univBB;
+    BoundingBox univBB = new BoundingBox();
     for(int i = 0; i < 3; i++){
       univBB.box.lesser_corner[i] = data[i];
       univBB.box.greater_corner[i] = -data[i+3];
@@ -1571,8 +1550,8 @@ group DataManager {
   }
 
   void freeCachedData(){
-    particleRequestTable.free();
-    nodeRequestTable.free();
+    particleCache.free();
+    nodeCache.free();
   }
 
   void quiescence(){
@@ -1592,7 +1571,8 @@ group DataManager {
     // delete the trees underneath your tree pieces
     // this can be done in parallel by all PEs on node
     for(int i = 0; i < numLocalUsefulTreePieces; i++){
-      Node treePieceRoot = localTreePieces.submittedParticles[i].root;
+      TreePieceDescriptor tp = localTreePieces.get(i);
+      Node treePieceRoot = tp.root;
       CkAssert(treePieceRoot != null);
       treePieceRoot.deleteBeneath();
     }
@@ -1622,9 +1602,6 @@ group DataManager {
   }
 
   void kickDriftKick(){
-    Particle pstart = myParticles.get(0);
-    Particle pend = myParticles.get(myNumParticles-1);
-
     Real particleEnergy;
     Real particleKinetic;
     Real particlePotential;
@@ -1633,15 +1610,15 @@ group DataManager {
 
     if(globalParams.doPrintAccel && (iteration == globalParams.iterations-1)){
       for(int i = 0; i < myParticles.length(); i++){
+        Particle p = myParticles.get(i);
         CkPrintf("[%d] part %d p %f %f %f v %f %f %f\n", CkMyPe(), 
-            myParticles.get(i).order, 
-            myParticles.get(i).position.x, 
-            myParticles.get(i).position.y, 
-            myParticles.get(i).position.z,
-            myParticles.get(i).velocity.x, 
-            myParticles.get(i).velocity.y, 
-            myParticles.get(i).velocity.z
-            );
+                  p.order, 
+                  p.position.x, 
+                  p.position.y, 
+                  p.position.z,
+                  p.velocity.x, 
+                  p.velocity.y, 
+                  p.velocity.z);
       }
     }
 
@@ -1729,7 +1706,7 @@ group DataManager {
   }
 
   void contributeBoundingBox(CkCallback cb){
-    Array<Real> data = new Array<Real>(8);
+    Array<Real> data = new Array<Real>([8]);
     if(myNumParticles > 0){
       for(int i = 0; i < 3; i++){
         data[i] = myBox.box.lesser_corner[i];
@@ -1772,17 +1749,47 @@ group DataManager {
   particles.
 */
 array[1D] TreePiece {
+  CkVec<ParticleMsg> decompMsgsRecvd = new CkVec<ParticleMsg>();
+  int myNumParticles = 0;
+
+  int iteration = 0;
+
+  CkVec<Node> peBuckets;
+  int myStartBucketIdx;
+  int myEndBucketIdx;
+
+  Node root;
+  Node myRoot;
+
+/*
+  map<Key,set<Key> > bucketKeys;
+  */
+
+  LocalState localTraversalState = new LocalState();
+  RemoteState remoteTraversalState = new RemoteState();
+
+  LocalTraversalWorker localTraversalWorker = new LocalTraversalWorker();
+  RemoteTraversalWorker remoteTraversalWorker = new RemoteTraversalWorker();
+
+  Traversal trav = new Traversal();
+
+  DataManager myDM = null;
+
+  CkGroupID orbLBProxy;
+  int numLB;
+  boolean haveOrbLB;
+
+  int totalNumTraversals;
+
   entry TreePiece(){
     usesAtSync = CmiTrue;
-    iteration = 0;
     findOrbLB();
     init();
   }
 
   entry void receiveParticles(ParticleMsg msg){
-    int msgNumParticles = msg.numParticles;
     decompMsgsRecvd.push_back(msg);
-    myNumParticles += msgNumParticles;
+    myNumParticles += msg.numParticles;
   }
 
   entry void requestMoments(Key k, int replyTo){
@@ -1792,21 +1799,21 @@ array[1D] TreePiece {
   entry void startTraversal(int dummy){
     trav.setDataManager(myDM);
 
-    if(myNumBuckets == 0){
+    if(myEndBucketIdx-myStartBucketIdx == 0){
       doneRemoteRequests();
       finishIteration();
       return;
     }
 
-    remoteTraversalState.reset(this,myNumBuckets,myBuckets[0]);
-    remoteTraversalWorker.reset(this,remoteTraversalState,myBuckets[0]);
+    remoteTraversalState.reset(this,myEndBucketIdx-myStartBucketIdx,ckVecRead(peBuckets,myStartBucketIdx+0));
+    remoteTraversalWorker.reset(this,remoteTraversalState,ckVecRead(peBuckets,myStartBucketIdx+0));
 
     RescheduleMsg msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
     SetMsgPriorityQueueing(msg,REMOTE_GRAVITY_PRIORITY);
     thisProxy[thisIndex]@doRemoteGravity(msg);
 
-    localTraversalState.reset(this,myNumBuckets,myBuckets[0]);
-    localTraversalWorker.reset(this,localTraversalState,myBuckets[0]);
+    localTraversalState.reset(this,myEndBucketIdx-myStartBucketIdx,ckVecRead(peBuckets,myStartBucketIdx+0));
+    localTraversalWorker.reset(this,localTraversalState,ckVecRead(peBuckets,myStartBucketIdx+0));
 
     msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
     SetMsgPriorityQueueing(msg,LOCAL_GRAVITY_PRIORITY);
@@ -1816,14 +1823,14 @@ array[1D] TreePiece {
   entry void doLocalGravity(RescheduleMsg msg){
     int i;
     int limit;
-    limit = myNumBuckets;
+    limit = myEndBucketIdx-myStartBucketIdx;
     for(i = 0; 
         i < globalParams.yieldPeriod && 
                    localTraversalState.currentBucketIdx < limit; 
         i++){
       trav.topDownTraversal(root,localTraversalWorker,localTraversalState);
       localTraversalState.currentBucketIdx++;
-      localTraversalState.currentBucketPtr = myBuckets[localTraversalState.currentBucketIdx];
+      localTraversalState.currentBucketPtr = ckVecRead(peBuckets,myStartBucketIdx+localTraversalState.currentBucketIdx);
       localTraversalWorker.setContext(localTraversalState.currentBucketPtr);
     }
 
@@ -1845,14 +1852,14 @@ array[1D] TreePiece {
   entry void TreePiece::doRemoteGravity(RescheduleMsg msg){
     int i;
     int limit;
-    limit = myNumBuckets;
+    limit = myEndBucketIdx-myStartBucketIdx;
     for(i = 0; 
         i < globalParams.yieldPeriod &&
               remoteTraversalState.currentBucketIdx < limit;
         i++){
       trav.topDownTraversal(root,remoteTraversalWorker,remoteTraversalState);
       remoteTraversalState.currentBucketIdx++;
-      remoteTraversalState.currentBucketPtr = myBuckets[remoteTraversalState.currentBucketIdx];
+      remoteTraversalState.currentBucketPtr = ckVecRead(peBuckets,myStartBucketIdx+remoteTraversalState.currentBucketIdx);
       remoteTraversalWorker.setContext(remoteTraversalState.currentBucketPtr);
     }
 
@@ -1872,13 +1879,13 @@ array[1D] TreePiece {
     }
   }
 
-  entry void requestParticles(std::pair<Key, int> request) {
+  entry void requestParticles(NodeRequest request){
     // forward the request to the DM, since TPs don't
     // really own particles or nodes
     myDM.requestParticles(request);
   }
 
-  entry void requestNode(std::pair<Key, int> &request) {
+  entry void requestNode(NodeRequest request){
     myDM.requestNode(request);
   }
 
@@ -1887,13 +1894,13 @@ array[1D] TreePiece {
         thisIndex,
         CkMyPe(),
         myNumParticles,
-        myNumBuckets,
+        myEndBucketIdx-myStartBucketIdx,
         totalNumTraversals,
         localTraversalState.pending,
         remoteTraversalState.pending);
 
-    CkCallback cb(CkIndex_Main::quiescenceExit(),mainProxy);
-    contribute(0,0,CkReduction::sum_int,cb);
+    CkCallback cb(CkReductionTarget(Main,quiescenceExit),mainProxy);
+    contribute(cb);
   }
 
   entry void doAtSync(){
@@ -1908,15 +1915,15 @@ array[1D] TreePiece {
   void init(){
     decompMsgsRecvd.length() = 0;
     totalNumTraversals = 2;
-    myDM = dataManagerProxy.ckLocalBranch();
+    myDM = dataManagerProxy@ckLocalBranch();
     root = null;
-    myBuckets = null;
-    myNumBuckets = 0;
+    peBuckets = null;
+    myStartBucketIdx = -1;
+    myEndBucketIdx = -1;
     myNumParticles = 0;
     myRoot = null;
     localTraversalState.finishedIteration();
     remoteTraversalState.finishedIteration();
-
   }
 
   void checkTraversals(){
@@ -1925,13 +1932,15 @@ array[1D] TreePiece {
   void clearBucketsDebug(){
   }
 
-  void TreePiece::prepare(Node<ForceData> _root, Node<ForceData> _myRoot, Node<ForceData> **buckets, int _numBuckets)
+  void prepare(Node _root, Node _myRoot, CkVec<Node> _peBuckets, int firstBucketIdx, int lastBucketIdx){
+
   {
     root = _root;
     myRoot = _myRoot;
     CkAssert(myRoot.getNumParticles() == myNumParticles);
-    myBuckets = buckets;
-    myNumBuckets = _numBuckets;
+    peBuckets = _peBuckets;
+    myStartBucketIdx = myFirstBucketIdx;
+    myEndBucketIdx = lastBucketIdx; 
   }
 
 };
@@ -1940,51 +1949,37 @@ include "Node.h";
 
 
 nodegroup TreeMerger {
-  int numPesPerNode;
-  int numSyncd;
+  int numPesPerNode = CkNumPes()/CkNumNodes();
+  int numSyncd = 0;
 
-  CkVec<TreeRootContainer> myDataManagers;
-  Node<ForceData> mergedRoot;
-
-  public TreeMerger(){
-    numPesPerNode = CkNumPes()/CkNumNodes();
-    numSyncd = 0;
-    mergedRoot = NULL;
-  }
+  CkVec<TreeRootContainer> myDataManagers = new CkVec<TreeRootContainer>();
+  Node mergedRoot = null;
 
   public void init(){
     myDataManagers.resize(0);
   }
 
-  public void submit(TreeRootContainer container){
+  public void submitPeRoot(TreeRootContainer container){
     CmiLock(__nodelock);
-    CkAssert(root != NULL);
-    myDataManagers.add(container);
-    if(myDataManagers.length() == numPesPerNode){
+    CkAssert(container.root != null);
+    myDataManagers.push_back(container);
+    if(myDataManagers.size() == numPesPerNode){
       //CkPrintf("Merger %d merging\n", CkMyNode());
-      CkVec<Node<ForceData> > toMerge = new CkVec<Node<ForceData> >();
+      CkVec<Node> toMerge = new CkVec<Node>();
       for(int i = 0; i < myDataManagers.length(); i++){
-        TreeRootContainer container = myDataManagers[i];
+        TreeRootContainer container = ckVecRead(myDataManagers,i);
         toMerge.push_back(container.root);
+        // FIXME do i have to do this?
+        delete container;
       }
 
-      // might have no useful tree pieces on this SMP node
       CkAssert(toMerge.size() > 0);
-      root = merge(toMerge);
-      if(root.getNumChildren() > 0){
-        boolean allChildrenInternal = true;
-        int numParticles = 0;
-        for(int i = 0; i < root.getNumChildren(); i++){
-          numParticles += root.getChild(i).getNumParticles();
-          if(!root.getChild(i).isInternal()) allChildrenInternal = false;
-        }
-        root.setNumParticles(numParticles);
-      }
+      mergedRoot = merge(toMerge);
+      delete toMerge;
 
-      mergedRoot = root;
       for(int i = 0; i < myDataManagers.length(); i++){
         // leave it to data managers to delete their previous roots
-        dataManagerProxy[myDataManagers[i].pe]@doneNodeLevelMerge(TreeRootContainer(root));
+        dataManagerProxy[myDataManagers[i].pe]@doneNodeLevelMerge(new TreeRootContainer(mergedRoot));
       }
       //CkPrintf("Merger %d merge DONE\n", CkMyNode());
       init();
@@ -1992,38 +1987,76 @@ nodegroup TreeMerger {
     CmiUnlock(__nodelock);
   }
 
-  private Node<ForceData> merge(CkVec<Node<ForceData> > toMerge){
+  private Node merge(CkVec<Node> toMerge){
     // there is only one valid node: return that; everything
     // beneath this node will be found only in the corresponding
     // tree
-    Node<ForceData> toReturn = toMerge[0];
+    Node toReturn = ckVecRead(toMerge,0);
     if(toMerge.size() == 1){
       return toReturn;
     }
 
-    int numChildren = 0;
+    Node toReturn = pickBestNodeFromMergeSet(toMerge);
+
+    CkVec<Node> nextLevelToMerge = new CkVec<Node>();
+
+    nextLevelToMerge.length() = 0;
+    // merge left children of merge set
     for(int i = 0; i < toMerge.size(); i++){
-      if(toMerge[i].getNumChildren() > numChildren){
-        numChildren = toMerge[i].getNumChildren();
-        break;
+      Node mergeSetMember = ckVecRead(toMerge,i);
+      if(mergeSetMember.getNumChildren() > 0){
+        nextLevelToMerge.push_back(mergeSetMember.getLeftChild());
       }
     }
+    toReturn.setLeftChild(merge(nextLevelToMerge));
 
-    CkVec<Node<ForceData> > nextLevelToMerge = new CkVec<Node<ForceData> >();
-
-    for(int i = 0; i < numChildren; i++){
-      nextLevelToMerge.length() = 0;
-      for(int j = 0; j < toMerge.size(); j++){
-        if(toMerge[j].getNumChildren() > 0){
-          nextLevelToMerge.push_back(toMerge[i].getChild(i));
-        }
-        if(toMerge[j] != toReturn) delete toMerge[j];
+    nextLevelToMerge.length() = 0;
+    // merge left children of merge set
+    for(int i = 0; i < toMerge.size(); i++){
+      Node mergeSetMember = ckVecRead(toMerge,i);
+      if(mergeSetMember.getNumChildren() > 0){
+        nextLevelToMerge.push_back(mergeSetMember.getRightChild());
       }
-      toReturn.setChild(i,merge(nextLevelToMerge));
     }
+    toReturn.setRightChild(merge(nextLevelToMerge));
+    // FIXME - parent is not set correctly
 
     delete nextLevelToMerge;
+
+    // before returning the merged node from this 
+    // level, go through the merge set and delete
+    // all nodes other than 'toReturn'
+    for(int i = 0; i < toMerge.size(); i++){
+      Node mergeSetMember = ckVecRead(toMerge,i);
+      if(mergeSetMember != toReturn) delete mergeSetMember;
+    }
     return toReturn;
+  }
+
+  private Node pickBestNodeFromMergeSet(CkVec<Node> toMerge){
+    Node toReturn = ckVecRead(toMerge,0);
+    for(int i = 1; i < toMerge.size(); i++){
+      Node mergeSetMember = ckVecRead(toMerge,i);
+      if(hasBetterScore(mergeSetMember,toReturn)) toReturn = mergeSetMember;
+    }
+    return toReturn;
+  }
+
+  private boolean hasBetterScore(Node a, Node b){
+    CkAssert(!(a.isLocal() && b.isLocal()));
+    int aScore = score(a);
+    int bScore = score(b);
+    return aScore > bScore;
+  }
+
+  private static int SCORE_LOCAL = 2;
+  private static int SCORE_BOUNDARY = 1;
+  private static int SCORE_REMOTE = 0;
+
+  private int score(Node node){
+    if(node.isLocal()) return SCORE_LOCAL;
+    if(node.isBoundary()) return SCORE_BOUNDARY;
+    if(node.isRemote()) return SCORE_REMOTE;
   }
 
   public void freeMergedTree(){

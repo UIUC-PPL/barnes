@@ -440,6 +440,52 @@ void iterateOverLocMgr(CkLocMgr *mgr, TreePieceCounter *localTreePieces){
 }
 
 template<typename T>
-T ckVecPrimitiveRead(CkVec<T> *vec, int pos){
+T ckVecRead(CkVec<T> *vec, int pos){
   return (*vec)[pos];
 }
+
+template<typename T>
+void ckVecWrite(CkVec<T> *vec, int pos, T elem){
+  (*vec)[pos] = elem;
+}
+
+template<typename K, typename V>
+V *readTable(std::map<K,V> *table, K &key){
+  std::map<K,V>::iterator it = table->find(key);
+  if(it == table->end()){
+    return NULL;
+  }
+  else{
+    return &(it->second);
+  }
+}
+
+const NodeRequest &make_NodeRequest(Key k, int replyTo){
+  return NodeRequest(k,replyTo);
+}
+
+const NodeCacheLine &make_NodeCacheLine(){
+  return NodeCacheLine();
+}
+
+const ParticleCacheLine &make_ParticleCacheLine(){
+  return ParticleCacheLine();
+}
+
+const ExternalParticle &make_ExternalParticle(const Particle &particle){
+  ExternalParticle ep;
+  ep.position = particle.position;
+  ep.mass = particle.mass;
+}
+
+ExternalParticleArray *makeExternalParticleArray(Node *bucket){
+  ExternalParticleArray *epa = new ExternalParticleArray();
+  Particle *bucketParticles = bucket->getParticles();
+  int np = bucket->getNumParticles();
+  for(int i = 0; i < np; i++){
+    epa->add(make_ExternalParticle(bucketParticles[i]));
+  }
+  return epa;
+}
+
+

@@ -136,7 +136,9 @@ class TreeSizeWorker : CutoffWorker<ForceData> {
   int numNodes;
   int cutoffDepth;
 
-  public TreeSizeWorker(int d){ 
+  public TreeSizeWorker(){}
+
+  public reset(int d){ 
     cutoffDepth = d;
     numNodes = 0;
   }
