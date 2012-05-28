@@ -414,6 +414,7 @@ struct NodeCacheLine {
   NodeReplyMsg *msg
 
   bool sent;
+  bool haveData;
   CkVec<Requestor> requestors;
 
   Node *parent; 
@@ -421,6 +422,7 @@ struct NodeCacheLine {
 
   NodeCacheLine() : 
     sent(false),
+    haveData(false),
     msg(NULL),
     parent(NULL)
   {
@@ -428,6 +430,7 @@ struct NodeCacheLine {
 
   void reset(){
     sent = false;
+    haveData = false;
   }
 
   /*
@@ -491,6 +494,7 @@ struct ParticleCacheLine {
   ParticleReplyMsg *msg
 
   bool sent;
+  bool haveData;
   CkVec<Requestor> requestors;
 
   Node *parent; 
@@ -498,6 +502,7 @@ struct ParticleCacheLine {
 
   ParticleCacheLine() : 
     sent(false),
+    haveData(false),
     msg(NULL),
     parent(NULL)
   {
@@ -505,6 +510,7 @@ struct ParticleCacheLine {
 
   void reset(){
     sent = false;
+    haveData = false;
   }
 
   /*

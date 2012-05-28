@@ -1264,8 +1264,8 @@ group DataManager {
 
     traceUserEvent(REMOTE_PARTICLE_REQUEST);
 
-    if(cacheLine.data != null){
-      return cacheLine.data;
+    if(cacheLine.haveData){
+      return cacheLine.parent;
     }
     else if(!cacheLine.sent){
       partReqs.incrRequests();
@@ -1329,9 +1329,9 @@ group DataManager {
 
     traceUserEvent(REMOTE_NODE_REQUEST);
 
-    if(nodeCacheLine.data != null){
+    if(nodeCacheLine.haveData){
       RRDEBUG("(%d) REQUEST node %lu HIT!\n", CkMyPe(), key);
-      return nodeCacheLine.data;
+      return nodeCacheLine.parent;
     }
     else if(!nodeCacheLine.sent){
       nodeReqs.incrRequests();
@@ -1404,6 +1404,7 @@ group DataManager {
     CkAssert(line.sent);
     CkAssert(line.msg == NULL);
 
+    line.haveData = true;
     line.msg = msg;
 
     // attach particles to bucket in tree 
@@ -1426,6 +1427,7 @@ group DataManager {
     CkAssert(line.sent);
     CkAssert(line.msg == null);
 
+    line.haveData = true;
     line.msg = msg;
 
     // attach recvd subtree to appropriate point in local tree

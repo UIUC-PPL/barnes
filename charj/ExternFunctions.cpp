@@ -488,4 +488,14 @@ ExternalParticleArray *makeExternalParticleArray(Node *bucket){
   return epa;
 }
 
+void iterateOverParticles(Particle *particleArray, int numParticles, CutoffWorker *worker){
+  for(int i = 0; i < numParticles; i++){
+    worker.work(particleArray[i]);
+  }
+}
 
+void iterateOverExternalParticles(ExternalParticle *particleArray, int numParticles, CutoffWorker *worker){
+  for(int i = 0; i < numParticles; i++){
+    worker.work(particleArray[i]);
+  }
+}
