@@ -438,7 +438,7 @@ struct NodeCacheLine {
    * workers that requested it, and perform a traversal on this subtree
    * for each one. Note that the worker may be in the midst of a traversal for
    * a different bucket from the one that generated this request. Therefore,
-   * we must save and restore its current bucket through get/setContext.
+   * we must save and restore its current bucket through get/setCurrentBucket.
    */
   void deliver(){
     for(int i = 0; i < requestors.length(); i++){
@@ -446,10 +446,10 @@ struct NodeCacheLine {
       CutoffWorker *worker = req.worker;
 
       // Save a pointer to the current bucket of the worker.
-      Node *saveContext = worker->getContext();
+      Node *saveCurrentBucket = worker->getCurrentBucket();
       // Replace it with the one that generated the request
       // for this subtree
-      worker->setContext(req.context);
+      worker->setCurrentBucket(req.currentBucket);
 
       // Recall the kind of traversal the worker was performing
       // when it generated the request... 
@@ -463,7 +463,7 @@ struct NodeCacheLine {
       }
 
       // Restore the current bucket of the worker
-      worker->setContext(saveContext);
+      worker->setCurrentBucket(saveCurrentBucket);
       // Check whether this traversal has completed.
       state->decrPending();
       if(state->complete()) worker->done();
@@ -533,8 +533,8 @@ struct ParticleCacheLine {
        * local bucket here, and replace it with the one which had caused
        * the worker to request these particles in the first place.
        */
-      Node *saveContext = worker->getContext();
-      worker->setContext(req.context);
+      Node *saveCurrentBucket = worker->getCurrentBucket();
+      worker->setCurrentBucket(req.currentBucket);
 
       // so that the worker may do some book-keeping, if required 
       worker->beforeParticleForces(parent->getKey());
@@ -548,7 +548,7 @@ struct ParticleCacheLine {
 
       // Restore the current bucket of the worker, in case
       // it is in the middle of some other traversal.
-      worker->setContext(saveContext);
+      worker->setCurrentBucket(saveCurrentBucket);
 
       // Update the corresponding state to reflect the fact that a previously
       // outstanding remote data request is now complete.

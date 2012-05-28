@@ -1290,7 +1290,7 @@ group DataManager {
 
       RRDEBUG("(%d) REQUEST particles %lu leafCached %d from tp %d\n", CkMyPe(), key, leaf.isCached(), owner);
     }
-    cacheLine.requestors.push_back(make_Requestor(worker,state,traversal,worker.getContext()));
+    cacheLine.requestors.push_back(make_Requestor(worker,state,traversal,worker.getCurrentBucket()));
     partReqs.incrDeliveries();
     return null;
   }
@@ -1359,7 +1359,7 @@ group DataManager {
       treePieceProxy[requestOwner]@requestNode(key, CkMyPe(), opts);
       delete opts;
     }
-    nodeCacheLine.requestors.push_back(make_Requestor(worker,state,traversal,worker.getContext()));
+    nodeCacheLine.requestors.push_back(make_Requestor(worker,state,traversal,worker.getCurrentBucket()));
     nodeReqs.incrDeliveries();
     return null;
   }
@@ -1849,7 +1849,7 @@ array[1D] TreePiece {
       trav.topDownTraversal(root,localTraversalWorker,localTraversalState);
       localTraversalState.currentBucketIdx++;
       localTraversalState.currentBucketPtr = ckVecRead(peBuckets,myStartBucketIdx+localTraversalState.currentBucketIdx);
-      localTraversalWorker.setContext(localTraversalState.currentBucketPtr);
+      localTraversalWorker.setCurrentBucket(localTraversalState.currentBucketPtr);
     }
 
     localTraversalState.decrPending(i);
@@ -1878,7 +1878,7 @@ array[1D] TreePiece {
       trav.topDownTraversal(root,remoteTraversalWorker,remoteTraversalState);
       remoteTraversalState.currentBucketIdx++;
       remoteTraversalState.currentBucketPtr = ckVecRead(peBuckets,myStartBucketIdx+remoteTraversalState.currentBucketIdx);
-      remoteTraversalWorker.setContext(remoteTraversalState.currentBucketPtr);
+      remoteTraversalWorker.setCurrentBucket(remoteTraversalState.currentBucketPtr);
     }
 
     remoteTraversalState.decrPending(i);

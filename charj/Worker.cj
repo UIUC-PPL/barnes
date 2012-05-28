@@ -1,40 +1,40 @@
 // worker abstract class
-abstract class CutoffWorker<T> {
-  public abstract int work(Node<T>);
+abstract class CutoffWorker {
+  public abstract int work(Node);
   public void work(ExternalParticle) {}
   public void bucketDone(Key k) {}
-  public Node<ForceData> getCurrentBucket() {return null;}
-  public void setContext(void context) {}
+  public Node getCurrentBucket() {return null;}
+  public void setCurrentBucket(Node bucket) {}
   public void done() {}
   public void beforeParticleForces(Key k) {}
 };
 
-class TraversalWorker : public CutoffWorker<ForceData> {
+class TraversalWorker : public CutoffWorker {
   TreePiece ownerTreePiece;
   State state;
   
-  Node<ForceData> currentBucket;
+  Node currentBucket;
 
   public TraversalWorker(){
     ownerTreePiece = null;
     currentBucket = null;
   }
 
-  public void reset(TreePiece owner, State s, Node<ForceData> bucket){
+  public void reset(TreePiece owner, State s, Node bucket){
     ownerTreePiece = owner;
     state = s;
     currentBucket = bucket;
   }
 
-  public Node<ForceData> getCurrentBucket(){
+  public Node getCurrentBucket(){
     return currentBucket;
   }
 
-  public void setCurrentBucket(Node<ForceData> current){
+  public void setCurrentBucket(Node current){
     currentBucket = current;
   }
 
-  public int work(Node<ForceData> node){
+  public int work(Node node){
     NodeType type = node.getType();
     state.nodeEncountered(currentBucket.getKey(),node);
     boolean keep = getKeep(type);
@@ -94,8 +94,7 @@ class LocalTraversalWorker : TraversalWorker {
     super();
   }
 
-  public boolean getKeep(NodeType type);
-  public boolean LocalTraversalWorker::getKeep(NodeType type){
+  public boolean getKeep(NodeType type){
     return keep[type];
   }
 };
@@ -112,7 +111,7 @@ class RemoteTraversalWorker : public TraversalWorker {
     ownerTreePiece.traversalDone();
   }
 
-  public boolean RemoteTraversalWorker::getKeep(NodeType type){
+  public boolean getKeep(NodeType type){
     return keep[type];
   }
 
@@ -132,7 +131,7 @@ class RemoteTraversalWorker : public TraversalWorker {
   }
 };
 
-class TreeSizeWorker : CutoffWorker<ForceData> {
+class TreeSizeWorker : CutoffWorker {
   int numNodes;
   int cutoffDepth;
 
@@ -143,7 +142,7 @@ class TreeSizeWorker : CutoffWorker<ForceData> {
     numNodes = 0;
   }
 
-  public int work(Node<ForceData> node){
+  public int work(Node node){
     int depth = node.getDepth();
     if(depth+1 <= cutoffDepth){
       numNodes += node.getNumChildren();
