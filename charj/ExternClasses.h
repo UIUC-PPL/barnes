@@ -8,6 +8,37 @@ struct TreeRootContainer {
   {}
 };
 
+class ExternalParticle {
+  Vector3D<Real> position;
+  Real mass;
+
+  void pup(PUP::er &p){
+    p|position;
+    p|mass;
+  }
+};
+
+class Particle : public ExternalParticle {
+  Key key;
+  Vector3D<Real> velocity;
+  Vector3D<Real> acceleration;
+  Real potential;
+
+  int order;
+
+  boolean operator<=(const Particle &other) const { return key <= other.key; }
+  boolean operator>=(const Particle &other) const { return key >= other.key; }
+  boolean operator>=(const Key &k) const { return key >= k; }
+
+  void pup(PUPer &p){
+    ExternalParticle::pup(p);
+    p|velocity;
+    p|key;
+    p|potential;
+  }
+};
+
+
 /*
  * BoundingBox:
  * Used to calculate the bounding box of all particles in the
