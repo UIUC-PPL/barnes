@@ -17,9 +17,17 @@ message ParticleReplyMsg {
   Key key;
   ExternalParticleArray particles;
 
-  ParticleReplyMsg(Key k, ExternalParticleArray p){
+  public ParticleReplyMsg(Key k, ExternalParticleArray p){
     key = k;
     particles = p;
+  }
+
+  public int getNumParticles(){
+    return particles.length();
+  }
+
+  public ExternalParticle getParticle(int i){
+    return particles.get(i);
   }
 };
 
@@ -32,6 +40,14 @@ message NodeReplyMsg {
 
   public NodeReplyMsg(Key key_){
     key = key_;
+  }
+
+  public int getNumSubtreeRoots(){
+    return roots.size(0);
+  }
+
+  public Node getSubtreeRoot(int i){
+    return roots[i];
   }
 };
 
@@ -1425,7 +1441,7 @@ group DataManager {
     nodeReqs.decrRequests();
     nodeReqs.decrDeliveries(line.requestors.length());
 
-    line.deliverNode();
+    line.deliver();
   }
 
   void traversalsDone(long pnInter, long ppInter, long openCrit){
