@@ -68,12 +68,12 @@ void TreePiece::checkTraversals(){
       for(jt = it->second.begin(); jt != it->second.end(); ++jt){
         oss << (*jt) << ","; 
       }
-      CkPrintf("tp %d bucket %llu rem: %s\n", thisIndex, it->first, oss.str().c_str());
+      CkPrintf("tp %d bucket %llu rem: %s\n", getIndex(), it->first, oss.str().c_str());
     }
     else{
       jt = it->second.find(Key(0));
       if(jt == it->second.end()){
-        CkPrintf("tp %d bucket %llu can't find Key(0)\n", thisIndex, it->first);
+        CkPrintf("tp %d bucket %llu can't find Key(0)\n", getIndex(), it->first);
         nbad++;
       }
     }
@@ -103,7 +103,7 @@ void TreePiece::receiveParticles(ParticleMsg *msg){
 
 /*
 void TreePiece::submitParticles(){
-  if(thisIndex == 0) CkStartQD(CkCallback(CkIndex_TreePiece::submitParticles(),thisProxy));
+  if(getIndex() == 0) CkStartQD(CkCallback(CkIndex_TreePiece::submitParticles(),thisProxy));
   myDM->submitParticles(&decompMsgsRecvd,myNumParticles,this);
 }
 */
@@ -148,7 +148,7 @@ void TreePiece::startTraversal(int dummy){
   RescheduleMsg *msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = REMOTE_GRAVITY_PRIORITY;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-  myProxy[thisIndex].doRemoteGravity(msg);
+  myProxy[getIndex()].doRemoteGravity(msg);
 
 #ifdef SPLASH_COMPATIBLE
   localTraversalState.reset(this,myRoot->getNumParticles(),myRoot->getParticles());
@@ -161,7 +161,7 @@ void TreePiece::startTraversal(int dummy){
   msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = LOCAL_GRAVITY_PRIORITY;
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
-  myProxy[thisIndex].doLocalGravity(msg);
+  myProxy[getIndex()].doLocalGravity(msg);
 }
 
 void TreePiece::doLocalGravity(RescheduleMsg *msg){
@@ -187,15 +187,15 @@ void TreePiece::doLocalGravity(RescheduleMsg *msg){
   }
 
   localTraversalState.decrPending(i);
-  //CkPrintf("[%d] localGravity cur %d pending %d\n",thisIndex, localTraversalState.current, localTraversalState.pending);
+  //CkPrintf("[%d] localGravity cur %d pending %d\n",getIndex(), localTraversalState.current, localTraversalState.pending);
   if(localTraversalState.current < limit){
     CkAssert(!localTraversalState.complete());
-    myProxy[thisIndex].doLocalGravity(msg);
+    myProxy[getIndex()].doLocalGravity(msg);
   }
   else{
     delete msg;
     if(localTraversalState.complete()){
-      //CkPrintf("tree piece %d traversal done local\n", thisIndex);
+      //CkPrintf("tree piece %d traversal done local\n", getIndex());
       traversalDone();
     }
   }
@@ -224,16 +224,16 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
   }
 
   remoteTraversalState.decrPending(i);
-  // CkPrintf("[%d] remoteGravity cur %d pending %d\n", thisIndex, remoteTraversalState.current, remoteTraversalState.pending);
+  // CkPrintf("[%d] remoteGravity cur %d pending %d\n", getIndex(), remoteTraversalState.current, remoteTraversalState.pending);
   if(remoteTraversalState.current < limit){
     CkAssert(!remoteTraversalState.complete());
-    myProxy[thisIndex].doRemoteGravity(msg);
+    myProxy[getIndex()].doRemoteGravity(msg);
   }
   else{
     delete msg;
     if(remoteTraversalState.complete()){
       doneRemoteRequests();
-      //CkPrintf("tree piece %d traversal done remote\n", thisIndex);
+      //CkPrintf("tree piece %d traversal done remote\n", getIndex());
       traversalDone();
     }
   }
@@ -250,7 +250,7 @@ void TreePiece::traversalDone(){
 }
 
 void TreePiece::finishIteration(){
-  //CkPrintf("[%d] finishIteration\n", thisIndex);
+  //CkPrintf("[%d] finishIteration\n", getIndex());
   checkTraversals();
   clearBucketsDebug();
 
@@ -272,7 +272,7 @@ void TreePiece::quiescence(){
   int myNumBuckets = 0;
 #endif
   CkPrintf("QUIESCENCE tree piece %d proc %d submitted %d numBuckets %d trav_done %d outstanding local %d remote %d\n", 
-                thisIndex,
+                getIndex(),
                 CkMyPe(),
                 myNumParticles,
                 myNumBuckets,
@@ -294,7 +294,7 @@ void TreePiece::requestParticles(Key k, int replyTo) {
   myDM->requestParticles(k, replyTo);
 }
 
-void TreePiece::process(NodeRequest &req) {
+void TreePiece::process(const NodeRequest &req) {
   myDM->requestNode(req.key, req.replyTo);
 }
 
@@ -327,7 +327,7 @@ void TreePiece::startlb(){
 
 #if 0
     CkPrintf("tree piece %d pe %d contributing %f %f %f\n", 
-                                        thisIndex,
+                                        getIndex(),
                                         CkMyPe(),
                                         centroid.x,
                                         centroid.y,
@@ -340,7 +340,7 @@ void TreePiece::startlb(){
                      +remoteTraversalState.numInteractions[1];
 
     TaggedVector3D tv(centroid,handle,ni,myNumParticles,0,0);
-    tv.tag = thisIndex;
+    tv.tag = getIndex();
     CkCallback lbcb(CkIndex_Orb3dLB_notopo::receiveCentroids(NULL),0,orbLBProxy);
     contribute(sizeof(TaggedVector3D), (char *)&tv, CkReduction::concat, lbcb);
   }
@@ -359,7 +359,7 @@ void TreePiece::doAtSync(){
 }
 
 void TreePiece::ResumeFromSync() {
-  //if(thisIndex == 0) CkPrintf("tree piece %d ResumeFromSync\n", thisIndex);
+  //if(getIndex() == 0) CkPrintf("tree piece %d ResumeFromSync\n", getIndex());
 
   CkCallback cb(CkIndex_DataManager::resumeFromLB(),dataManagerProxy);
   contribute(0,0,CkReduction::sum_int,cb);

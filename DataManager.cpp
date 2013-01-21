@@ -50,7 +50,6 @@ extern CProxy_Main mainProxy;
 extern Parameters globalParams;
 
 extern CProxy_ArrayMeshStreamer<NodeRequest, 
-                                CProxy_MeshStreamerArrayClient<NodeRequest>, 
                                 int > combinerProxy;
 extern CProxy_CompletionDetector detector;
 
@@ -91,9 +90,7 @@ DataManager::DataManager() :
 void DataManager::initProxies(){
   // set up my own proxy, local combiner, TP ckarray
   myProxy = CProxy_DataManager(thisgroup);
-  combiner = ((ArrayMeshStreamer<NodeRequest, 
-                                CProxy_MeshStreamerArrayClient<NodeRequest>, 
-                                int> *)CkLocalBranch(combinerProxy));
+  combiner = ((ArrayMeshStreamer<NodeRequest, int> *)CkLocalBranch(combinerProxy));
   tpArray = treePieceProxy.ckGetArrayID().ckLocalBranch();
 
   numRankBits = LOG_BRANCH_FACTOR;
@@ -858,8 +855,8 @@ void DataManager::processSubmittedParticles(){
 #ifdef PHASE_BARRIERS
   CkCallback startCb(CkIndex_DataManager::doneParticleFlush(), 0, dataManagerProxy);
   CkCallback endCb(CkIndex_DataManager::doneStreaming(), 0, dataManagerProxy);
-  combiner->associateCallback(globalParams.numTreePieces, startCb, endCb, detector, 
-                              REQUEST_NODE_PRIORITY);
+  combiner->init(globalParams.numTreePieces, startCb, endCb, detector, 
+                 REQUEST_NODE_PRIORITY, true);
 
 #else
   resumeProcessSubmittedParticles();
@@ -2062,7 +2059,6 @@ void DataManager::pup(PUP::er &p){
   p|myProxy;
   if(p.isUnpacking()){
     combiner = ((ArrayMeshStreamer<NodeRequest, 
-                                   CProxy_MeshStreamerArrayClient<NodeRequest>, 
                                    int> *)CkLocalBranch(combinerProxy));
     tpArray = treePieceProxy.ckGetArrayID().ckLocalBranch();
   }

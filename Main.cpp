@@ -33,7 +33,6 @@ CProxy_Main mainProxy;
 
 CProxy_CompletionDetector detector;
 CProxy_ArrayMeshStreamer<NodeRequest, 
-                         CProxy_MeshStreamerArrayClient<NodeRequest>, 
                          int > combinerProxy;
 
 Parameters globalParams;
@@ -70,7 +69,6 @@ Main::Main(CkArgMsg *msg){
 
   combinerProxy = 
     CProxy_ArrayMeshStreamer<NodeRequest, 
-                             CProxy_MeshStreamerArrayClient<NodeRequest>, 
                              int>::ckNew(globalParams.combineFlushCount, 
                                          3, meshTopology, treePieceProxy,
                                          0, globalParams.combineFlushPeriod);

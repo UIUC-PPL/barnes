@@ -64,7 +64,7 @@ class TreePiece : public MeshStreamerArrayClient<NodeRequest> {
   TreePiece();
   TreePiece(CkMigrateMessage *) {}
 
-  int getIndex() {return thisIndex;}
+  inline int getIndex() {return thisIndex.data[0];}
 
   void receiveParticles(ParticleMsg *msg);
 
@@ -101,7 +101,7 @@ class TreePiece : public MeshStreamerArrayClient<NodeRequest> {
   void doAtSync(); 
   void ResumeFromSync();
 
-  void process(NodeRequest &req);
+  void process(const NodeRequest &req);
 };
 
 #endif
