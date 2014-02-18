@@ -1,6 +1,7 @@
 mainmodule barnes {
 
   include "Node.h";
+
   /*
     Proxies for tree pieces, data managers and main chare.
   */
@@ -10,9 +11,7 @@ mainmodule barnes {
   readonly CProxy_Main mainProxy;
   readonly Parameters globalParams;
 
-  readonly CProxy_ArrayMeshStreamer<NodeRequest,
-                                    int> combinerProxy;  
-  readonly CProxy_CompletionDetector detector;
+  //readonly CProxy_CompletionDetector detector;
 
   initproc void registerReducers();
 
@@ -64,7 +63,7 @@ mainmodule barnes {
     communication requests) to compute the forces on its
     particles.
   */
-  array [1D] TreePiece : MeshStreamerArrayClient<NodeRequest> {
+  array [1D] TreePiece {
     entry TreePiece();
     entry void receiveParticles(ParticleMsg *msg);
     entry void requestMoments(Key k, int replyTo);
@@ -132,10 +131,4 @@ mainmodule barnes {
   nodegroup TreeMerger {
     entry TreeMerger();
   };
-
-  message MeshStreamerMessage<ArrayDataItem<NodeRequest, int> >;
-  array [1D] MeshStreamerArrayClient<NodeRequest>;
-  group ArrayMeshStreamer<NodeRequest, int >;
-  group MeshStreamer<ArrayDataItem<NodeRequest, int> >;
-
 };

@@ -241,7 +241,6 @@ void TreePiece::doRemoteGravity(RescheduleMsg *msg){
 
 void TreePiece::doneRemoteRequests(){
   myDM->doneRemoteRequests();
-  //dataManagerProxy[CkMyPe()].doneRemoteRequests();
 }
 
 void TreePiece::traversalDone(){ 
@@ -308,7 +307,8 @@ int TreePiece::getIteration() {
 }
 
 void TreePiece::pup(PUP::er &p){
-  MeshStreamerArrayClient<NodeRequest>::pup(p);
+  //MeshStreamerArrayClient<NodeRequest>::pup(p);
+  CBase_TreePiece::pup(p);
   p | iteration;
   if(p.isUnpacking()){
     init();

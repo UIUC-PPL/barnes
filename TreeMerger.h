@@ -1,7 +1,7 @@
 #ifndef TREE_MERGER_H
 #define TREE_MERGER_H
 
-#include "NDMeshStreamer.h"
+//#include "NDMeshStreamer.h"
 #include "barnes.decl.h"
 #include "Node.h"
 #include "Descriptor.h"

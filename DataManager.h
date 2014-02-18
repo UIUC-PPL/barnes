@@ -4,7 +4,7 @@
 #include "Particle.h"
 
 #include "OrientedBox.h"
-#include "NDMeshStreamer.h"
+//#include "NDMeshStreamer.h"
 #include "barnes.decl.h"
 #include "Node.h"
 #include "Descriptor.h"
@@ -129,7 +129,7 @@ class DataManager : public CBase_DataManager{
   CmiUInt8 numInteractions[3];
   CProxy_DataManager myProxy;
   
-  ArrayMeshStreamer<NodeRequest, int > *combiner;
+  //ArrayMeshStreamer<NodeRequest, int > *combiner;
   CkArray *tpArray;
 
   // Called by requestNode() and process() (when streaming-combining)
