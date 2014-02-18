@@ -1,15 +1,15 @@
 CHARM_PATH = #
 CHARM_LIBS = $(CHARM_PATH)/lib
 INCPATH = $(CHARM_PATH)/include
-STRUCTURES_PATH = utility/structures
+STRUCTURES_PATH = #
 
 VPATH = $(STRUCTURES_PATH)
 
-APP_FLAGS = -DCHECK_INTER -DPHASE_BARRIERS -DNODE_LEVEL_MERGE #-DVERBOSE_TRAVERSAL -DVERBOSE_TRAVERSAL_INTERACTION
+APP_FLAGS = -DSTATIC -DPHASE_BARRIERS #-DNODE_LEVEL_MERGE #-DCOMBINE_NODE_REQUESTS #-DVERBOSE_TRAVERSAL -DVERBOSE_TRAVERSAL_INTERACTION
 OPTS = -O3 -g $(APP_FLAGS)
 CPPFLAGS += -I$(INCPATH) -I$(STRUCTURES_PATH) 
 CXXFLAGS += $(OPTS) $(CPPFLAGS)
-LDFLAGS += $(OPTS) -L$(STRUCTURES_PATH) -lTipsy -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -module Orb3dLB_notopo -module NDMeshStreamer -module completion -memory os #-tracemode projections
+LDFLAGS += $(OPTS) -L$(STRUCTURES_PATH) -lTipsy -L. -language charm++ -module RandCentLB -module RotateLB -module GreedyLB -module Orb3dLB_notopo -module RefineLB #-tracemode projections
 
 CHARMC = $(CHARM_PATH)/bin/charmc
 
