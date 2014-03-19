@@ -31,6 +31,8 @@ struct Parameters {
   int cacheLineSize;
 
   int iterations;
+  //sph
+  int nSmooth;
 
   //int branchFactor;
 
@@ -48,6 +50,7 @@ struct Parameters {
     p | theta;
     p | cacheLineSize;
     p | iterations;
+    p | nSmooth;
   }
 
   void extractParameters(int argc, char **argv, map<string,string> &tab){

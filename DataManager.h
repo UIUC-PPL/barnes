@@ -147,6 +147,9 @@ class DataManager : public CBase_DataManager {
   void startTraversal();
   void flushBufferedRemoteDataRequests();
 
+  //sph
+  void startSph();
+
   void freeCachedData();
   void freeTree();
   void finishIteration();
@@ -190,6 +193,10 @@ class DataManager : public CBase_DataManager {
   void recvNode(NodeReplyMsg *msg);
 
   void recvUnivBoundingBox(CkReductionMsg *msg);
+
+  //for sph, synch methods
+  //ParticleReplyMsg* requestParticlesSph(Node<ForceData> *leaf);
+  //NodeReplyMsg* requestNodeSph(Node<ForceData> *leaf);
 
   void quiescence();
 

@@ -33,7 +33,12 @@ class Traversal {
   void topDownTraversal(Node<T> *root, CutoffWorker<T> *worker, State *state);
   void topDownTraversal_local(Node<T> *root, CutoffWorker<T> *worker);
   void postorderTraversal(Node<T> *root, CutoffWorker<T> *worker);
+
+  //sph
+  void startSphTraversal(Node<T> *root, CutoffWorker<T> *worker, State* st);
+  int bottomUpTraversal(Node<T> *root, CutoffWorker<T> *worker, State *state);
+  int topDownTraversalSph(Node<T> *root, CutoffWorker<T> *worker, State *state);
+  int processSphLeaf(Node<T> *leaf, CutoffWorker<T> *worker, State *state);
+
 };
 #endif // __TRAVERSAL_DECLS_H__
-
-

@@ -126,6 +126,64 @@ class RemoteTraversalWorker : public TraversalWorker {
   bool getKeep(NodeType type);
 };
 
+//sph
+class SphTraversalWorker : public CutoffWorker<ForceData> {
+  protected:
+  TreePiece *ownerTreePiece;
+  State *state;
+  
+  Node<ForceData> *currentBucket;
+
+  SphTraversalWorker() : 
+    ownerTreePiece(NULL),
+    currentBucket(NULL)
+  {
+  }
+
+  public:
+
+  void reset(TreePiece *owner, State *s, Node<ForceData> *bucket){
+    ownerTreePiece = owner;
+    state = s;
+    currentBucket = bucket;
+  }
+
+  Node<ForceData> *getCurrentBucket(){
+    return currentBucket;
+  }
+
+  void *getContext(){
+    return (void *) currentBucket;
+  }
+
+  void setContext(void *context){
+    currentBucket = (Node<ForceData> *) context;
+  }
+
+  int work(Node<ForceData> *node);
+  void work(ExternalParticle *particle);
+  void bucketDone(Key k);
+  
+  virtual void done() {}
+  virtual bool getKeep(NodeType type) = 0;
+};
+
+class LocalSphTraversalWorker : public SphTraversalWorker {
+  static const bool keep[];
+  public:
+  LocalSphTraversalWorker() : SphTraversalWorker() {}
+  bool getKeep(NodeType type);
+};
+
+class RemoteSphTraversalWorker : public SphTraversalWorker {
+  static const bool keep[];
+  public:
+  RemoteSphTraversalWorker() : SphTraversalWorker() {}
+  void done();
+  bool getKeep(NodeType type);
+};
+
+
 class TreeSizeWorker : public CutoffWorker<ForceData> {
 
   int numNodes;

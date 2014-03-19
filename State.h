@@ -13,6 +13,9 @@ extern string NodeTypeString[];
 
 class TreePiece;
 struct State {
+  //sph
+  int *counterArrays[2];
+  
   int pending;
   int current;
   Node<ForceData> **currentBucketPtr;

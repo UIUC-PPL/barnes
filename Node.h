@@ -235,7 +235,14 @@ class Node {
     child->core.numParticles = childNumParticles;
     child->core.numChildren = 0;
   }
-
+  //return the bounding box of the node, for sph
+  OrientedBox<Real> getBoundingBox(){
+    return data.box;
+  }
+  //return the center of the bounding box, for sph
+  Vector3D<Real> getCenter(){
+    return data.box.center();
+  }
   void printBoundingBox(ostream &os){
     os << getKey() << " bb ";
     os << data.box.lesser_corner.x << " ";
