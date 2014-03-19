@@ -14,8 +14,11 @@
 
 #include "MultipoleMoments.h"
 #include "Traversal_decls.h"
+#include "smooth.h"
 
 class TreePiece : public CBase_TreePiece {
+  friend class NearNeighborState;
+  
   int numDecompMsgsRecvd;
   CkVec<ParticleMsg *> decompMsgsRecvd;
   int myNumParticles;
@@ -31,6 +34,10 @@ class TreePiece : public CBase_TreePiece {
 
   LocalTraversalWorker localTraversalWorker;
   RemoteTraversalWorker remoteTraversalWorker;
+
+  //sph
+  NearNeighborState sphTraversalState;
+  SphTraversalWorker sphTraversalWorker;
 
   Traversal<ForceData> trav;
 
@@ -64,6 +71,11 @@ class TreePiece : public CBase_TreePiece {
 
   void doLocalGravity(RescheduleMsg *);
   void doRemoteGravity(RescheduleMsg *);
+ 
+  //sph
+  void startSph();
+  void sphTraversalDone();
+  void sphDone();
 
   void requestParticles(RequestMsg *msg);
   void requestNode(RequestMsg *msg);

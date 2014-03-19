@@ -81,6 +81,9 @@ void Main::setParameters(CkArgMsg *m){
   globalParams.yieldPeriod = params.getiparam("yield", DEFAULT_YIELD_PERIOD, table);
   CkPrintf("yieldPeriod: %d\n", globalParams.yieldPeriod);
 
+  globalParams.nSmooth = params.getiparam("nSmooth", DEFAULT_NSMOOTH, table);
+  CkPrintf("nSmmoth: %f\n", globalParams.nSmooth); //Number of neighbors for smooth
+
   getNumParticles();
 
   it = table.find("p");

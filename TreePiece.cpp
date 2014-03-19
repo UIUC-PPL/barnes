@@ -22,7 +22,9 @@ TreePiece::TreePiece() :
   remoteTraversalWorker(),
   totalNumTraversals(2),
   iteration(0),
-  numTraversalsDone(0)
+  numTraversalsDone(0),
+  sphTraversalState(),
+  sphTraversalWorker()
 {
   myDM = dataManagerProxy.ckLocalBranch();
 }
@@ -81,8 +83,21 @@ void TreePiece::startTraversal(){
 
   msg = new (NUM_PRIORITY_BITS) RescheduleMsg;
   *(int *)CkPriorityPtr(msg) = LOCAL_GRAVITY_PRIORITY;
+
   CkSetQueueing(msg, CK_QUEUEING_IFIFO);
   thisProxy[thisIndex].doLocalGravity(msg);
+}
+
+void TreePiece::startSph(){
+  CkPrintf("Starting Sph calucations.\n");
+  trav.sphStart();
+  sphTraversalState.reset(myNumParticles, globalParams.nSmooth);
+  sphTraversalWorker.reset(this, &sphTraversalState, *myBuckets);
+  trav.bottomUpTraversal(root, &sphTraversalWorker, &sphTraversalState);
+}
+
+void TreePiece::sphTraversalDone(){
+    sphDone();
 }
 
 void TreePiece::doLocalGravity(RescheduleMsg *msg){
@@ -137,6 +152,11 @@ void TreePiece::traversalDone(){
   numTraversalsDone++;
 
   if(numTraversalsDone == totalNumTraversals){
+     thisProxy[thisIndex].startSph();
+  }
+}
+
+void TreePiece::sphDone(){
 #ifdef STATISTICS
     CmiUInt8 pn = localTraversalState.numInteractions[0]+remoteTraversalState.numInteractions[0];
     CmiUInt8 pp = localTraversalState.numInteractions[1]+remoteTraversalState.numInteractions[1];
@@ -145,9 +165,11 @@ void TreePiece::traversalDone(){
 #else
     dataManagerProxy[CkMyPe()].traversalsDone();
 #endif
-
+    //sph density calculation
+    sphTraversalState.calculateDensity();
+    sphTraversalState.printBallRadius(iteration);
+    trav.sphEnd();
     finishIteration();
-  }
 }
 
 void TreePiece::finishIteration(){

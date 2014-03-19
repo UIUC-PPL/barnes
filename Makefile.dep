@@ -6,17 +6,18 @@ defines.h \
 common.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-MultipoleMoments.h \
-Vector3D.h \
 TreePiece.h \
 Particle.h \
+Vector3D.h \
 Messages.h \
+MultipoleMoments.h \
 Node.h \
 util.h \
+Descriptor.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
+smooth.h \
 DataManager.h \
 ActiveBinInfo.h \
 Request.h \
@@ -31,11 +32,11 @@ common.h \
 Vector3D.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-defines.h \
-MultipoleMoments.h \
 Node.h \
+MultipoleMoments.h \
+defines.h \
 util.h \
+Descriptor.h \
 ActiveBinInfo.h \
 Traversal_decls.h \
 Worker.h \
@@ -45,6 +46,7 @@ Reduction.h \
 Messages.h \
 Parameters.h \
 TreePiece.h \
+smooth.h \
 
 TreePiece.o: \
 TreePiece.cpp \
@@ -53,16 +55,17 @@ defines.h \
 common.h \
 OrientedBox.h \
 barnes.decl.h \
-Descriptor.h \
-MultipoleMoments.h \
-Vector3D.h \
 Particle.h \
+Vector3D.h \
 Messages.h \
+MultipoleMoments.h \
 Node.h \
 util.h \
+Descriptor.h \
 State.h \
 Worker.h \
 Traversal_decls.h \
+smooth.h \
 DataManager.h \
 ActiveBinInfo.h \
 Request.h \
@@ -84,6 +87,7 @@ barnes.decl.h \
 Messages.h \
 State.h \
 Worker.h \
+Traversal_decls.h \
 
 Reduction.o: \
 Reduction.cpp \
@@ -117,9 +121,9 @@ State.h \
 Request.h \
 TreePiece.h \
 Messages.h \
+smooth.h \
 gravity.h \
 Space.h \
-Parameters.h \
 
 Request.o: \
 Request.cpp \
@@ -139,6 +143,7 @@ Traversal_decls.h \
 TreePiece.h \
 barnes.decl.h \
 Messages.h \
+smooth.h \
 Traversal_defs.h \
 DataManager.h \
 
@@ -158,6 +163,7 @@ TreePiece.h \
 barnes.decl.h \
 Messages.h \
 Worker.h \
+Traversal_decls.h \
 
 particleGenerator.o: \
 

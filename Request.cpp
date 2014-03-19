@@ -45,7 +45,10 @@ void Request::deliverNode(){
     Node<ForceData> *firstChild = (Node<ForceData>*) data;
     // start the traversal for each of the received children
     for(int j = 0; j < BRANCH_FACTOR; j++){
-      traversal->topDownTraversal(firstChild+j,worker,state);
+      if(traversal->sphStarted)
+        traversal->bottomUpTraversal(firstChild+j,worker,state);
+      else 
+        traversal->topDownTraversal(firstChild+j,worker,state);
     }
 
     worker->setContext(saveContext);

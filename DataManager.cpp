@@ -696,7 +696,19 @@ void DataManager::requestParticles(RequestMsg *msg){
   thisProxy[msg->replyTo].recvParticles(pmsg);
   delete msg;
 }
+/*
+ParticleReplyMsg* DataManager::requestParticlesSph(Node<ForceData> *leaf){
 
+  ParticleReplyMsg *pmsg = new (1,NUM_PRIORITY_BITS) ParticleReplyMsg;
+  return pmsg;
+
+}
+NodeReplyMsg* DataManager::requestNodeSph(Node<ForceData> *leaf){
+
+  NodeReplyMsg *nmsg = new (1,NUM_PRIORITY_BITS) NodeReplyMsg;
+  return nmsg;
+}
+*/
 void DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<ForceData> *worker, State *state, Traversal<ForceData> *traversal){
   Key key = leaf->getKey();
   Request &request = nodeRequestTable[key];
@@ -786,6 +798,9 @@ void DataManager::recvParticles(ParticleReplyMsg *msg){
   partReqs.decrRequests();
   partReqs.decrDeliveries(req.requestors.length());
   req.deliverParticles(msg->np);
+
+  //particles recevied, continue the sph walk
+
 }
 
 void DataManager::recvNode(NodeReplyMsg *msg){
@@ -822,6 +837,8 @@ void DataManager::recvNode(NodeReplyMsg *msg){
   req.deliverNode();
   RRDEBUG("(%d) DELIVERED key %lu\n", 
           CkMyPe(), msg->key);
+  //node recevied, continue the sph walk, if sph has started
+
 }
 
 #ifdef STATISTICS

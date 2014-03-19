@@ -1,9 +1,9 @@
-CHARM_PATH = #
+CHARM_PATH = $(HOME)/charm/net-darwin-x86_64
 CHARM_LDB_PATH = $(CHARM_PATH)/src/ck-ldb
 CHARM_UTIL_PATH = $(CHARM_PATH)/src/util
 CHARM_LIB_PATH = $(CHARM_PATH)/lib
 INCPATH = $(CHARM_PATH)/include
-STRUCTURES_PATH = #
+STRUCTURES_PATH = $(HOME)/utility/structures
 
 VPATH = $(STRUCTURES_PATH)
 

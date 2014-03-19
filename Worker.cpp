@@ -154,6 +154,37 @@ void RemoteTraversalWorker::done(){
 const bool LocalTraversalWorker::keep[] = {false,true,true,false,true,false,false,false};
 const bool RemoteTraversalWorker::keep[] = {false,false,false,false,true,true,true,false};
 
+int SphTraversalWorker::work(Node<ForceData> *node){
+  NodeType type = node->getType();
+  bool keep = getKeep(type);
+
+  if(!keep){
+    return 0;
+  }
+  // basic opening criterion, intersect
+  bool open = intersect(node->getBoundingBox(), currentBucket->getCenter(), ((NearNeighborState*)state)->getCurrentRadius());
+  state->incrOpenCriterion();
+  if(open){
+    state->nodeOpened(currentBucket->getKey(),node);
+    return 1;
+  }
+
+  return 0;
+}
+
+void SphTraversalWorker::work(ExternalParticle *particle){
+  int computed = ((NearNeighborState*)state)->compareAddParticle(particle, getCurrentBucket());
+  state->incrPartPartInteractions(currentBucket->getKey(),computed);
+}
+
+void SphTraversalWorker::bucketDone(Key k){
+  state->bucketComputed(currentBucket,k);
+}
+
+bool SphTraversalWorker::getKeep(NodeType type){
+  return true;
+}
+
 int TreeSizeWorker::work(Node<ForceData> *node){
   int depth = node->getDepth();
   if(depth+1 <= cutoffDepth){
