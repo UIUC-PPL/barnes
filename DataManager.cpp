@@ -798,9 +798,6 @@ void DataManager::recvParticles(ParticleReplyMsg *msg){
   partReqs.decrRequests();
   partReqs.decrDeliveries(req.requestors.length());
   req.deliverParticles(msg->np);
-
-  //particles recevied, continue the sph walk
-
 }
 
 void DataManager::recvNode(NodeReplyMsg *msg){
@@ -837,8 +834,6 @@ void DataManager::recvNode(NodeReplyMsg *msg){
   req.deliverNode();
   RRDEBUG("(%d) DELIVERED key %lu\n", 
           CkMyPe(), msg->key);
-  //node recevied, continue the sph walk, if sph has started
-
 }
 
 #ifdef STATISTICS
