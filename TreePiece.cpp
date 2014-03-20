@@ -169,6 +169,7 @@ void TreePiece::sphDone(){
     sphTraversalState.calculateDensity();
     sphTraversalState.printBallRadius(iteration);
     trav.sphEnd();
+
     finishIteration();
 }
 
