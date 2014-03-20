@@ -134,15 +134,6 @@ struct ForceData {
   }
 };
 
-struct SphData {
-  OrientedBox<Real> box;
-
-  SphData() 
-  {
-  }
-};
-
-
 struct DtReductionStruct {
 #ifdef STATISTICS 
   CmiUInt8 pnInteractions;
