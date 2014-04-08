@@ -49,11 +49,9 @@ extern CProxy_TreeMerger treeMergerProxy;
 extern CProxy_Main mainProxy;
 extern Parameters globalParams;
 
-/*
-extern CProxy_ArrayMeshStreamer<NodeRequest, 
-                                int > combinerProxy;
-                                */
-//extern CProxy_CompletionDetector detector;
+
+extern CProxy_ArrayMeshStreamer<NodeRequest, int, TreePiece, SimpleMeshRouter > combinerProxy;
+extern CProxy_CompletionDetector detector;
 
 #define RRDEBUG 
 //#define RRDEBUG if(CkMyPe() == 1) CkPrintf
@@ -92,7 +90,7 @@ DataManager::DataManager() :
 void DataManager::initProxies(){
   // set up my own proxy, local combiner, TP ckarray
   myProxy = CProxy_DataManager(thisgroup);
-  //combiner = ((ArrayMeshStreamer<NodeRequest, int> *)CkLocalBranch(combinerProxy));
+  combiner = combinerProxy.ckLocalBranch();
   tpArray = treePieceProxy.ckGetArrayID().ckLocalBranch();
 
   numRankBits = LOG_BRANCH_FACTOR;
@@ -855,16 +853,14 @@ void DataManager::senseTreePieces(){
 void DataManager::processSubmittedParticles(){
 
 #ifdef PHASE_BARRIERS
-/*
   CkCallback startCb(CkIndex_DataManager::doneParticleFlush(), 0, dataManagerProxy);
   CkCallback endCb(CkIndex_DataManager::doneStreaming(), 0, dataManagerProxy);
   combiner->init(globalParams.numTreePieces, startCb, endCb, detector, 
                  REQUEST_NODE_PRIORITY, true);
-  */
 #else
+  resumeProcessSubmittedParticles();
 #endif
 
-  resumeProcessSubmittedParticles();
 }
 
 void DataManager::doneStreaming() {
@@ -1290,11 +1286,7 @@ Node<ForceData>* DataManager::requestNode(Node<ForceData> *leaf, CutoffWorker<Fo
 void DataManager::doneRemoteRequests(){
   numTreePiecesDoneRemoteRequests++;
   if(numTreePiecesDoneRemoteRequests == numLocalUsefulTreePieces){
-    //combiner->done(localTreePieces.count);
-    if(CkMyPe() == 0)
-    {
-      doneStreaming();
-    }
+    combiner->done(localTreePieces.count);
   }
 }
 
@@ -2066,10 +2058,7 @@ void DataManager::pup(PUP::er &p){
 
   p|myProxy;
   if(p.isUnpacking()){
-    /*
-    combiner = ((ArrayMeshStreamer<NodeRequest, 
-                                   int> *)CkLocalBranch(combinerProxy));
-    */
+    combiner = combinerProxy.ckLocalBranch();
     tpArray = treePieceProxy.ckGetArrayID().ckLocalBranch();
   }
 

@@ -11,7 +11,9 @@ mainmodule barnes {
   readonly CProxy_Main mainProxy;
   readonly Parameters globalParams;
 
-  //readonly CProxy_CompletionDetector detector;
+  readonly CProxy_ArrayMeshStreamer<NodeRequest, int, TreePiece,
+                                    SimpleMeshRouter>   combinerProxy;
+  readonly CProxy_CompletionDetector detector;
 
   initproc void registerReducers();
 
@@ -131,4 +133,10 @@ mainmodule barnes {
   nodegroup TreeMerger {
     entry TreeMerger();
   };
+
+  message MeshStreamerMessage<ArrayDataItem<NodeRequest, int> >;
+  group ArrayMeshStreamer<NodeRequest, int, TreePiece, SimpleMeshRouter>;
+  group MeshStreamer<ArrayDataItem<NodeRequest, int>, SimpleMeshRouter>;
+
+
 };

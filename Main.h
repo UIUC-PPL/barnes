@@ -4,7 +4,7 @@
 #include "Parameters.h"
 #include "defines.h"
 #include "OrientedBox.h"
-//#include "NDMeshStreamer.h"
+#include "NDMeshStreamer.h"
 #include "barnes.decl.h"
 
 class Main : public CBase_Main {

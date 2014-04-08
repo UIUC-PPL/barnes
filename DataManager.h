@@ -1,10 +1,10 @@
 #ifndef __DATA_MANAGER_H__
 #define __DATA_MANAGER_H__
 
+#include "NDMeshStreamer.h"
 #include "Particle.h"
 
 #include "OrientedBox.h"
-//#include "NDMeshStreamer.h"
 #include "barnes.decl.h"
 #include "Node.h"
 #include "Descriptor.h"
@@ -129,7 +129,8 @@ class DataManager : public CBase_DataManager{
   CmiUInt8 numInteractions[3];
   CProxy_DataManager myProxy;
   
-  //ArrayMeshStreamer<NodeRequest, int > *combiner;
+  ArrayMeshStreamer<NodeRequest, int, TreePiece,
+                    SimpleMeshRouter > *combiner;
   CkArray *tpArray;
 
   // Called by requestNode() and process() (when streaming-combining)
