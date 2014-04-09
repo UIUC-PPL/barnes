@@ -48,10 +48,9 @@ Main::Main(CkArgMsg *msg){
   treeMergerProxy = CProxy_TreeMerger::ckNew();
   dataManagerProxy = CProxy_DataManager::ckNew();
   TopoManager tmgr;
-  int meshTopology[] = {tmgr.getDimNZ(), tmgr.getDimNY(), tmgr.getDimNX(),
-                        tmgr.getDimNT()};
-  CkPrintf("Tram topology: %d %d %d %d\n", meshTopology[0],  meshTopology[1],
-           meshTopology[2],  meshTopology[3]);
+  int nDims = 2;
+  int meshTopology[] = {CkNumPes() / CkMyNodeSize(), CkMyNodeSize()};
+  CkPrintf("Tram topology: %d %d\n", meshTopology[0],  meshTopology[1]);
 
   CkArrayOptions opts(globalParams.numTreePieces);
   /* 
@@ -67,7 +66,7 @@ Main::Main(CkArgMsg *msg){
 
   combinerProxy =
     CProxy_ArrayMeshStreamer<NodeRequest, int, TreePiece, SimpleMeshRouter>::
-    ckNew(globalParams.combineFlushCount, 4, meshTopology, treePieceProxy,
+    ckNew(globalParams.combineFlushCount, nDims, meshTopology, treePieceProxy,
           0, globalParams.combineFlushPeriod);
   detector = CProxy_CompletionDetector::ckNew();
 
