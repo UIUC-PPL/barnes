@@ -1,0 +1,22 @@
+This is a Barnes-Hut simulator written on top of Charm++
+
+To build:
+	- Edit the Makefile CHARM_PATH to point to your built copy of Charm++ 
+
+	- Edit the Makefile STRUCTURES_PATH to point to the Changa structures library
+		git clone https://github.com/N-BodyShop/utility
+		STRUCTURES_PATH = utility/structures
+
+	- make
+
+Usage:
+
+# Prepare a data file with 10K particles:
+./plummer 10000 particles.bin
+
+# Run on a single processor
+./charmrun +p1 ./barnes -in=particles.bin -p=100  -killat=50
+
+
+
+
