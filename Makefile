@@ -1,9 +1,9 @@
-CHARM_PATH = #
+CHARM_PATH = ../charm
 CHARM_LDB_PATH = $(CHARM_PATH)/src/ck-ldb
 CHARM_UTIL_PATH = $(CHARM_PATH)/src/util
 CHARM_LIB_PATH = $(CHARM_PATH)/lib
 INCPATH = $(CHARM_PATH)/include
-STRUCTURES_PATH = #
+STRUCTURES_PATH = ../utility/structures
 
 VPATH = $(STRUCTURES_PATH)
 
@@ -35,7 +35,7 @@ gen: particleGenerator.cpp
 	g++ -o gen particleGenerator.cpp
 
 plummer.o: plummer.cpp 
-	g++ -I$(STRUCTURES_PATH) -c plummer.cpp 
+	g++ -I$(STRUCTURES_PATH) -I$(INCPATH) -c plummer.cpp 
 
 gen_util.o: gen_util.cpp 
 	g++ -I$(STRUCTURES_PATH) -c gen_util.cpp 

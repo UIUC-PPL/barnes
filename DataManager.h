@@ -124,7 +124,7 @@ class DataManager : public CBase_DataManager {
 
   void kickDriftKick(OrientedBox<Real> &box, Real &energy);
 
-  void hashParticleCoordinates(OrientedBox<Real> &universe);
+  void hashParticleCoordinates(const OrientedBox<Real> &universe);
   void initHistogramParticles();
   void sendHistogram();
   
@@ -158,9 +158,9 @@ class DataManager : public CBase_DataManager {
   public:
   DataManager();
 
-  void loadParticles(CkCallback &cb);
+  void loadParticles(const CkCallback &cb);
 
-  void decompose(BoundingBox &universe);
+  void decompose(const BoundingBox &universe);
   void receiveHistogram(CkReductionMsg *msg);
   void receiveSplitters(SplitterMsg *msg);
   void sendParticles(RangeMsg *msg);

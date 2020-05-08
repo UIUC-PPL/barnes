@@ -49,7 +49,7 @@ DataManager::DataManager() :
   savedEnergy = 0.0;
 }
 
-void DataManager::loadParticles(CkCallback &cb){
+void DataManager::loadParticles(const CkCallback &cb){
   numRankBits = LOG_BRANCH_FACTOR;
 
   const char *fname = globalParams.filename.c_str();
@@ -118,7 +118,7 @@ void DataManager::loadParticles(CkCallback &cb){
   contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
 }
 
-void DataManager::hashParticleCoordinates(OrientedBox<Real> &universe){
+void DataManager::hashParticleCoordinates(const OrientedBox<Real> &universe){
   Key prepend;
   prepend = 1L;
   prepend <<= (TREE_KEY_BITS-1);
@@ -150,7 +150,7 @@ void DataManager::hashParticleCoordinates(OrientedBox<Real> &universe){
   }
 }
 
-void DataManager::decompose(BoundingBox &universe){
+void DataManager::decompose(const BoundingBox &universe){
   hashParticleCoordinates(universe.box);
   myParticles.quickSort();
 
