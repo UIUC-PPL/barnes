@@ -113,7 +113,7 @@ class Node {
     return core.numChildren;
   }
 
-  int setChildren(Node<T> *ch, int n) {
+  void setChildren(Node<T> *ch, int n) {
     children = ch;
     core.numChildren = n;
   }
@@ -269,7 +269,7 @@ class Node {
     }
 
     // copy children into empty portion of buffer
-    memcpy(emptyBuf,getChildren(),sizeof(Node<T>)*getNumChildren());
+    memcpy((void*)emptyBuf,(void*)getChildren(),sizeof(Node<T>)*getNumChildren());
     if(placeInBuf != NULL){
       Node<T> *childInBuf = emptyBuf;
       for(int i = 0; i < getNumChildren(); i++){

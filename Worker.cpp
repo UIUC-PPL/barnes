@@ -168,7 +168,7 @@ int TreeChecker::work(Node<ForceData> *node){
   if(node->getParent() != NULL){
     os << "CHECK: " << node->getKey() << " parent " << node->getParent()->getKey() << endl;
   }
-  if(node->getChildren() > 0){
+  if(node->getChildren() != 0){
     for(int i = 0; i < node->getNumChildren(); i++){
       os << "CHECK: " << node->getKey() << " child " << i << " " << node->getChild(i)->getKey() << endl;
     }
@@ -184,5 +184,7 @@ int InteractionChecker::work(Node<ForceData> *node){
 
   for(int i = 0; i < BRANCH_FACTOR; i++){
   }
+
+  return 0;
 }
 

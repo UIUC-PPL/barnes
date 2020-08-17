@@ -84,7 +84,7 @@ void DataManager::loadParticles(const CkCallback &cb){
   if(partFile.fail()){
     std::ostringstream oss;
     oss << "couldn't seek to position " << offset << " on PE " << CkMyPe() << " position " << partFile.tellg() << endl;
-    CkAbort(oss.str().c_str());
+    CkAbort("%s", oss.str().c_str());
   }
   unsigned int numParticlesDone = 0;
 
