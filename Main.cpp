@@ -30,8 +30,8 @@ Main::Main(CkArgMsg *msg){
 
   thisProxy.commence();
 
-  CkCallback cb(CkIndex_Main::quiescence(),thisProxy);
-  CkStartQD(cb);
+  //CkCallback cb(CkIndex_Main::quiescence(),thisProxy);
+  //CkStartQD(cb);
 
   numQuiescenceRecvd = 0;
   delete msg;

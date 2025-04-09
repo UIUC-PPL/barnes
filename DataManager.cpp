@@ -47,6 +47,9 @@ DataManager::DataManager() :
   numInteractions[2] = 0;
 #endif
   savedEnergy = 0.0;
+  total_treepiece_count = 0;
+  contrib = -1;
+  resume_count = 0;
 }
 
 void DataManager::loadParticles(const CkCallback &cb){
@@ -331,12 +334,10 @@ void DataManager::sendParticlesToTreePiece(Node<NodeDescriptor> *nd, int tp) {
 
     keyRanges[(tp<<1)] = nd->data.smallestKey;
     keyRanges[(tp<<1)+1] = nd->data.largestKey;
-
   }
 }
 
 void DataManager::sendParticles(RangeMsg *msg){
-
   if(CkMyPe() != 0){
     numTreePieces = msg->numTreePieces;
     keyRanges = msg->keys;
@@ -346,8 +347,7 @@ void DataManager::sendParticles(RangeMsg *msg){
     flushParticles();
 
     senseTreePieces();
-
-    if(submittedParticles.length() == numLocalTreePieces){
+    if(submittedParticles.length() == numLocalTreePieces && numLocalTreePieces>0){
       processSubmittedParticles();
     }
   }
@@ -423,7 +423,6 @@ void DataManager::processSubmittedParticles(){
 }
 
 void DataManager::buildTree(){
-
   int rootDepth = 0;
   root = new Node<ForceData>(Key(1),rootDepth,myParticles.getVec(),myNumParticles);
   root->setOwners(0,numTreePieces-1);
@@ -841,7 +840,17 @@ void DataManager::traversalsDone()
   }
 }
 
+void DataManager::wakeup(int itr) {
+  if(numLocalTreePieces==0 && contrib<itr) {
+    contrib = itr;
+    DtReductionStruct dtred;
+    findMinVByA(dtred);
+    CkCallback cb(CkIndex_DataManager::advance(NULL),thisProxy);
+    contribute(sizeof(DtReductionStruct),&dtred,DtReductionType,cb);
+  }
+}
 void DataManager::finishIteration(){
+  thisProxy.wakeup(iteration);
   // can't advance particles here, because other PEs 
   // might not have finished their traversals yet, 
   // and therefore might need my particles
@@ -870,7 +879,6 @@ void DataManager::finishIteration(){
 }
 
 void DataManager::advance(CkReductionMsg *msg){
-
   DtReductionStruct *dtred = (DtReductionStruct *)(msg->getData());
   if(dtred->haveNaN){
     CkPrintf("(%d) iteration %d NaN accel detected! Exit...\n", CkMyPe(), iteration);
@@ -922,8 +930,31 @@ void DataManager::advance(CkReductionMsg *msg){
     contribute(0,0,CkReduction::sum_int,cb);
   }
   else{
-    cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
-    contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
+     if(iteration%5==0) {
+      if(CkMyPe()==0) {
+//        CkCallback cb(CkIndex_DataManager::quiescence2(),thisProxy);
+//        CkStartQD(cb);
+      }
+#if 1
+      for(int i = 0; i < numLocalTreePieces; i++){
+        TreePieceDescriptor &descr = submittedParticles[i];
+        descr.owner->prepare(root,myBuckets.getVec(),0,0);
+        int tpIndex = descr.owner->getIndex();
+        myBoxSaved = myBox;
+        treePieceProxy[tpIndex].startLB();
+      }
+#endif
+    } else {
+      if(iteration==globalParams.iterations-2) {
+        if(CkMyPe()==0) {
+          CkCallback cb(CkIndex_DataManager::quiescence(),thisProxy);
+          CkStartQD(cb);
+        }
+      }
+    
+      cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
+      contribute(sizeof(BoundingBox),&myBox,BoundingBoxGrowReductionType,cb);
+    }
   }
   delete msg;
 }
@@ -976,6 +1007,13 @@ void DataManager::freeCachedData(){
 
   nodeRequestTable.clear();
   particleRequestTable.clear();
+}
+
+void DataManager::quiescence2() {
+  senseTreePieces();
+  CkCallback cb;
+  cb = CkCallback(CkIndex_DataManager::recvUnivBoundingBox(NULL),thisProxy);
+  contribute(sizeof(BoundingBox),&myBoxSaved,BoundingBoxGrowReductionType,cb);
 }
 
 void DataManager::quiescence(){
@@ -1105,7 +1143,13 @@ void DataManager::markNaNBuckets(){
   }
 }
 
-
+void DataManager::resume() {
+  resume_count++;
+  if(resume_count == globalParams.numTreePieces) {
+    resume_count = 0;
+    thisProxy.quiescence2();
+  }
+}
 
 #include "Traversal_defs.h"
 

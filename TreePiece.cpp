@@ -24,6 +24,7 @@ TreePiece::TreePiece() :
   iteration(0),
   numTraversalsDone(0)
 {
+  usesAtSync = true;
   myDM = dataManagerProxy.ckLocalBranch();
 }
 
@@ -205,6 +206,18 @@ void TreePiece::pup(PUP::er &p){
   if(p.isUnpacking()){
   }
 }
+
+void TreePiece::startLB(){
+  AtSync();
+}
+
+void TreePiece::ResumeFromSync() {
+  myDM = dataManagerProxy.ckLocalBranch();
+  finishIteration();
+  totalNumTraversals = 2;
+  dataManagerProxy[0].resume();
+}
+
 
 #include "Traversal_defs.h"
 

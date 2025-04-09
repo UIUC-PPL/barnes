@@ -72,6 +72,8 @@ class TreePiece : public CBase_TreePiece {
   void remoteGravityDone();
   void requestMoments(Key k, int replyTo);
 
+  void startLB();
+  void ResumeFromSync();
   void quiescence();
   int getIteration();
 

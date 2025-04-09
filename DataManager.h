@@ -70,6 +70,7 @@ class DataManager : public CBase_DataManager {
 
   CkVec<Particle> myParticles;
   int myNumParticles;
+  BoundingBox myBoxSaved;
 
   bool firstSplitterRound;
 
@@ -78,6 +79,8 @@ class DataManager : public CBase_DataManager {
 
   int iteration;
   int decompIterations;
+  int total_treepiece_count;
+  int contrib;
   ActiveBinInfo<NodeDescriptor> activeBins;
 
   TreePieceCounter localTreePieces;
@@ -192,7 +195,10 @@ class DataManager : public CBase_DataManager {
   void recvUnivBoundingBox(CkReductionMsg *msg);
 
   void quiescence();
-
+  void quiescence2();
+  int resume_count;
+  void resume();
+  void wakeup(int);
   void addBucketNodeInteractions(Key k, CmiUInt8 pn);
   void addBucketPartInteractions(Key k, CmiUInt8 pp);
 };
