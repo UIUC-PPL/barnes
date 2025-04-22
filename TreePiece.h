@@ -19,6 +19,7 @@ class TreePiece : public CBase_TreePiece {
   int numDecompMsgsRecvd;
   CkVec<ParticleMsg *> decompMsgsRecvd;
   int myNumParticles;
+  Vector3D<Real> centroid;
 
   int iteration;
 
