@@ -26,9 +26,7 @@ TreePiece::TreePiece() :
 {
   usesAtSync = true;
   myDM = dataManagerProxy.ckLocalBranch();
-  centroid.x = 0.0;
-  centroid.y = 0.0;
-  centroid.z = 0.0;
+  centroid.x = centroid.y = centroid.z= 0.0;
 }
 
 void TreePiece::receiveParticles(ParticleMsg *msg){
@@ -38,7 +36,6 @@ void TreePiece::receiveParticles(ParticleMsg *msg){
   numDecompMsgsRecvd++;
 
   for(int i=0;i<msgNumParticles;i++) {
-    //TODO:centroid value needs to be reset at resumfromsync
     centroid.x += msg->part[i].position.x;
     centroid.y += msg->part[i].position.y;
     centroid.z += msg->part[i].position.z;
@@ -51,7 +48,7 @@ void TreePiece::receiveParticles(ParticleMsg *msg){
     centroid.x /= myNumParticles;
     centroid.y /= myNumParticles;
     centroid.z /= myNumParticles;
-    std::vector<LBRealType> centroid_val = {(LBRealType)centroid.x, (LBRealType)centroid.y, (LBRealType)centroid.z};
+    std::vector<LBRealType> centroid_val = {centroid.x, centroid.y, centroid.z};
     setObjPosition(centroid_val);
     submitParticles();
     numDecompMsgsRecvd = 0;
@@ -61,6 +58,11 @@ void TreePiece::receiveParticles(ParticleMsg *msg){
 void TreePiece::receiveParticles(){
   numDecompMsgsRecvd++;
   if(numDecompMsgsRecvd == CkNumPes()){
+    centroid.x /= myNumParticles;
+    centroid.y /= myNumParticles;
+    centroid.z /= myNumParticles;
+    std::vector<LBRealType> centroid_val = {centroid.x, centroid.y, centroid.z};
+    setObjPosition(centroid_val);
     submitParticles();
     numDecompMsgsRecvd = 0;
   }
@@ -176,6 +178,7 @@ void TreePiece::finishIteration(){
   myNumParticles = 0;
   numDecompMsgsRecvd = 0;
   decompMsgsRecvd.length() = 0;
+  centroid.x = centroid.y = centroid.z = 0.0;
 
   iteration++;
 
