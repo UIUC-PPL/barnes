@@ -5,7 +5,7 @@ mainmodule barnes {
   readonly CProxy_Main mainProxy;
   readonly Parameters globalParams;
 
-  initproc void registerReducers();
+  initnode void registerReducers();
 
   class Parameters;
   class MultipoleMoments;
