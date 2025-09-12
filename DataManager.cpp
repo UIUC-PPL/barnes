@@ -46,6 +46,7 @@ DataManager::DataManager() :
   numInteractions[1] = 0;
   numInteractions[2] = 0;
 #endif
+  avgIterationRuntime = 0.0;
   savedEnergy = 0.0;
 }
 
@@ -157,6 +158,7 @@ void DataManager::decompose(const BoundingBox &universe){
   if(CkMyPe()==0){
     float memMB = (1.0*CmiMemoryUsage())/(1<<20);
     ostringstream oss; 
+#ifdef STATISTICS
     CkPrintf("(%d) prev time %g s\n", CkMyPe(), CmiWallTimer()-prevIterationStart);
     CkPrintf("(%d) start iteration %d\n", CkMyPe(), iteration);
     CkPrintf("(%d) mem %.2f MB\n", CkMyPe(), memMB);
@@ -169,7 +171,9 @@ void DataManager::decompose(const BoundingBox &universe){
               universe.box.greater_corner.y,
               universe.box.greater_corner.z,
               universe.energy);
+#endif
 
+    avgIterationRuntime += (CmiWallTimer()-prevIterationStart);
     prevIterationStart = CkWallTimer();
   }
 
@@ -247,7 +251,9 @@ void DataManager::receiveHistogram(CkReductionMsg *msg){
   }
   else{
     // create tree pieces and send proxy
+    #ifdef STATISTICS
     CkPrintf("[0] decomp done after %d iterations used treepieces %d\n", decompIterations, numTreePieces);
+    #endif
     decompIterations = 0;
     
     keyRanges = new Key[numTreePieces*2];
@@ -919,6 +925,8 @@ void DataManager::advance(CkReductionMsg *msg){
   CkCallback cb;
   if(iteration == globalParams.iterations){
     cb = CkCallback(CkIndex_Main::niceExit(),mainProxy);
+    if (thisIndex == 0) 
+      CkPrintf("(%d) finished all %d iterations with avg time %f\n", CkMyPe(), iteration, avgIterationRuntime/globalParams.iterations);
     contribute(0,0,CkReduction::sum_int,cb);
   }
   else{

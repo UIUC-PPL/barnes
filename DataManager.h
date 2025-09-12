@@ -67,6 +67,8 @@ struct CacheStats {
 class DataManager : public CBase_DataManager {
   int numRankBits;
   double prevIterationStart;
+  double avgIterationRuntime;
+
 
   CkVec<Particle> myParticles;
   int myNumParticles;
